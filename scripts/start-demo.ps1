@@ -102,6 +102,9 @@ try {
     if (-not ($backendReady -and $frontendReady)) {
         throw "Local demo services did not become ready in time"
     }
+    if ($null -eq $page -or $page.Content -notmatch 'id="app"') {
+        throw "Frontend page did not expose the expected Vue app mount point"
+    }
 
     Write-Output "DevSage demo running: http://127.0.0.1:$frontendPort"
     Write-Output "Backend health: http://127.0.0.1:$backendPort/health"
