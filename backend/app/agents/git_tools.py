@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import subprocess
+import os
 import re
+import subprocess
 from pathlib import Path
 
 from ..ingestion.models import ChunkRecord
@@ -11,7 +12,12 @@ from ..retrieval.keyword_search import tokenize
 from ..retrieval.models import SearchResult
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(
+    os.getenv(
+        "DEVSAGE_GIT_ROOT",
+        os.getenv("DEVSAGE_PROJECT_ROOT", str(Path(__file__).resolve().parents[3])),
+    )
+).resolve()
 
 
 class GitToolError(RuntimeError):

@@ -10,20 +10,29 @@ services:
       - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - devsage-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-devsage} -d ${POSTGRES_DB:-devsage}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   backend:
     build:
       context: ./backend
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL before starting Docker Compose}
-      SAMPLE_DATA_ROOT: /workspace/sample-data
+      DEVSAGE_PROJECT_ROOT: /app
+      DEVSAGE_GIT_ROOT: /workspace
+      DEVSAGE_STORAGE: postgres
+      SAMPLE_DATA_ROOT: sample-data
     volumes:
-      - ./sample-data:/workspace/sample-data:ro
+      - ./sample-data:/app/sample-data:ro
+      - ./.git:/workspace/.git:ro
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
 volumes:
   devsage-postgres-data:
-

@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS projects (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS projects_name_idx
+    ON projects (name);
+
 CREATE TABLE IF NOT EXISTS documents (
     id BIGSERIAL PRIMARY KEY,
     project_id BIGINT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -43,4 +46,3 @@ CREATE INDEX IF NOT EXISTS chunks_content_fts_idx
 
 CREATE INDEX IF NOT EXISTS chunks_embedding_hnsw_idx
     ON chunks USING hnsw (embedding vector_cosine_ops);
-

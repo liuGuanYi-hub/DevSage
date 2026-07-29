@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from threading import RLock
 
@@ -11,9 +12,12 @@ from ..retrieval.keyword_search import search_keyword
 from ..retrieval.models import SearchResult
 from ..retrieval.rrf import reciprocal_rank_fusion
 from ..retrieval.provider_factory import create_embedding_provider
+from ..storage.postgres_repository import PostgresIndexRepository
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(
+    os.getenv("DEVSAGE_PROJECT_ROOT", str(Path(__file__).resolve().parents[3]))
+).resolve()
 
 CODE_QUERY_EXPANSIONS = {
     "用户": "user UserController UserService",
@@ -49,12 +53,42 @@ def resolve_source_root(source_root: str) -> Path:
 
 
 class IndexService:
-    """Cache deterministic snapshots until persistence is introduced."""
+    """Build local snapshots and optionally persist/search them in PostgreSQL."""
 
-    def __init__(self, embedding_provider=None) -> None:
+    def __init__(self, embedding_provider=None, persistence=None) -> None:
         self._snapshots: dict[str, IndexSnapshot] = {}
         self._lock = RLock()
         self.embedding_provider = embedding_provider or create_embedding_provider()
+        self.persistence = persistence if persistence is not None else self._create_persistence()
+        self._persistence_initialized = False
+
+    @staticmethod
+    def _create_persistence():
+        mode = os.getenv("DEVSAGE_STORAGE", "memory").strip().lower()
+        if mode in {"", "memory", "in-memory"}:
+            return None
+        if mode in {"postgres", "postgresql"}:
+            return PostgresIndexRepository()
+        raise ValueError(f"unsupported DEVSAGE_STORAGE mode: {mode}")
+
+    def _persist_snapshot(
+        self,
+        relative_root: str,
+        resolved_root: Path,
+        snapshot: IndexSnapshot,
+    ) -> None:
+        if self.persistence is None:
+            return
+        if not self._persistence_initialized:
+            self.persistence.initialize()
+            self._persistence_initialized = True
+        embeddings = self.embedding_provider.embed([chunk.content for chunk in snapshot.chunks])
+        self.persistence.save_snapshot(
+            project_name=relative_root,
+            repository_path=str(resolved_root),
+            snapshot=snapshot,
+            embeddings=embeddings,
+        )
 
     def build(self, source_root: str) -> tuple[str, IndexSnapshot]:
         resolved = resolve_source_root(source_root)
@@ -62,9 +96,11 @@ class IndexService:
         with self._lock:
             previous = self._snapshots.get(key)
         snapshot = build_index(resolved, previous=previous)
+        relative_root = resolved.relative_to(PROJECT_ROOT).as_posix()
+        self._persist_snapshot(relative_root, resolved, snapshot)
         with self._lock:
             self._snapshots[key] = snapshot
-        return resolved.relative_to(PROJECT_ROOT).as_posix(), snapshot
+        return relative_root, snapshot
 
     def get_or_build(self, source_root: str) -> tuple[str, IndexSnapshot]:
         resolved = resolve_source_root(source_root)
@@ -77,6 +113,8 @@ class IndexService:
 
     def search(self, source_root: str, query: str, top_k: int) -> tuple[str, list[SearchResult]]:
         relative_root, snapshot = self.get_or_build(source_root)
+        if self.persistence is not None:
+            return relative_root, self.persistence.search_keyword(relative_root, query, top_k)
         return relative_root, search_keyword(snapshot.chunks, query, top_k=top_k)
 
     def search_hybrid(
@@ -86,6 +124,13 @@ class IndexService:
         top_k: int,
     ) -> tuple[str, list[SearchResult]]:
         relative_root, snapshot = self.get_or_build(source_root)
+        if self.persistence is not None:
+            return relative_root, self.persistence.search_hybrid(
+                relative_root,
+                query,
+                top_k,
+                self.embedding_provider,
+            )
         return relative_root, search_hybrid(
             snapshot.chunks,
             query,

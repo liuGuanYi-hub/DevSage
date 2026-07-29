@@ -55,7 +55,8 @@
 ### 阶段 2：DevMind 可用 MVP
 
 - [x] 接入可选的 OpenAI-compatible Embedding Provider，并保留仅用于离线测试的 Hash Provider；
-- [x] 写入 PostgreSQL + pgvector 初始迁移草案，尚未启动真实数据库；
+- [x] 写入 PostgreSQL + pgvector 初始迁移和可选持久化适配器；
+- [ ] 启动真实 PostgreSQL/pgvector，完成迁移、索引写入和数据库检索 API smoke；
 - [x] 实现离线向量检索边界；
 - [x] 实现关键词与离线向量的 RRF 融合基线；
 - [x] 实现来源引用模型；

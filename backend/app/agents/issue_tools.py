@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from ..ingestion.models import ChunkRecord
@@ -10,7 +11,9 @@ from ..retrieval.keyword_search import tokenize
 from ..retrieval.models import SearchResult
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(
+    os.getenv("DEVSAGE_PROJECT_ROOT", str(Path(__file__).resolve().parents[3]))
+).resolve()
 ISSUE_PATH = PROJECT_ROOT / "sample-data/issues/issues.json"
 
 
@@ -68,4 +71,3 @@ def search_issues(query: str, limit: int = 5) -> list[SearchResult]:
 
     results.sort(key=lambda result: (-result.score, result.chunk.source_path))
     return results[:limit]
-

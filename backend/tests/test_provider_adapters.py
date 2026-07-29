@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from backend.app.retrieval.embeddings import (
     EmbeddingProviderError,
+    HashEmbeddingProvider,
     OpenAICompatibleEmbeddingProvider,
 )
 from backend.app.retrieval.provider_factory import create_embedding_provider
@@ -48,6 +49,23 @@ class ProviderAdapterTests(unittest.TestCase):
             vector_literal([0.1, 0.2], expected_dimension=3)
         self.assertTrue(vector_literal([0.1, 0.2, 0.3], expected_dimension=3).startswith("["))
 
+    def test_default_hash_embedding_matches_pgvector_dimension(self) -> None:
+        vector = HashEmbeddingProvider().embed(["8080 端口"])[0]
+        self.assertEqual(1024, len(vector))
+        self.assertTrue(vector_literal(vector).startswith("["))
+
+    def test_non_matching_embedding_dimension_is_rejected_before_connection(self) -> None:
+        repository = PostgresIndexRepository(
+            database_url="postgresql://example.invalid/devsage"
+        )
+        with self.assertRaises(PostgresRepositoryError):
+            repository.search_vector(
+                "sample-data",
+                "query",
+                top_k=1,
+                provider=HashEmbeddingProvider(dimension=8),
+            )
+
     def test_postgres_repository_fails_clearly_without_database_url(self) -> None:
         with patch.dict(os.environ, {"DATABASE_URL": ""}, clear=False):
             repository = PostgresIndexRepository(database_url="")
@@ -57,7 +75,17 @@ class ProviderAdapterTests(unittest.TestCase):
     def test_postgres_repository_exposes_checked_in_migration(self) -> None:
         migration = PostgresIndexRepository.migration_sql()
         self.assertIn("CREATE EXTENSION IF NOT EXISTS vector", migration)
+        self.assertIn("projects_name_idx", migration)
         self.assertIn("embedding vector(1024)", migration)
+
+    def test_postgres_repository_reconstructs_chunk_rows(self) -> None:
+        chunk = PostgresIndexRepository._chunk_from_row(
+            ("chunk-1", "docs/example.md", "markdown", "content", 2, 5, {"title": "Example"})
+        )
+        self.assertEqual("docs/example.md", chunk.source_path)
+        self.assertEqual(2, chunk.start_line)
+        self.assertEqual(5, chunk.end_line)
+        self.assertEqual({"title": "Example"}, chunk.metadata)
 
     def test_provider_factory_defaults_to_offline_hash(self) -> None:
         with patch.dict(os.environ, {"EMBEDDING_PROVIDER": "hash"}, clear=False):

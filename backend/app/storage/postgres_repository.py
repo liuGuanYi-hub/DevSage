@@ -4,10 +4,16 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from ..ingestion.indexer import IndexSnapshot
+from ..ingestion.models import ChunkRecord
+from ..retrieval.embeddings import EmbeddingProvider
+from ..retrieval.keyword_search import search_keyword as search_keyword_chunks
+from ..retrieval.models import SearchResult
+from ..retrieval.rrf import reciprocal_rank_fusion
 
 
 VECTOR_DIMENSION = 1024
@@ -31,16 +37,26 @@ def vector_literal(values: list[float], expected_dimension: int = VECTOR_DIMENSI
 class PostgresIndexRepository:
     """Persist index snapshots when psycopg and a database URL are available."""
 
-    def __init__(self, database_url: str | None = None) -> None:
+    def __init__(
+        self,
+        database_url: str | None = None,
+        connection_factory: Callable[[], Any] | None = None,
+    ) -> None:
         self.database_url = database_url or os.getenv("DATABASE_URL", "").strip()
+        self._connection_factory = connection_factory
 
     @staticmethod
     def migration_sql() -> str:
         return MIGRATION_PATH.read_text(encoding="utf-8")
 
     def _connect(self):
+        if self._connection_factory is not None:
+            return self._connection_factory()
         if not self.database_url:
             raise PostgresRepositoryError("DATABASE_URL is not configured")
+        database_url = self.database_url.replace(
+            "postgresql+psycopg://", "postgresql://", 1
+        )
         try:
             import psycopg
         except ImportError as exc:
@@ -48,9 +64,128 @@ class PostgresIndexRepository:
                 "psycopg is required only when PostgreSQL persistence is enabled"
             ) from exc
         try:
-            return psycopg.connect(self.database_url)
+            return psycopg.connect(database_url)
         except Exception as exc:  # psycopg exposes provider-specific exceptions
             raise PostgresRepositoryError("PostgreSQL connection failed") from exc
+
+    @staticmethod
+    def _chunk_from_row(row: tuple[Any, ...]) -> ChunkRecord:
+        metadata = row[6] if len(row) > 6 else {}
+        if isinstance(metadata, str):
+            try:
+                metadata = json.loads(metadata)
+            except json.JSONDecodeError:
+                metadata = {}
+        if not isinstance(metadata, dict):
+            metadata = {}
+        return ChunkRecord(
+            chunk_id=str(row[0]),
+            source_path=str(row[1]),
+            file_type=str(row[2]),
+            content=str(row[3]),
+            start_line=int(row[4]),
+            end_line=int(row[5]),
+            metadata={str(key): str(value) for key, value in metadata.items()},
+        )
+
+    def _fetch_chunks(self, project_name: str) -> list[ChunkRecord]:
+        """Load persisted chunks for the keyword and project tools."""
+
+        connection = self._connect()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT c.chunk_id, d.file_path, d.file_type, c.content,
+                           c.start_line, c.end_line, c.metadata
+                    FROM chunks AS c
+                    JOIN documents AS d ON d.id = c.document_id
+                    JOIN projects AS p ON p.id = d.project_id
+                    WHERE p.name = %s
+                    ORDER BY d.file_path, c.start_line
+                    """,
+                    (project_name,),
+                )
+                rows = cursor.fetchall()
+            return [self._chunk_from_row(row) for row in rows]
+        except Exception as exc:
+            raise PostgresRepositoryError("PostgreSQL chunk query failed") from exc
+        finally:
+            connection.close()
+
+    def search_keyword(
+        self,
+        project_name: str,
+        query: str,
+        top_k: int,
+    ) -> list[SearchResult]:
+        """Run the deterministic keyword ranker over persisted chunks."""
+
+        return search_keyword_chunks(self._fetch_chunks(project_name), query, top_k=top_k)
+
+    def search_vector(
+        self,
+        project_name: str,
+        query: str,
+        top_k: int,
+        provider: EmbeddingProvider,
+    ) -> list[SearchResult]:
+        """Run pgvector cosine search over the persisted embedding column."""
+
+        if top_k <= 0:
+            return []
+        query_vector = provider.embed([query])[0]
+        try:
+            vector = vector_literal(query_vector)
+        except ValueError as exc:
+            raise PostgresRepositoryError(
+                "embedding dimension does not match pgvector schema"
+            ) from exc
+        connection = self._connect()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT c.chunk_id, d.file_path, d.file_type, c.content,
+                           c.start_line, c.end_line, c.metadata,
+                           1 - (c.embedding <=> %s::vector) AS score
+                    FROM chunks AS c
+                    JOIN documents AS d ON d.id = c.document_id
+                    JOIN projects AS p ON p.id = d.project_id
+                    WHERE p.name = %s AND c.embedding IS NOT NULL
+                    ORDER BY c.embedding <=> %s::vector, d.file_path, c.start_line
+                    LIMIT %s
+                    """,
+                    (vector, project_name, vector, top_k),
+                )
+                rows = cursor.fetchall()
+            results: list[SearchResult] = []
+            for row in rows:
+                chunk = self._chunk_from_row(row[:7])
+                results.append(SearchResult(chunk=chunk, score=float(row[7]), matched_terms=()))
+            return results
+        except Exception as exc:
+            raise PostgresRepositoryError("PostgreSQL vector query failed") from exc
+        finally:
+            connection.close()
+
+    def search_hybrid(
+        self,
+        project_name: str,
+        query: str,
+        top_k: int,
+        provider: EmbeddingProvider,
+    ) -> list[SearchResult]:
+        """Fuse persisted keyword and pgvector candidates with RRF."""
+
+        candidate_k = max(top_k * 4, 10)
+        return reciprocal_rank_fusion(
+            [
+                self.search_keyword(project_name, query, candidate_k),
+                self.search_vector(project_name, query, candidate_k, provider),
+            ],
+            top_k=top_k,
+        )
 
     def initialize(self) -> None:
         """Apply the checked-in migration to the configured database."""
@@ -77,6 +212,10 @@ class PostgresIndexRepository:
 
         if len(embeddings) != len(snapshot.chunks):
             raise ValueError("embeddings must match snapshot chunk count")
+        if any(len(embedding) != VECTOR_DIMENSION for embedding in embeddings):
+            raise PostgresRepositoryError(
+                "embedding dimension does not match pgvector schema"
+            )
         connection = self._connect()
         try:
             with connection.cursor() as cursor:
@@ -91,6 +230,17 @@ class PostgresIndexRepository:
                     (project_name, "", repository_path),
                 )
                 project_id = cursor.fetchone()[0]
+                document_paths = [document.source_path for document in snapshot.documents]
+                if document_paths:
+                    cursor.execute(
+                        """
+                        DELETE FROM documents
+                        WHERE project_id = %s AND NOT (file_path = ANY(%s))
+                        """,
+                        (project_id, document_paths),
+                    )
+                else:
+                    cursor.execute("DELETE FROM documents WHERE project_id = %s", (project_id,))
                 chunks_by_source: dict[str, list[tuple[Any, list[float]]]] = {}
                 for chunk, embedding in zip(snapshot.chunks, embeddings):
                     chunks_by_source.setdefault(chunk.source_path, []).append((chunk, embedding))

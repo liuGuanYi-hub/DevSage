@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from uuid import uuid4
@@ -37,7 +38,11 @@ class AgentRunner:
         self.max_retries = max_retries
         self.max_runtime_seconds = max_runtime_seconds
         self.writeback_service = writeback_service or KnowledgeWritebackService(
-            Path(__file__).resolve().parents[3] / "data" / "approved-notes"
+            Path(
+                os.getenv("DEVSAGE_PROJECT_ROOT", str(Path(__file__).resolve().parents[3]))
+            ).resolve()
+            / "data"
+            / "approved-notes"
         )
         self.graph = AgentGraph(
             nodes={

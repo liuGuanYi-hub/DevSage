@@ -31,7 +31,9 @@ class HashEmbeddingProvider:
     testable before a real local or hosted embedding provider is selected.
     """
 
-    dimension: int = 64
+    # Keep the offline baseline compatible with the pgvector migration and
+    # the common BGE-M3 embedding dimension used by the project.
+    dimension: int = 1024
 
     def __post_init__(self) -> None:
         if self.dimension < 8:

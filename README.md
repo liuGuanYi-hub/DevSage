@@ -6,7 +6,7 @@ DevSage 是基于 Agentic RAG 的研发知识库与故障排查系统。当前�
 
 - `DevMind`：个人模式，优先连接 Obsidian 笔记和个人项目代码；
 - `DevSage`：后续扩展到 Git、Issue、多项目和团队协作；
-- 当前仍未接入 PostgreSQL/pgvector 持久化、真实 Embedding 服务和外部 Issue 平台；LangGraph 已在项目本地虚拟环境完成可选适配 smoke。
+- 已接入可选 PostgreSQL/pgvector 持久化适配器、迁移和数据库检索路径；真实容器迁移与端到端 smoke 仍待启动验证。真实 Embedding 服务和外部 Issue 平台仍未接入；LangGraph 已在项目本地虚拟环境完成可选适配 smoke。
 
 ## 目录结构
 
@@ -61,7 +61,7 @@ python -m backend.app.mcp.server
 ## 下一步
 
 1. 在 LangGraph 适配之上接入 checkpoint 和 Agent API；
-2. 接入 PostgreSQL 全文检索和 pgvector 持久化；
+2. 启动 PostgreSQL/pgvector，完成迁移、索引写入和数据库检索端到端 smoke；
 3. 选择真实 Embedding Provider 并替换 Hash 测试替身；
 4. 接入外部 Issue 和正式 MCP 宿主；
 5. 扩充评估集并持续比较检索策略。

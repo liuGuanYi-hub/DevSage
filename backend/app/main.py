@@ -5,6 +5,7 @@
 
 from pathlib import Path
 import json
+import os
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -39,9 +40,12 @@ from .services.task_store import (
     TaskStateError,
     TaskStateNotFoundError,
 )
+from .storage.postgres_repository import PostgresRepositoryError
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(
+    os.getenv("DEVSAGE_PROJECT_ROOT", str(Path(__file__).resolve().parents[2]))
+).resolve()
 
 app = FastAPI(
     title="DevSage API",
@@ -77,6 +81,8 @@ def index_source(request: IndexRequest) -> IndexResponse:
         source_root, snapshot = index_service.build(request.source_root)
     except SourceRootError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PostgresRepositoryError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     stats = snapshot.stats
     return IndexResponse(
         source_root=source_root,
@@ -101,6 +107,8 @@ def search_source(request: SearchRequest) -> SearchResponse:
         )
     except SourceRootError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PostgresRepositoryError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     hits = [_to_search_hit(result) for result in results]
     return SearchResponse(query=request.query, source_root=source_root, results=hits)
@@ -166,6 +174,8 @@ def answer_question(request: AnswerRequest) -> AnswerResponse:
         )
     except SourceRootError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PostgresRepositoryError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     return _answer_response(
         request.query,
         source_root,
@@ -185,6 +195,8 @@ def stream_answer(request: AnswerRequest) -> StreamingResponse:
         )
     except SourceRootError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PostgresRepositoryError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     draft = compose_evidence_answer(request.query, results)
     response = _answer_response(request.query, source_root, draft)
@@ -207,6 +219,8 @@ def run_agent(request: AgentRequest) -> AgentResponse:
         state = agent_runner.run(request.query, request.source_root, request.top_k)
     except SourceRootError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PostgresRepositoryError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     if request.persist:
         task_store.save(state)
     return _agent_response(state)
