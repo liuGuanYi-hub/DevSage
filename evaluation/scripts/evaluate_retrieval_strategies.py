@@ -19,13 +19,33 @@ from backend.app.ingestion.chunkers import split_document
 from backend.app.ingestion.indexer import build_index
 from backend.app.ingestion.loaders import load_document
 from backend.app.retrieval.embeddings import HashEmbeddingProvider
-from backend.app.retrieval.hybrid_search import search_hybrid
 from backend.app.retrieval.keyword_search import search_keyword
 from backend.app.retrieval.models import SearchResult
+from backend.app.retrieval.rrf import reciprocal_rank_fusion, select_source_diverse
 from backend.app.retrieval.vector_search import search_vector
 
 
 SearchStrategy = Callable[[tuple, str, int], list[SearchResult]]
+
+
+def _hybrid_candidates(
+    chunks: tuple,
+    query: str,
+    top_k: int,
+    provider: HashEmbeddingProvider,
+) -> list[SearchResult]:
+    candidate_k = max(top_k * 4, 10)
+    keyword_results = search_keyword(chunks, query, top_k=candidate_k)
+    vector_results = search_vector(
+        chunks,
+        query,
+        top_k=candidate_k,
+        provider=provider,
+    )
+    return reciprocal_rank_fusion(
+        [keyword_results, vector_results],
+        top_k=candidate_k,
+    )
 
 
 def load_cases_and_chunks() -> tuple[list[dict], tuple]:
@@ -84,15 +104,22 @@ def evaluate(top_k: int = 5) -> dict[str, dict[str, float | int]]:
     def vector(items: tuple, query: str, limit: int) -> list[SearchResult]:
         return search_vector(items, query, top_k=limit, provider=provider)
 
-    def hybrid(items: tuple, query: str, limit: int) -> list[SearchResult]:
-        return search_hybrid(items, query, top_k=limit, provider=provider)
+    def raw_rrf(items: tuple, query: str, limit: int) -> list[SearchResult]:
+        return _hybrid_candidates(items, query, limit, provider)[:limit]
+
+    def source_diverse_rerank(
+        items: tuple, query: str, limit: int
+    ) -> list[SearchResult]:
+        candidates = _hybrid_candidates(items, query, limit, provider)
+        return select_source_diverse(candidates, top_k=limit, max_per_source=1)
 
     return {
         name: evaluate_strategy(strategy, cases, chunks, top_k=top_k)
         for name, strategy in (
             ("keyword", keyword),
             ("vector", vector),
-            ("hybrid", hybrid),
+            ("hybrid_raw_rrf", raw_rrf),
+            ("hybrid_source_diverse", source_diverse_rerank),
         )
     }
 

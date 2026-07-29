@@ -115,14 +115,15 @@
 
 更新后的 50 条 Agent 评估结果为：Agent Source Recall@5 `0.9800`，完整来源案例率 `0.9600`，失败案例 `2/50`；Expected Tool Coverage 保持 `0.9333`，Fully Covered Case Rate 保持 `0.8400`。剩余两条均为 expected source 中的 `.env.example` 超出当前 `sample-data` source root，保留作为数据边界提示。
 
-## 2026-07-30 03:13：三策略检索对比
+## 2026-07-30 03:13：检索策略与可解释重排对比
 
-新增 `evaluation/scripts/evaluate_retrieval_strategies.py`，统一加载 50 条固定问题、`sample-data` 加根目录 `.env.example` 的同一批 Chunk，并固定使用 `HashEmbeddingProvider(dimension=1024)` 对比纯关键词、纯向量和混合检索。三种策略均使用 Top-K=5，指标定义保持 Case Recall@5、Source Recall@5 和 MRR。
+新增 `evaluation/scripts/evaluate_retrieval_strategies.py`，统一加载 50 条固定问题、`sample-data` 加根目录 `.env.example` 的同一批 Chunk，并固定使用 `HashEmbeddingProvider(dimension=1024)` 对比纯关键词、纯向量、原始 RRF 和来源多样性重排。所有策略均使用 Top-K=5，指标定义保持 Case Recall@5、Source Recall@5 和 MRR。
 
 | 策略 | Case Recall@5 | Source Recall@5 | MRR |
 |---|---:|---:|---:|
 | 纯关键词 | 0.7200 | 0.5450 | 0.4347 |
 | 纯 Hash 向量 | 0.7800 | 0.6383 | 0.6807 |
-| 混合（关键词 + Hash 向量 + RRF） | 0.8200 | 0.6783 | 0.6753 |
+| 混合（关键词 + Hash 向量 + 原始 RRF） | 0.7400 | 0.5717 | 0.6540 |
+| 混合 + 来源多样性重排 | 0.8200 | 0.6783 | 0.6753 |
 
-这组实测结果显示，在当前脱敏数据集上混合检索的来源覆盖最高，纯向量的 MRR 略高；不能据此推断真实 Embedding 或生产数据上的效果。Hash Provider 是确定性接口替身，后续仍需真实 Embedding、Reranker 和 PostgreSQL/pgvector 端到端结果。
+这组实测结果显示，在当前脱敏数据集上，来源多样性重排相对原始 RRF 将 Case Recall@5 从 `0.7400` 提升到 `0.8200`、Source Recall@5 从 `0.5717` 提升到 `0.6783`；纯向量的 MRR 仍略高。这里的 reranker 是可解释的来源多样性选择，不是神经 Cross-Encoder，不能据此推断真实 Embedding 或生产数据上的效果。

@@ -9,7 +9,7 @@ DevSage 是基于 Agentic RAG 的研发知识库与故障排查系统。当前�
 
 - `DevMind`：个人模式，优先连接 Obsidian 笔记和个人项目代码；
 - `DevSage`：后续扩展到 Git、Issue、多项目和团队协作；
-- 固定 50 条问题上的检索策略实测：纯关键词 Case Recall@5 `0.7200` / Source Recall@5 `0.5450` / MRR `0.4347`，纯 Hash 向量 `0.7800` / `0.6383` / `0.6807`，混合检索 `0.8200` / `0.6783` / `0.6753`；Hash 向量仅是离线接口替身，不代表生产 Embedding 效果。
+- 固定 50 条问题上的检索策略实测：纯关键词 Case Recall@5 `0.7200` / Source Recall@5 `0.5450` / MRR `0.4347`，纯 Hash 向量 `0.7800` / `0.6383` / `0.6807`，原始 RRF `0.7400` / `0.5717` / `0.6540`，混合加来源多样性重排 `0.8200` / `0.6783` / `0.6753`；Hash 向量和当前 reranker 都是离线可解释基线，不代表生产 Embedding 或神经 Reranker 效果。
 - 已接入可选 PostgreSQL/pgvector 索引与 Agent task state 持久化、迁移和数据库检索路径；真实容器迁移与端到端 smoke 仍待启动验证。真实 Embedding 服务和外部 Issue 平台仍未接入；LangGraph 已在项目本地虚拟环境完成可选适配 smoke。
 
 ## 目录结构

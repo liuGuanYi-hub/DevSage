@@ -109,7 +109,7 @@
 - [x] 将测试集扩充到 50 条，继续向 50～100 条范围扩展；
 - [x] 为 50 条问题标注正确来源、参考答案和预期工具；
 - [x] 对比纯关键词、纯离线 Hash 向量和混合检索，并记录固定 50 条数据集实测结果；
-- [ ] 对比加入 Reranker 前后的效果；
+- [x] 对比加入来源多样性 Reranker 前后的效果（仍待真实神经 Reranker）；
 - [x] 统计 Recall@5、MRR；
 - [x] 统计 Context Precision、Context Recall 的 Chunk 级和来源级代理指标；
 - [x] 统计 Faithfulness、Answer Relevance 的离线词法代理，并明确不等同于 LLM 评审；
