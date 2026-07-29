@@ -45,3 +45,46 @@ def reciprocal_rank_fusion(
     )
     return fused[:top_k]
 
+
+def select_source_diverse(
+    ranked_results: Iterable[SearchResult],
+    top_k: int = 5,
+    max_per_source: int = 1,
+) -> list[SearchResult]:
+    """Prefer distinct source files while preserving fused rank order.
+
+    Retrieval candidates are often split into several Chunks from one file.
+    Keeping one high-ranked Chunk per source first improves multi-source
+    questions without discarding lower-ranked candidates when fewer sources
+    are available than ``top_k``.
+    """
+
+    if top_k <= 0:
+        return []
+    if max_per_source <= 0:
+        raise ValueError("max_per_source must be positive")
+
+    ranked = list(ranked_results)
+    selected: list[SearchResult] = []
+    deferred: list[SearchResult] = []
+    source_counts: dict[str, int] = {}
+    selected_ids: set[str] = set()
+
+    for result in ranked:
+        source = result.chunk.source_path
+        if source_counts.get(source, 0) < max_per_source:
+            selected.append(result)
+            selected_ids.add(result.chunk.chunk_id)
+            source_counts[source] = source_counts.get(source, 0) + 1
+            if len(selected) >= top_k:
+                return selected[:top_k]
+        else:
+            deferred.append(result)
+
+    for result in deferred:
+        if result.chunk.chunk_id in selected_ids:
+            continue
+        selected.append(result)
+        if len(selected) >= top_k:
+            break
+    return selected[:top_k]

@@ -4,6 +4,8 @@ DevSage 是基于 Agentic RAG 的研发知识库与故障排查系统。当前�
 
 ## 当前版本范围
 
+- 混合检索已增加来源多样性重排，并提供离线上下文质量代理评估；代理指标不等同于真实 LLM 评审。
+
 - `DevMind`：个人模式，优先连接 Obsidian 笔记和个人项目代码；
 - `DevSage`：后续扩展到 Git、Issue、多项目和团队协作；
 - 已接入可选 PostgreSQL/pgvector 索引与 Agent task state 持久化、迁移和数据库检索路径；真实容器迁移与端到端 smoke 仍待启动验证。真实 Embedding 服务和外部 Issue 平台仍未接入；LangGraph 已在项目本地虚拟环境完成可选适配 smoke。
@@ -28,6 +30,7 @@ DevSage/
 
 ```powershell
 python evaluation/scripts/validate_mvp_dataset.py
+python evaluation/scripts/evaluate_context_quality.py
 python -m unittest discover -s backend/tests -p "test_*.py"
 python -m compileall -q backend evaluation/scripts
 ```

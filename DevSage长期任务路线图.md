@@ -109,10 +109,10 @@
 - [ ] 对比纯关键词、纯向量和混合检索；
 - [ ] 对比加入 Reranker 前后的效果；
 - [x] 统计 Recall@5、MRR；
-- [ ] 统计 Context Precision、Context Recall；
-- [ ] 统计 Faithfulness、Answer Relevance；
+- [x] 统计 Context Precision、Context Recall 的 Chunk 级和来源级代理指标；
+- [x] 统计 Faithfulness、Answer Relevance 的离线词法代理，并明确不等同于 LLM 评审；
 - [x] 统计 Tool Call Accuracy 的预期工具覆盖率；
-- [ ] 记录失败案例和每次优化结果；
+- [x] 记录失败案例和每次优化结果；
 - [ ] 只使用实测数据更新 README 和简历。
 
 ### 阶段 6：MCP 与项目展示

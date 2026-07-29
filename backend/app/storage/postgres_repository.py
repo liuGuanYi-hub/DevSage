@@ -13,7 +13,7 @@ from ..ingestion.models import ChunkRecord
 from ..retrieval.embeddings import EmbeddingProvider
 from ..retrieval.keyword_search import search_keyword as search_keyword_chunks
 from ..retrieval.models import SearchResult
-from ..retrieval.rrf import reciprocal_rank_fusion
+from ..retrieval.rrf import reciprocal_rank_fusion, select_source_diverse
 
 
 VECTOR_DIMENSION = 1024
@@ -179,13 +179,14 @@ class PostgresIndexRepository:
         """Fuse persisted keyword and pgvector candidates with RRF."""
 
         candidate_k = max(top_k * 4, 10)
-        return reciprocal_rank_fusion(
+        fused = reciprocal_rank_fusion(
             [
                 self.search_keyword(project_name, query, candidate_k),
                 self.search_vector(project_name, query, candidate_k, provider),
             ],
-            top_k=top_k,
+            top_k=candidate_k,
         )
+        return select_source_diverse(fused, top_k=top_k, max_per_source=1)
 
     def initialize(self) -> None:
         """Apply the checked-in migration to the configured database."""

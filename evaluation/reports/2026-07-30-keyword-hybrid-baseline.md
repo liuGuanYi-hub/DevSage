@@ -72,3 +72,19 @@
 | Hash 1024 + RRF | 0.6800 | 0.5217 | 0.6167 |
 
 本次调整使 MRR 提升到 `0.6167`，但 Recall 指标相对上一版 Hash 64 结果有所变化；这只能作为存储维度兼容性回归，不能解释为真实 Embedding 质量提升。真实 PostgreSQL/pgvector 端到端结果仍需在容器启动后单独记录。
+## 2026-07-30 02:28：来源多样性重排与上下文质量代理指标
+
+本轮先让 RRF 保留 Top-20 候选，再按来源文件做 Top-5 多样性选择，优先每个来源保留一个 Chunk；同时新增可重复的来源级 Context Precision/Recall、参考答案词项召回、答案词法 F1 和证据词法覆盖代理指标。重排后的检索结果为：
+
+| 指标 | 调整前 | 当前 |
+|---|---:|---:|
+| Case Recall@5 | 0.6800 | 0.7200 |
+| Source Recall@5 / Context Recall | 0.5217 | 0.5883 |
+| MRR | 0.6167 | 0.6280 |
+| Context Precision@5（Chunk） | 0.1560 | 0.1800 |
+| Context Precision@5（去重来源） | 0.2093 | 0.1800 |
+| Answer Relevance Proxy F1 | 未统计 | 0.1213 |
+| Reference Term Recall | 未统计 | 0.8449 |
+| Faithfulness Proxy Precision | 未统计 | 0.8664 |
+
+本轮失败样本数为 25/50，主要集中在代码文件精确定位和多文件调用链问题。`Reference Term Recall`、`Faithfulness Proxy Precision` 和 `Answer Relevance Proxy F1` 都是离线词法代理，不是 LLM-as-a-judge 或人工 Faithfulness 结论；真实模型接入后仍需单独评估。

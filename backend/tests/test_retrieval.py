@@ -3,7 +3,7 @@ from pathlib import Path
 
 from backend.app.ingestion.indexer import build_index
 from backend.app.retrieval.keyword_search import search_keyword
-from backend.app.retrieval.rrf import reciprocal_rank_fusion
+from backend.app.retrieval.rrf import reciprocal_rank_fusion, select_source_diverse
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -29,7 +29,15 @@ class RetrievalTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             reciprocal_rank_fusion([], smoothing=0)
 
+    def test_source_diverse_selection_prefers_distinct_files(self) -> None:
+        first = search_keyword(self.chunks, "8080", top_k=5)
+        second = search_keyword(self.chunks, "端口", top_k=5)
+        fused = reciprocal_rank_fusion([first, second], top_k=10)
+        selected = select_source_diverse(fused, top_k=3, max_per_source=1)
+
+        sources = [result.chunk.source_path for result in selected]
+        self.assertEqual(len(sources), len(set(sources)))
+
 
 if __name__ == "__main__":
     unittest.main()
-

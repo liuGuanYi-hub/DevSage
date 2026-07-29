@@ -8,7 +8,7 @@ from ..ingestion.models import ChunkRecord
 from .embeddings import EmbeddingProvider
 from .keyword_search import search_keyword
 from .models import SearchResult
-from .rrf import reciprocal_rank_fusion
+from .rrf import reciprocal_rank_fusion, select_source_diverse
 from .vector_search import search_vector
 
 
@@ -29,5 +29,8 @@ def search_hybrid(
         top_k=candidate_k,
         provider=provider,
     )
-    return reciprocal_rank_fusion([keyword_results, vector_results], top_k=top_k)
-
+    fused = reciprocal_rank_fusion(
+        [keyword_results, vector_results],
+        top_k=candidate_k,
+    )
+    return select_source_diverse(fused, top_k=top_k, max_per_source=1)
