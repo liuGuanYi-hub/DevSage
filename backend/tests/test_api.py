@@ -1,5 +1,6 @@
 import unittest
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
@@ -261,6 +262,41 @@ class ApiTests(unittest.TestCase):
             },
         )
         self.assertEqual(400, missing_project_response.status_code)
+
+    def test_knowledge_note_approval_checks_actor_and_writes_after_approval(self) -> None:
+        relative_target = f"DevMind/api-approval-{uuid4().hex}.md"
+        target = PROJECT_ROOT / "data/approved-notes/projects/sample-data" / relative_target
+        self.assertFalse(target.exists())
+        try:
+            preview_response = self.client.post(
+                "/api/knowledge-notes/preview",
+                json={
+                    "project_id": "sample-data",
+                    "title": "API approval test",
+                    "content": "# API approval test",
+                    "target_path": relative_target,
+                },
+            )
+            self.assertEqual(200, preview_response.status_code)
+            preview_id = preview_response.json()["preview_id"]
+
+            viewer_response = self.client.post(
+                f"/api/knowledge-notes/{preview_id}/approve",
+                headers={"X-DevSage-Actor": "local-viewer"},
+            )
+            self.assertEqual(403, viewer_response.status_code)
+            self.assertFalse(target.exists())
+
+            approved_response = self.client.post(
+                f"/api/knowledge-notes/{preview_id}/approve",
+                headers={"X-DevSage-Actor": "local-editor"},
+            )
+            self.assertEqual(200, approved_response.status_code)
+            self.assertEqual("approved", approved_response.json()["status"])
+            self.assertEqual("# API approval test\n", target.read_text(encoding="utf-8"))
+        finally:
+            if target.is_file():
+                target.unlink()
 
     def test_code_change_preview_is_operator_only_and_does_not_write(self) -> None:
         target = PROJECT_ROOT / "sample-data/repositories/springboot-demo/README.md"
