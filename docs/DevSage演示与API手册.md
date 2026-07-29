@@ -70,7 +70,7 @@ npm run dev --prefix frontend
 
 预检只报告 Python、Node、pytest、前端依赖、Docker daemon 和 C/D 盘可用空间，不安装依赖、不启动 Docker。
 
-前端启动后会先加载 `/api/projects`，项目选择器默认使用 `sample-data`；切换项目会重新索引当前注册项目，并将 `project_id` 传给 Agent 查询。
+前端启动后会先加载 `/api/projects`，项目选择器默认使用 `sample-data`；切换项目会清理上一项目的答案、引用和待审批 Diff，重新索引当前注册项目，并将 `project_id` 传给 Agent 查询。
 
 打开 Vite 提供的地址，点击“重新索引样例数据”，再输入“8080 端口被占用，应该怎么排查？”或“Laravel 登录逻辑在哪个控制器方法中？”。页面会展示答案、工具链、执行步骤和结构化故障排查报告。
 

@@ -165,6 +165,18 @@ async function loadProjects() {
   }
 }
 
+async function handleProjectChange() {
+  answer.value = null;
+  results.value = [];
+  indexInfo.value = null;
+  pendingPreview.value = null;
+  pendingCodePreview.value = null;
+  writebackStatus.value = "";
+  codeWritebackStatus.value = "";
+  status.value = "正在切换项目并清理旧证据…";
+  await refreshIndex();
+}
+
 async function checkBackendHealth() {
   try {
     const response = await getHealth();
@@ -196,7 +208,7 @@ onMounted(async () => {
       <div class="toolbar">
         <label class="project-picker">
           项目
-          <select v-model="selectedProjectId" @change="refreshIndex" aria-label="选择项目">
+          <select v-model="selectedProjectId" @change="handleProjectChange" aria-label="选择项目">
             <option v-for="project in projects" :key="project.project_id" :value="project.project_id">
               {{ project.name }}
             </option>
