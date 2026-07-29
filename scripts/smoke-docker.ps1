@@ -23,6 +23,19 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     throw "docker command was not found"
 }
 
+function Assert-DockerDaemon {
+    $daemonAvailable = $false
+    try {
+        & docker info --format '{{.ServerVersion}}' 2>$null | Out-Null
+        $daemonAvailable = $LASTEXITCODE -eq 0
+    } catch {
+        $daemonAvailable = $false
+    }
+    if (-not $daemonAvailable) {
+        throw "Docker daemon is unavailable; start Docker and rerun only after approving storage usage"
+    }
+}
+
 $backendPort = if ([string]::IsNullOrWhiteSpace($env:BACKEND_PORT)) { "8000" } else { $env:BACKEND_PORT }
 
 if (-not $Execute) {
@@ -34,6 +47,8 @@ if (-not $Execute) {
     Write-Output "Run with -Execute only after approving Docker storage usage."
     exit 0
 }
+
+Assert-DockerDaemon
 
 if ([string]::IsNullOrWhiteSpace($env:POSTGRES_PASSWORD) -or [string]::IsNullOrWhiteSpace($env:DATABASE_URL)) {
     throw "-Execute requires POSTGRES_PASSWORD and DATABASE_URL in the current environment"

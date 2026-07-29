@@ -94,6 +94,10 @@ class ProjectStructureTests(unittest.TestCase):
         self.assertIn("tests/", dockerignore)
         self.assertIn(".env", dockerignore)
 
+        docker_smoke = (PROJECT_ROOT / "scripts/smoke-docker.ps1").read_text(encoding="utf-8")
+        self.assertIn("Assert-DockerDaemon", docker_smoke)
+        self.assertIn("docker info", docker_smoke)
+
 
 if __name__ == "__main__":
     unittest.main()
