@@ -41,6 +41,15 @@ Invoke-CheckedCommand "backend tests" $python @("-m", "unittest", "discover", "-
 $stepCount++
 Invoke-CheckedCommand "evaluation tests" $python @("-m", "unittest", "discover", "-s", "evaluation/tests", "-p", "test_*.py")
 $stepCount++
+
+$pytestProbe = & $python -c "import pytest" 2>$null
+if ($LASTEXITCODE -eq 0) {
+    Invoke-CheckedCommand "pytest suite" $python @("-m", "pytest", "-q")
+    $stepCount++
+} else {
+    Write-Output "== pytest suite: skipped (pytest is not installed; no dependency was installed) =="
+}
+
 Invoke-CheckedCommand "Python compilation" $python @("-m", "compileall", "-q", "backend", "evaluation/scripts")
 $stepCount++
 Invoke-CheckedCommand "MCP smoke" $python @("evaluation/scripts/smoke_mcp.py")

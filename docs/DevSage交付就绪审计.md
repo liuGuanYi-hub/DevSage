@@ -20,7 +20,7 @@
 | Git/Issue 故障排查 | 已完成（本地/脱敏） | Git 工具、脱敏 Issue、结构化报告和 MCP smoke |
 | PostgreSQL 应用层持久化链路 | 已完成合同验证 | fake connection、迁移、保存、持久化 Chunk 读取和 pgvector 调用合同 |
 | MCP stdio 展示 | 已完成 | 5 个工具的 JSON-RPC smoke |
-| 离线交付门禁 | 已完成 | `scripts/verify-offline.ps1`，14 步通过 |
+| 离线交付门禁 | 已完成 | `scripts/verify-offline.ps1`，当前环境 15 步通过（含 pytest） |
 | 一键本地演示与演示脚本 | 已完成（未做视觉回归） | `scripts/start-demo.ps1`、`docs/DevSage演示脚本.md`；启动/健康/清理已验证 |
 
 ## 尚未达到最终交付条件
