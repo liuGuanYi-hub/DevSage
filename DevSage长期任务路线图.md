@@ -106,9 +106,10 @@
 - [x] 增加不含查询正文的 Agent 完成日志和离线 Token 使用估算（真实 Provider 账单仍待接入）；
 - [ ] 增加 Redis 缓存；
 - [x] 完善 unittest、接口权限、审批和参数错误场景测试；
-- [x] 引入并完善 Pytest 测试运行入口（`pytest.ini`，backend/evaluation 共 126 项）；
+- [x] 引入并完善 Pytest 测试运行入口（`pytest.ini`，backend/evaluation 共 127 项）；
 - [x] 增加默认只读的 Compose 配置校验和显式执行 smoke 脚本；
 - [x] 增加只读环境预检入口，报告本地工具、依赖和 Docker daemon 状态；
+- [x] 硬化 Compose 镜像构建边界并声明后端容器健康检查；
 - [ ] 完善 Docker Compose 部署。
 
 ### 阶段 5：量化评估

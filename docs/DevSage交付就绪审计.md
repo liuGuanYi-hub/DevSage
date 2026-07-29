@@ -23,6 +23,7 @@
 | 离线交付门禁 | 已完成 | `scripts/verify-offline.ps1`，当前环境 15 步通过（含 pytest） |
 | 一键本地演示与演示脚本 | 已完成（未做视觉回归） | `scripts/start-demo.ps1`、`docs/DevSage演示脚本.md`；启动/健康/清理已验证 |
 | 只读环境预检 | 已完成 | `scripts/preflight.ps1`；Python、Node、npm、pytest、前端依赖可用，Docker CLI 可用但 daemon 未运行；未安装依赖或创建资源 |
+| Compose 构建边界与后端健康检查 | 已完成（静态） | `backend/.dockerignore`、Dockerfile `HEALTHCHECK` 和 Compose backend healthcheck；未执行镜像构建或容器启动 |
 
 ## 尚未达到最终交付条件
 

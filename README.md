@@ -23,7 +23,7 @@ DevSage/
 ├── sample-data/             # 脱敏文档、代码和配置样例
 ├── docs/                    # 项目设计文档
 ├── DevSage长期任务路线图.md  # 持续推进的阶段任务
-├── docker-compose.yml       # PostgreSQL + pgvector 本地服务骨架
+├── docker-compose.yml       # PostgreSQL + pgvector 本地服务骨架与健康检查
 └── .env.example             # 非敏感配置模板
 ```
 
@@ -89,7 +89,7 @@ npm run dev --prefix frontend
 
 外部 Issue 默认不联网。需要启用时，在当前 PowerShell 会话设置 `DEVSAGE_EXTERNAL_ISSUE_URL`、`DEVSAGE_EXTERNAL_ISSUE_REPOSITORY`，并可通过 `DEVSAGE_EXTERNAL_ISSUE_TOKEN_ENV` 指定 Token 环境变量；适配器只执行查询，不执行创建、修改或关闭 Issue。
 
-`scripts/smoke-docker.ps1` 默认只运行 `docker compose config --quiet`，不会创建镜像、容器或卷；确认 C 盘占用并获得许可后，才可在当前 PowerShell 会话设置 `POSTGRES_PASSWORD`、`DATABASE_URL`，再使用 `-Execute` 运行健康检查、索引写入和 Agent 查询 smoke。
+`scripts/smoke-docker.ps1` 默认只运行 `docker compose config --quiet`，不会创建镜像、容器或卷；后端镜像已声明 `/health` 健康检查，构建上下文会排除测试、缓存、数据目录和环境文件。确认 C 盘占用并获得许可后，才可在当前 PowerShell 会话设置 `POSTGRES_PASSWORD`、`DATABASE_URL`，再使用 `-Execute` 运行健康检查、索引写入和 Agent 查询 smoke。
 
 ## 当前正在做
 

@@ -49,6 +49,9 @@ class ProjectStructureTests(unittest.TestCase):
             "evaluation/scripts/evaluate_hybrid_baseline.py",
             "evaluation/scripts/evaluate_retrieval_strategies.py",
             "backend/requirements.txt",
+            "backend/Dockerfile",
+            "backend/.dockerignore",
+            "docker-compose.yml",
             "frontend/package.json",
             "evaluation/datasets/devmind_mvp_questions.json",
             "evaluation/scripts/validate_mvp_dataset.py",
@@ -81,6 +84,15 @@ class ProjectStructureTests(unittest.TestCase):
         )
         self.assertIn('app = FastAPI(', main_source)
         self.assertIn('@app.get("/health"', main_source)
+
+    def test_container_health_and_build_context_are_declared(self) -> None:
+        dockerfile = (PROJECT_ROOT / "backend/Dockerfile").read_text(encoding="utf-8")
+        compose = (PROJECT_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+        dockerignore = (PROJECT_ROOT / "backend/.dockerignore").read_text(encoding="utf-8")
+        self.assertIn("HEALTHCHECK", dockerfile)
+        self.assertIn("healthcheck:", compose)
+        self.assertIn("tests/", dockerignore)
+        self.assertIn(".env", dockerignore)
 
 
 if __name__ == "__main__":
