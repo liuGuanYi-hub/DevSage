@@ -15,6 +15,7 @@
 | 分类答案检索与项目总结 | 已完成 | `answer_search.py`、API 回归测试、上下文质量评估 |
 | 问答 API 与 SSE | 已完成 | `test_api.py`、`scripts/smoke-http.ps1` |
 | 知识写回预览与审批 | 已完成 | Diff、Hash 防过期覆盖、写回测试和 HTTP smoke |
+| 项目代码变更审批 | 已完成（本地文件） | 已有文件限定、Diff、Hash 防过期覆盖、operator API 合同；未接入远程补丁/提交 |
 | 多工具 Agent | 已完成 | Agent grounding、tool accuracy、LangGraph smoke |
 | Git/Issue 故障排查 | 已完成（本地/脱敏） | Git 工具、脱敏 Issue、结构化报告和 MCP smoke |
 | PostgreSQL 应用层持久化链路 | 已完成合同验证 | fake connection、迁移、保存、持久化 Chunk 读取和 pgvector 调用合同 |

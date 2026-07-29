@@ -76,6 +76,22 @@ try {
         throw "HTTP Agent smoke returned no answer or evidence"
     }
 
+    $codeTarget = Join-Path $projectRoot "sample-data\repositories\springboot-demo\README.md"
+    $originalCode = Get-Content -LiteralPath $codeTarget -Raw -Encoding utf8
+    $codePreview = Invoke-RestMethod `
+        -Uri "http://127.0.0.1:$Port/api/code-changes/preview" `
+        -Method Post `
+        -ContentType "application/json" `
+        -Body (@{
+            project_id = "sample-data"
+            target_path = "repositories/springboot-demo/README.md"
+            proposed_content = $originalCode + "`nHTTP smoke preview only`n"
+            source_citations = @("sample-data/repositories/springboot-demo/README.md:1-4")
+        } | ConvertTo-Json)
+    if ($codePreview.status -ne "pending" -or (Get-Content -LiteralPath $codeTarget -Raw -Encoding utf8) -ne $originalCode) {
+        throw "HTTP code change preview smoke failed or wrote before approval"
+    }
+
     $preview = Invoke-RestMethod `
         -Uri "http://127.0.0.1:$Port/api/knowledge-notes/preview" `
         -Method Post `
@@ -99,9 +115,9 @@ try {
     }
 
     Write-Output (
-        "HTTP smoke passed: projects={0}, documents={1}, chunks={2}, agent_status={3}, preview={4}, approval={5}" -f `
+        "HTTP smoke passed: projects={0}, documents={1}, chunks={2}, agent_status={3}, code_preview={4}, preview={5}, approval={6}" -f `
             $projects.total, $index.document_count, $index.chunk_count,
-            $agent.status, $preview.status, $approved.status
+            $agent.status, $codePreview.status, $preview.status, $approved.status
     )
 } finally {
     if (Test-Path -LiteralPath $smokeTarget) {

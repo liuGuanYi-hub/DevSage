@@ -23,6 +23,8 @@ ROLE_ACTIONS: dict[str, tuple[str, ...]] = {
         "agent",
         "writeback_preview",
         "writeback_approve",
+        "code_write_preview",
+        "code_write_approve",
         "manage_project",
     ),
 }

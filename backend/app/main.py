@@ -28,10 +28,16 @@ from .schemas.agent import (
     TroubleshootingReportResponse,
 )
 from .schemas.projects import ProjectListResponse, ProjectResponse
+from .schemas.code_changes import (
+    CodeChangeDiffResponse,
+    CodeChangePreviewRequest,
+    CodeChangePreviewResponse,
+)
 from .agents.runner import AgentRunner
 from .services.index_service import IndexService, SourceRootError
 from .services.answer_service import AnswerDraft, compose_routed_answer
 from .services.knowledge_writeback import KnowledgeWritebackService, WritebackPolicyError
+from .services.code_writeback import CodeChangePolicyError, CodeChangeWritebackService
 from .services.project_registry import (
     DEFAULT_ACTOR_ID,
     ProjectRegistry,
@@ -62,6 +68,7 @@ app = FastAPI(
 index_service = IndexService()
 agent_runner = AgentRunner(index_service)
 writeback_service = KnowledgeWritebackService(PROJECT_ROOT / "data" / "approved-notes")
+code_writeback_service = CodeChangeWritebackService(PROJECT_ROOT)
 project_registry = ProjectRegistry.from_environment(PROJECT_ROOT)
 
 
@@ -223,6 +230,25 @@ def _answer_response(
     )
 
 
+def _code_change_response(preview) -> CodeChangePreviewResponse:
+    return CodeChangePreviewResponse(
+        preview_id=preview.preview_id,
+        source_root=preview.source_root,
+        target_path=preview.target_path,
+        proposed_content=preview.proposed_content,
+        source_citations=list(preview.source_citations),
+        diff=CodeChangeDiffResponse(
+            operation=preview.diff.operation,
+            current_content_hash=preview.diff.current_content_hash,
+            proposed_content_hash=preview.diff.proposed_content_hash,
+            additions=preview.diff.additions,
+            deletions=preview.diff.deletions,
+            unified_diff=list(preview.diff.unified_diff),
+        ),
+        status=preview.status,
+    )
+
+
 def _troubleshooting_response(report: TroubleshootingReport) -> TroubleshootingReportResponse:
     return TroubleshootingReportResponse(
         query=report.query,
@@ -300,6 +326,54 @@ def stream_answer(
         yield f"event: done\ndata: {response.model_dump_json() if hasattr(response, 'model_dump_json') else response.json()}\n\n"
 
     return StreamingResponse(events(), media_type="text/event-stream")
+
+
+@app.post(
+    "/api/code-changes/preview",
+    response_model=CodeChangePreviewResponse,
+    tags=["code-changes"],
+)
+def create_code_change_preview(
+    request: CodeChangePreviewRequest,
+    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+) -> CodeChangePreviewResponse:
+    """Preview a bounded code-file update without writing to the project."""
+
+    try:
+        if request.project_id:
+            _authorize_project(request.project_id, actor_id, "code_write_preview")
+        requested_root = _resolve_request_source_root(request.project_id, request.source_root)
+        preview = code_writeback_service.create_preview(
+            source_root=requested_root,
+            target_path=request.target_path,
+            proposed_content=request.proposed_content,
+            source_citations=request.source_citations,
+            project_id=request.project_id,
+        )
+    except (SourceRootError, ProjectRegistryError, CodeChangePolicyError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _code_change_response(preview)
+
+
+@app.post(
+    "/api/code-changes/{preview_id}/approve",
+    response_model=CodeChangePreviewResponse,
+    tags=["code-changes"],
+)
+def approve_code_change(
+    preview_id: str,
+    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+) -> CodeChangePreviewResponse:
+    """Apply a previously previewed code change after a fresh Hash check."""
+
+    try:
+        preview = code_writeback_service.get_preview(preview_id)
+        if preview.project_id:
+            _authorize_project(preview.project_id, actor_id, "code_write_approve")
+        approved = code_writeback_service.approve(preview_id)
+    except (ProjectRegistryError, CodeChangePolicyError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _code_change_response(approved)
 
 
 @app.post("/api/agent/run", response_model=AgentResponse, tags=["agent"])

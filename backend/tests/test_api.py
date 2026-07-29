@@ -234,6 +234,31 @@ class ApiTests(unittest.TestCase):
         )
         self.assertEqual(400, missing_project_response.status_code)
 
+    def test_code_change_preview_is_operator_only_and_does_not_write(self) -> None:
+        target = PROJECT_ROOT / "sample-data/repositories/springboot-demo/README.md"
+        original = target.read_text(encoding="utf-8")
+        payload = {
+            "project_id": "sample-data",
+            "target_path": "repositories/springboot-demo/README.md",
+            "proposed_content": original + "\nPreview only\n",
+            "source_citations": ["sample-data/repositories/springboot-demo/README.md:1-4"],
+        }
+
+        viewer_response = self.client.post(
+            "/api/code-changes/preview",
+            headers={"X-DevSage-Actor": "local-editor"},
+            json=payload,
+        )
+        self.assertEqual(403, viewer_response.status_code)
+
+        operator_response = self.client.post(
+            "/api/code-changes/preview",
+            json=payload,
+        )
+        self.assertEqual(200, operator_response.status_code)
+        self.assertEqual("pending", operator_response.json()["status"])
+        self.assertEqual(original, target.read_text(encoding="utf-8"))
+
     def test_answer_endpoint_returns_evidence_grounded_response(self) -> None:
         response = self.client.post(
             "/api/answer",

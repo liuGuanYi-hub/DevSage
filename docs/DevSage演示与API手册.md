@@ -72,6 +72,8 @@ npm run dev --prefix frontend
 | POST | `/api/agent/run` | 运行有限图多工具 Agent，并返回工具、运行时和离线 Token usage |
 | POST | `/api/knowledge-notes/preview` | 生成待审批知识笔记预览，返回 Diff、Hash 和增删行 |
 | POST | `/api/knowledge-notes/{preview_id}/approve` | 审批后写入项目暂存目录；目标文件变更时拒绝过期覆盖 |
+| POST | `/api/code-changes/preview` | 生成项目内已有代码文件的待审批 Diff，不写盘 |
+| POST | `/api/code-changes/{preview_id}/approve` | 通过 operator 能力检查并重新校验 Hash 后写入代码文件 |
 | GET/POST | `/api/agent/tasks/*` | 查询、恢复和持久化 Agent 状态 |
 
 FastAPI 运行后也可通过 `/docs` 查看当前 OpenAPI 页面；接口响应不会返回环境变量内容或真实凭据。
@@ -84,6 +86,8 @@ FastAPI 运行后也可通过 `/docs` 查看当前 OpenAPI 页面；接口响应
 
 知识写回预览默认不落盘。预览响应中的 `diff.operation` 为 `create`、`update` 或 `noop`，并包含 `current_content_hash`、`proposed_content_hash`、`additions`、`deletions` 和 `unified_diff`。审批会再次读取目标文件并校验预览时的 Hash；如果目标在预览后发生变化，接口返回 400，必须重新生成预览。
 知识写回请求也支持可选 `project_id`；传入已注册项目时，目标会自动隔离到 `data/approved-notes/projects/<project_id>/` 下，避免不同项目的同名笔记互相覆盖。未传入时保留旧的兼容目标路径。
+
+代码变更预览只接受 source root 内已存在的文件，预览阶段不会写盘；批准阶段会重新读取目标文件并比较 current Hash，内容发生变化时拒绝覆盖。带 `project_id` 的代码变更需要 operator actor 的 `code_write_preview` / `code_write_approve` 能力；当前不执行远程 Issue 写入。
 
 `/api/agent/run` 和任务恢复响应中的 `usage` 包含 `query_tokens`、`evidence_tokens`、`answer_tokens`、`total_token_estimate`、`tool_calls`、`tool_retries` 和 `runtime_ms`。其中 token 字段是基于离线 tokenizer 的可解释估算，不等同于远程模型供应商计费 Token；完成日志只记录任务 ID、分类、状态和计数，不记录查询正文。
 
@@ -137,7 +141,7 @@ python -m unittest backend.tests.test_postgres_repository
 .\scripts\smoke-http.ps1
 ```
 
-该脚本使用临时端口启动 FastAPI，完成审批 smoke 后清理本次创建的测试笔记并关闭服务；它不会验证 PostgreSQL、Docker 卷或浏览器视觉渲染。
+该脚本使用临时端口启动 FastAPI，验证项目索引、Agent、代码变更预览（确认预览不写盘）和知识审批，再清理本次创建的测试笔记并关闭服务；它不会验证 PostgreSQL、Docker 卷或浏览器视觉渲染。
 
 如果需要一次性执行当前离线验证集合，可运行：
 
