@@ -1,6 +1,6 @@
 # DevSage 交付就绪审计
 
-- 审计时间：2026-07-30 05:34
+- 审计时间：2026-07-30 05:42
 - 审计范围：DevMind MVP、DevSage Agent、工程化部署、量化评估、MCP 展示
 - 审计原则：只把当前文件、测试、运行输出或远端状态能直接证明的内容标记为已完成。
 
@@ -22,6 +22,7 @@
 | MCP stdio 展示 | 已完成 | 5 个工具的 JSON-RPC smoke |
 | 离线交付门禁 | 已完成 | `scripts/verify-offline.ps1`，当前环境 15 步通过（含 pytest） |
 | 一键本地演示与演示脚本 | 已完成（未做视觉回归） | `scripts/start-demo.ps1`、`docs/DevSage演示脚本.md`；启动/健康/清理已验证 |
+| 只读环境预检 | 已完成 | `scripts/preflight.ps1`；Python、Node、npm、pytest、前端依赖可用，Docker CLI 可用但 daemon 未运行；未安装依赖或创建资源 |
 
 ## 尚未达到最终交付条件
 
@@ -56,6 +57,6 @@
 
 ## 安全与资源边界
 
-- 本次审计没有启动 Docker、安装依赖或发起外部网络请求。
+- 本次审计没有启动 Docker、安装依赖或发起外部网络请求；只读预检新增 C/D 盘空间观察，未造成 C 盘容量增加。
 - 不读取、输出或提交真实密码、Token、`.env` 文件或用户数据。
 - 真实 Docker smoke 可能拉取 pgvector/Python 镜像并创建卷；在获得明确磁盘授权前只允许 Compose dry-run。
