@@ -26,11 +26,13 @@ class AgentRunner:
         max_tool_calls: int = 4,
         max_steps: int = 12,
         max_retries: int = 1,
+        max_runtime_seconds: float | None = 30.0,
     ) -> None:
         self.index_service = index_service
         self.max_tool_calls = max_tool_calls
         self.max_steps = max_steps
         self.max_retries = max_retries
+        self.max_runtime_seconds = max_runtime_seconds
         self.graph = AgentGraph(
             nodes={
                 "classify_question": self._classify_node,
@@ -39,7 +41,11 @@ class AgentRunner:
                 "compose_answer": self._compose_node,
             },
             transitions={},
-            limits=AgentLimits(max_steps=max_steps, max_tool_calls=max_tool_calls),
+            limits=AgentLimits(
+                max_steps=max_steps,
+                max_tool_calls=max_tool_calls,
+                max_runtime_seconds=max_runtime_seconds,
+            ),
         )
 
     def run(self, query: str, source_root: str, top_k: int = 5) -> AgentState:
@@ -50,16 +56,20 @@ class AgentRunner:
             state.status = "failed"
             state.steps.append(AgentStep("retrieve_evidence", "failed", "invalid source root or tool input"))
             raise
-        if state.answer is None and state.status in {"tool_limit_reached", "step_limit_reached"}:
+        if state.answer is None and state.status in {
+            "tool_limit_reached",
+            "step_limit_reached",
+            "task_timeout",
+        }:
             state.answer = compose_evidence_answer(state.query, state.evidence)
         return state
 
     def resume(self, state: AgentState, top_k: int = 5) -> AgentState:
         """Resume only a task stopped by a local execution budget."""
 
-        if state.status not in {"tool_limit_reached", "step_limit_reached"}:
+        if state.status not in {"tool_limit_reached", "step_limit_reached", "task_timeout"}:
             raise TaskNotResumableError(
-                "only tool_limit_reached or step_limit_reached tasks can be resumed"
+                "only bounded-interruption tasks can be resumed"
             )
         state.status = "running"
         state.answer = None
@@ -72,7 +82,11 @@ class AgentRunner:
             state.status = "failed"
             state.steps.append(AgentStep("retrieve_evidence", "failed", "resume tool input failed"))
             raise
-        if state.answer is None and state.status in {"tool_limit_reached", "step_limit_reached"}:
+        if state.answer is None and state.status in {
+            "tool_limit_reached",
+            "step_limit_reached",
+            "task_timeout",
+        }:
             state.answer = compose_evidence_answer(state.query, state.evidence)
         return state
 
