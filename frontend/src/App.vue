@@ -12,6 +12,7 @@ import {
   runAgent,
   type AgentResponse,
   type CodeChangePreview,
+  type HealthResponse,
   type IndexResponse,
   type KnowledgeNotePreview,
   type Project,
@@ -27,6 +28,7 @@ const selectedProjectId = ref("sample-data");
 const selectedActorId = ref("local-demo");
 const status = ref("等待连接后端");
 const backendHealth = ref<"checking" | "online" | "offline">("checking");
+const healthDetails = ref<HealthResponse | null>(null);
 const isLoading = ref(false);
 const noteTitle = ref("DevSage knowledge note");
 const noteContent = ref("");
@@ -220,8 +222,10 @@ async function handleActorChange() {
 async function checkBackendHealth() {
   try {
     const response = await getHealth();
+    healthDetails.value = response;
     backendHealth.value = response.status === "ok" ? "online" : "offline";
   } catch {
+    healthDetails.value = null;
     backendHealth.value = "offline";
   }
 }
@@ -268,6 +272,9 @@ onMounted(async () => {
         <button type="button" @click="refreshIndex" :disabled="!can('manage_project')">重新索引当前项目</button>
         <span class="health-badge" :class="`health-${backendHealth}`" aria-live="polite">
           后端：{{ backendHealth === "checking" ? "检查中" : backendHealth === "online" ? "在线" : "离线" }}
+        </span>
+        <span v-if="healthDetails" class="health-details">
+          {{ healthDetails.storage ?? "memory" }} · Embedding {{ healthDetails.embedding_provider ?? "unknown" }} · Issue {{ healthDetails.external_issue_configured ? "已配置" : "未配置" }}
         </span>
         <span>{{ status }}</span>
         <span v-if="indexInfo" class="index-count">{{ indexInfo.document_count }} files / {{ indexInfo.chunk_count }} chunks</span>
@@ -462,6 +469,7 @@ select { border: 1px solid #cbd6e2; border-radius: 10px; padding: 10px 12px; col
 .health-checking { color: #765b00; background: #fff4c2; }
 .health-online { color: #276749; background: #e8f7ee; }
 .health-offline { color: #9b2c2c; background: #fff0f0; }
+.health-details { color: #7890aa; font-size: 0.82rem; }
 button { border: 0; border-radius: 10px; padding: 10px 14px; color: #ffffff; background: #326aa5; cursor: pointer; font: inherit; font-weight: 600; }
 button:disabled { cursor: wait; opacity: 0.6; }
 input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; padding: 12px 14px; font: inherit; }

@@ -10,6 +10,10 @@ export interface IndexResponse {
 
 export interface HealthResponse {
   status: string;
+  service?: string;
+  storage?: string;
+  embedding_provider?: string;
+  external_issue_configured?: boolean;
 }
 
 export interface ProjectRole {
