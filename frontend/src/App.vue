@@ -288,7 +288,7 @@ onMounted(async () => {
         <article class="answer-card">
           <div class="result-meta">
             <strong>证据约束回答</strong>
-            <span>{{ categoryLabel(answer.category) }} · {{ answer.status }}</span>
+            <span>{{ categoryLabel(answer.category) }} · {{ answer.status }} · 项目 {{ answer.project_id ?? "兼容 source_root" }}</span>
           </div>
           <p class="answer-text">{{ answer.answer }}</p>
           <small v-if="answer.warning" class="warning">{{ answer.warning }}</small>

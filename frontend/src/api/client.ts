@@ -96,6 +96,7 @@ export interface TroubleshootingReport {
 
 export interface AgentResponse extends AnswerResponse {
   task_id: string;
+  project_id: string | null;
   category: string;
   status: string;
   tool_calls: string[];
