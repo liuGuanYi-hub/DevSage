@@ -114,7 +114,7 @@ MCP 的文档检索、代码检索、文件读取和故障报告工具也支持�
 
 通用 hybrid 查询会先应用现有的确定性代码词扩展，再进入关键词与离线向量融合；这样可以让“用户接口”“登录”“配置”等自然语言问题更容易命中类名、控制器、路由和配置文件。raw RRF 仍保留在策略评估中作为不带业务扩展的基线。
 
-LangGraph 适配是可选运行时，离线默认环境不安装也不影响本地 Agent。若使用项目自带虚拟环境，可运行 `.\\backend\\.venv\\Scripts\\python.exe evaluation/scripts/smoke_langgraph.py`；该 smoke 会验证四节点图完成并返回来源引用。未安装时脚本只报告 skipped，不会自动下载依赖。
+LangGraph 适配是可选运行时，离线默认环境不安装也不影响本地 Agent。若使用项目自带虚拟环境，可运行 `.\\backend\\.venv\\Scripts\\python.exe evaluation/scripts/smoke_langgraph.py`；该 smoke 会验证四节点图完成、返回来源引用，并通过 `MemorySaver + thread_id` 读取已保存状态。未安装时脚本只报告 skipped，不会自动下载依赖。
 
 ## 5. Docker / PostgreSQL smoke 边界
 

@@ -38,7 +38,7 @@ def langgraph_available() -> bool:
     return True
 
 
-def build_langgraph_graph(runner: AgentRunner):
+def build_langgraph_graph(runner: AgentRunner, checkpointer: Any | None = None):
     """Compile the same four-node workflow with LangGraph when available.
 
     The adapter intentionally consumes and returns the local ``AgentState``
@@ -79,7 +79,7 @@ def build_langgraph_graph(runner: AgentRunner):
         {"compose_answer": "compose_answer", "end": END},
     )
     graph.add_edge("compose_answer", END)
-    return graph.compile()
+    return graph.compile(checkpointer=checkpointer)
 
 
 def _wrap_node(runner: AgentRunner, node_name: str):

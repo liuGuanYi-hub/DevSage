@@ -25,26 +25,36 @@ def main() -> None:
         print("LangGraph smoke skipped: optional dependency is unavailable")
         return
 
-    graph = build_langgraph_graph(AgentRunner(IndexService()))
+    from langgraph.checkpoint.memory import MemorySaver
+
+    config = {"configurable": {"thread_id": "langgraph-smoke-001"}}
+    graph = build_langgraph_graph(
+        AgentRunner(IndexService()),
+        checkpointer=MemorySaver(),
+    )
     initial = AgentState(
         "langgraph-smoke-001",
         "8080 端口占用怎么排查？",
         "sample-data",
     ).to_dict()
     initial["top_k"] = 5
-    result = graph.invoke(initial)
+    result = graph.invoke(initial, config)
+    checkpoint = graph.get_state(config)
     answer = result.get("answer") or {}
     citations = answer.get("citations", [])
     if result.get("status") != "completed":
         raise RuntimeError(f"LangGraph graph did not complete: {result.get('status')}")
     if not citations:
         raise RuntimeError("LangGraph graph returned no citations")
+    if checkpoint.values.get("status") != "completed":
+        raise RuntimeError("LangGraph checkpoint did not store the completed state")
     print(
         "LangGraph smoke passed: "
         f"status={result.get('status')}, "
         f"category={result.get('category')}, "
         f"tool_calls={len(result.get('tool_calls', []))}, "
-        f"citations={len(citations)}"
+        f"citations={len(citations)}, "
+        f"checkpoint_status={checkpoint.values.get('status')}"
     )
 
 

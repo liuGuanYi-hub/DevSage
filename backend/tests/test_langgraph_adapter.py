@@ -34,6 +34,31 @@ class LangGraphAdapterTests(unittest.TestCase):
         self.assertEqual("troubleshooting", result["category"])
         self.assertTrue(result["answer"]["citations"])
 
+    def test_installed_runtime_can_store_completed_state_in_a_checkpoint(self) -> None:
+        if not langgraph_available():
+            self.skipTest("LangGraph is not installed in the current environment")
+
+        from langgraph.checkpoint.memory import MemorySaver
+
+        config = {"configurable": {"thread_id": "langgraph-checkpoint-001"}}
+        graph = build_langgraph_graph(
+            AgentRunner(IndexService()),
+            checkpointer=MemorySaver(),
+        )
+        graph.invoke(
+            {
+                "task_id": "langgraph-checkpoint-001",
+                "query": "8080 端口占用怎么排查？",
+                "source_root": "sample-data",
+                "top_k": 5,
+            },
+            config,
+        )
+
+        checkpoint = graph.get_state(config)
+        self.assertEqual("completed", checkpoint.values["status"])
+        self.assertTrue(checkpoint.values["answer"]["citations"])
+
 
 if __name__ == "__main__":
     unittest.main()
