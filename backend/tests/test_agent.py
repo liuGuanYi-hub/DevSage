@@ -32,6 +32,14 @@ class AgentTests(unittest.TestCase):
         self.assertTrue(state.answer.citations)
         self.assertEqual("completed", state.status)
 
+    def test_project_summary_uses_document_and_code_evidence_contract(self) -> None:
+        state = self.runner.run("总结用户接口项目技术点", "sample-data")
+        self.assertEqual("project_summary", state.category)
+        self.assertIsNotNone(state.answer)
+        self.assertTrue(state.answer.evidence_sufficient)
+        self.assertIn("项目总结", state.answer.answer)
+        self.assertTrue(state.answer.citations)
+
     def test_unknown_question_stops_with_insufficient_evidence(self) -> None:
         state = self.runner.run("frobulate_qzxv_731942_unindexed", "sample-data")
         self.assertEqual("insufficient_evidence", state.status)
@@ -72,6 +80,15 @@ class AgentTests(unittest.TestCase):
         state = runner.run("用户接口入口在哪里", "sample-data")
         self.assertEqual("tool_limit_reached", state.status)
         self.assertIsNotNone(state.answer)
+
+    def test_bounded_task_can_resume_with_a_new_budget(self) -> None:
+        runner = AgentRunner(IndexService(), max_tool_calls=1)
+        state = runner.run("用户接口入口在哪里", "sample-data")
+        self.assertEqual("tool_limit_reached", state.status)
+        runner.max_tool_calls = 2
+        resumed = runner.resume(state)
+        self.assertEqual("completed", resumed.status)
+        self.assertIn("resume", [step.name for step in resumed.steps])
 
 
 if __name__ == "__main__":

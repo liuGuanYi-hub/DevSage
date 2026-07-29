@@ -7,11 +7,13 @@ from uuid import uuid4
 
 from ..services.answer_service import compose_evidence_answer
 from ..services.index_service import IndexService, SourceRootError
+from ..services.project_summary import compose_project_summary
 from .classifier import classify_question
 from .git_tools import GitToolError, get_commit_diff, get_git_history
 from .graph import AgentGraph, AgentLimits
 from .issue_tools import IssueToolError, search_issues
 from .state import AgentState, AgentStep
+from ..services.task_store import TaskNotResumableError
 
 
 class AgentRunner:
@@ -49,6 +51,28 @@ class AgentRunner:
             state.answer = compose_evidence_answer(state.query, state.evidence)
         return state
 
+    def resume(self, state: AgentState, top_k: int = 5) -> AgentState:
+        """Resume only a task stopped by a local execution budget."""
+
+        if state.status not in {"tool_limit_reached", "step_limit_reached"}:
+            raise TaskNotResumableError(
+                "only tool_limit_reached or step_limit_reached tasks can be resumed"
+            )
+        state.status = "running"
+        state.answer = None
+        state.evidence = []
+        state.tool_calls = []
+        state.steps.append(AgentStep("resume", "started", "new bounded execution budget"))
+        try:
+            self.graph.run(state, {"top_k": top_k}, start="retrieve_evidence")
+        except (SourceRootError, GitToolError, IssueToolError):
+            state.status = "failed"
+            state.steps.append(AgentStep("retrieve_evidence", "failed", "resume tool input failed"))
+            raise
+        if state.answer is None and state.status in {"tool_limit_reached", "step_limit_reached"}:
+            state.answer = compose_evidence_answer(state.query, state.evidence)
+        return state
+
     def _classify_node(self, state: AgentState, _context: dict[str, object]) -> str:
         category = classify_question(state.query)
         state.set_category(category)
@@ -71,7 +95,10 @@ class AgentRunner:
         return "compose_answer"
 
     def _compose_node(self, state: AgentState, _context: dict[str, object]) -> None:
-        draft = compose_evidence_answer(state.query, state.evidence)
+        if state.category == "project_summary":
+            draft = compose_project_summary(state.query, state.evidence)
+        else:
+            draft = compose_evidence_answer(state.query, state.evidence)
         state.answer = draft
         state.status = "completed" if draft.evidence_sufficient else "insufficient_evidence"
         state.steps.append(AgentStep("compose_answer", state.status, "evidence-grounded draft"))

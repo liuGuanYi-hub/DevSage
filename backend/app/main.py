@@ -22,6 +22,7 @@ from .schemas.search import (
 )
 from .schemas.agent import (
     AgentRequest,
+    AgentResumeRequest,
     AgentResponse,
     AgentStepResponse,
     TroubleshootingFindingResponse,
@@ -32,6 +33,12 @@ from .services.index_service import IndexService, SourceRootError
 from .services.answer_service import AnswerDraft, compose_evidence_answer
 from .services.knowledge_writeback import KnowledgeWritebackService, WritebackPolicyError
 from .services.troubleshooting import TroubleshootingReport, build_troubleshooting_report
+from .services.task_store import (
+    FileTaskStateStore,
+    TaskNotResumableError,
+    TaskStateError,
+    TaskStateNotFoundError,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -45,6 +52,7 @@ app = FastAPI(
 index_service = IndexService()
 agent_runner = AgentRunner(index_service)
 writeback_service = KnowledgeWritebackService(PROJECT_ROOT / "data" / "approved-notes")
+task_store = FileTaskStateStore(PROJECT_ROOT / "data" / "task-state")
 
 
 @app.get("/health", tags=["system"])
@@ -199,8 +207,17 @@ def run_agent(request: AgentRequest) -> AgentResponse:
         state = agent_runner.run(request.query, request.source_root, request.top_k)
     except SourceRootError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if request.persist:
+        task_store.save(state)
+    return _agent_response(state)
+
+
+def _agent_response(state) -> AgentResponse:
+    """Convert an internal task state to the public Agent response."""
 
     draft = state.answer
+    if draft is None:
+        raise HTTPException(status_code=500, detail="Agent task has no answer draft")
     report = None
     if state.category == "troubleshooting":
         report = _troubleshooting_response(
@@ -224,6 +241,35 @@ def run_agent(request: AgentRequest) -> AgentResponse:
         evidence=[_to_search_hit(result) for result in state.evidence],
         report=report,
     )
+
+
+@app.get("/api/agent/tasks/{task_id}", response_model=AgentResponse, tags=["agent"])
+def get_agent_task(task_id: str) -> AgentResponse:
+    """Load an explicitly persisted Agent task snapshot."""
+
+    try:
+        return _agent_response(task_store.load(task_id))
+    except TaskStateNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except TaskStateError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/agent/tasks/{task_id}/resume", response_model=AgentResponse, tags=["agent"])
+def resume_agent_task(task_id: str, request: AgentResumeRequest) -> AgentResponse:
+    """Resume a task stopped by the local tool or graph budget."""
+
+    try:
+        state = task_store.load(task_id)
+        state = agent_runner.resume(state, request.top_k)
+        task_store.save(state)
+        return _agent_response(state)
+    except TaskStateNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except TaskNotResumableError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (TaskStateError, SourceRootError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/knowledge-notes/preview", response_model=KnowledgeNotePreviewResponse, tags=["knowledge-notes"])

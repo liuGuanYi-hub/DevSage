@@ -1,6 +1,7 @@
 import unittest
 
 from backend.app.services.answer_service import compose_evidence_answer
+from backend.app.services.project_summary import compose_project_summary
 from backend.app.retrieval.models import SearchResult
 from backend.app.ingestion.models import ChunkRecord
 
@@ -42,7 +43,39 @@ class AnswerServiceTests(unittest.TestCase):
         self.assertEqual((), draft.citations)
         self.assertIn("没有检索到足够的直接证据", draft.answer)
 
+    def test_project_summary_groups_code_and_document_evidence(self) -> None:
+        results = [
+            SearchResult(
+                chunk=ChunkRecord(
+                    chunk_id="doc-1",
+                    source_path="docs/project.md",
+                    file_type="markdown",
+                    content="项目使用 Spring Boot 提供用户接口。",
+                    start_line=1,
+                    end_line=2,
+                ),
+                score=1.0,
+                matched_terms=("项目", "用户", "接口"),
+            ),
+            SearchResult(
+                chunk=ChunkRecord(
+                    chunk_id="code-1",
+                    source_path="src/UserController.java",
+                    file_type="code",
+                    content="class UserController { }",
+                    start_line=4,
+                    end_line=6,
+                ),
+                score=0.9,
+                matched_terms=("用户", "接口"),
+            ),
+        ]
+        draft = compose_project_summary("总结用户接口", results)
+        self.assertTrue(draft.evidence_sufficient)
+        self.assertIn("文档与配置证据", draft.answer)
+        self.assertIn("代码证据", draft.answer)
+        self.assertEqual(2, len(draft.citations))
+
 
 if __name__ == "__main__":
     unittest.main()
-

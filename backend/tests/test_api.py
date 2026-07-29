@@ -1,8 +1,12 @@
 import unittest
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from backend.app.main import app
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 class ApiTests(unittest.TestCase):
@@ -143,6 +147,29 @@ class ApiTests(unittest.TestCase):
         self.assertEqual("issue_search", payload["category"])
         self.assertIn("search_issues", payload["tool_calls"])
         self.assertTrue(any("ISSUE-002" in citation for citation in payload["citations"]))
+
+    def test_agent_task_can_be_explicitly_persisted_and_loaded(self) -> None:
+        response = self.client.post(
+            "/api/agent/run",
+            json={
+                "source_root": "sample-data",
+                "query": "用户接口入口在哪个类？",
+                "persist": True,
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        task_id = response.json()["task_id"]
+        try:
+            loaded = self.client.get(f"/api/agent/tasks/{task_id}")
+            self.assertEqual(200, loaded.status_code)
+            self.assertEqual(task_id, loaded.json()["task_id"])
+        finally:
+            task_path = PROJECT_ROOT / "data" / "task-state" / f"{task_id}.json"
+            if task_path.is_file():
+                task_path.unlink()
+            task_directory = task_path.parent
+            if task_directory.is_dir() and not any(task_directory.iterdir()):
+                task_directory.rmdir()
 
     def test_agent_endpoint_returns_structured_troubleshooting_report(self) -> None:
         response = self.client.post(
