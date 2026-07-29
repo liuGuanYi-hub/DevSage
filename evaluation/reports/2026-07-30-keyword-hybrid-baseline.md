@@ -108,3 +108,9 @@
 ### 检索上下文代理结果
 
 路径加权后重新运行 `evaluate_context_quality.py`：Context Precision@5 为 `0.2000`，去重来源 Precision 为 `0.2000`，Context Recall@5 为 `0.6783`，Answer Relevance Proxy F1 为 `0.1217`，Reference Term Recall 为 `0.8459`，Faithfulness Proxy Precision 为 `0.8652`，失败案例为 `21/50`。这些指标继续作为离线词法趋势，不替代人工或模型评审。
+
+## 2026-07-30 02:49：项目总结证据预算与工具失败重试
+
+本轮针对跨文件项目总结设置独立的最小证据预算：项目总结至少保留 8 个候选来源，普通问答仍维持调用方指定的 Top-K，避免扩大检索范围污染其他任务。随后为 Git 历史、Commit Diff 和导出 Issue 查询增加一次有界失败重试；每次实际尝试计入工具调用预算，失败步骤、`tool_retry` 步骤和 `tool_retry_count` 都会写入 Agent 状态快照，路径越界等输入错误不会重试。
+
+更新后的 50 条 Agent 评估结果为：Agent Source Recall@5 `0.9800`，完整来源案例率 `0.9600`，失败案例 `2/50`；Expected Tool Coverage 保持 `0.9333`，Fully Covered Case Rate 保持 `0.8400`。剩余两条均为 expected source 中的 `.env.example` 超出当前 `sample-data` source root，保留作为数据边界提示。

@@ -1,8 +1,10 @@
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from backend.app.agents.classifier import classify_question
+from backend.app.agents.issue_tools import IssueToolError
 from backend.app.agents.runner import AgentRunner
 from backend.app.agents.state import AgentState
 from backend.app.ingestion.models import ChunkRecord
@@ -76,6 +78,27 @@ class AgentTests(unittest.TestCase):
         self.assertIn("项目总结", state.answer.answer)
         self.assertTrue(state.answer.citations)
 
+    def test_project_summary_uses_a_wider_multi_source_evidence_budget(self) -> None:
+        state = self.runner.run(
+            "请总结 Spring Boot 示例项目的用户查询调用链和端口配置。",
+            "sample-data",
+        )
+
+        sources = {result.chunk.source_path for result in state.evidence}
+        self.assertGreaterEqual(len(state.evidence), 4)
+        self.assertIn(
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+            sources,
+        )
+        self.assertIn(
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java",
+            sources,
+        )
+        self.assertIn(
+            "repositories/springboot-demo/src/main/resources/application.yml",
+            sources,
+        )
+
     def test_knowledge_write_uses_preview_tool_without_approval(self) -> None:
         state = self.runner.run("整理成一篇端口排查笔记", "sample-data")
         self.assertEqual("knowledge_write", state.category)
@@ -97,6 +120,20 @@ class AgentTests(unittest.TestCase):
         self.assertIn("search_documents", state.tool_calls)
         self.assertIn("search_issues", state.tool_calls)
         self.assertIn("get_git_history", state.tool_calls)
+
+    def test_issue_tool_retries_once_and_records_the_failed_attempt(self) -> None:
+        runner = AgentRunner(IndexService(), max_tool_retries=1)
+
+        with patch(
+            "backend.app.agents.runner.search_issues",
+            side_effect=[IssueToolError("temporary read failure"), []],
+        ):
+            state = runner.run("这个历史故障之前出现过吗", "sample-data")
+
+        self.assertEqual(1, state.tool_retry_count)
+        self.assertEqual(["search_issues", "search_issues"], state.tool_calls)
+        self.assertIn("tool_retry", [step.name for step in state.steps])
+        self.assertEqual("insufficient_evidence", state.status)
 
     def test_git_diff_question_is_classified_separately(self) -> None:
         self.assertEqual("git_diff", classify_question("最近一次提交改了什么"))

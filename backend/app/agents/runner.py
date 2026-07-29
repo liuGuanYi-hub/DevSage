@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
+from typing import Callable
 from uuid import uuid4
 
 from ..services.answer_service import compose_evidence_answer
@@ -29,6 +30,7 @@ class AgentRunner:
         max_tool_calls: int = 4,
         max_steps: int = 12,
         max_retries: int = 1,
+        max_tool_retries: int = 1,
         max_runtime_seconds: float | None = 30.0,
         writeback_service: KnowledgeWritebackService | None = None,
     ) -> None:
@@ -36,6 +38,9 @@ class AgentRunner:
         self.max_tool_calls = max_tool_calls
         self.max_steps = max_steps
         self.max_retries = max_retries
+        if max_tool_retries < 0:
+            raise ValueError("max_tool_retries must be non-negative")
+        self.max_tool_retries = max_tool_retries
         self.max_runtime_seconds = max_runtime_seconds
         self.writeback_service = writeback_service or KnowledgeWritebackService(
             Path(
@@ -155,6 +160,40 @@ class AgentRunner:
         state.steps.append(AgentStep(name, "completed", detail))
         return True
 
+    def _run_retryable_tool(
+        self,
+        state: AgentState,
+        name: str,
+        detail: str,
+        operation: Callable[[], object],
+    ) -> object | None:
+        """Run a Git/Issue tool with a bounded retry and observable attempts."""
+
+        attempt = 0
+        while True:
+            if not state.record_tool_call(name, self.max_tool_calls):
+                state.status = "tool_limit_reached"
+                state.steps.append(
+                    AgentStep("terminate", "limit_reached", f"tool limit reached before {name}")
+                )
+                return None
+            try:
+                result = operation()
+            except (GitToolError, IssueToolError) as exc:
+                state.steps.append(
+                    AgentStep(name, "failed", f"attempt={attempt + 1}; {type(exc).__name__}")
+                )
+                if attempt >= self.max_tool_retries:
+                    raise
+                attempt += 1
+                state.tool_retry_count += 1
+                state.steps.append(
+                    AgentStep("tool_retry", "scheduled", f"tool={name}; retry={attempt}")
+                )
+                continue
+            state.steps.append(AgentStep(name, "completed", detail))
+            return result
+
     def _retrieve(self, state: AgentState, top_k: int, query: str | None = None):
         search_query = query or state.query
         if state.category == "code_location":
@@ -201,7 +240,12 @@ class AgentRunner:
                 return []
             if not self._record_tool(state, "search_code", "project code"):
                 return []
-            return self.index_service.search_project(state.source_root, search_query, top_k)
+            summary_top_k = max(top_k, 8)
+            return self.index_service.search_project(
+                state.source_root,
+                search_query,
+                summary_top_k,
+            )
 
         if state.category == "knowledge_write":
             if not self._record_tool(state, "search_documents", "writeback source evidence"):
@@ -222,34 +266,45 @@ class AgentRunner:
             return results
 
         if state.category == "git_history":
-            if not self._record_tool(state, "get_git_history", "local repository"):
-                return []
-            return get_git_history(search_query, limit=top_k)
+            results = self._run_retryable_tool(
+                state,
+                "get_git_history",
+                "local repository",
+                lambda: get_git_history(search_query, limit=top_k),
+            )
+            return results or []
 
         if state.category == "git_diff":
             commit_hash = _extract_commit_hash(search_query)
             if commit_hash is None:
-                if not self._record_tool(state, "get_git_history", "select latest local commit"):
-                    return []
-                history = get_git_history("", limit=1)
+                history = self._run_retryable_tool(
+                    state,
+                    "get_git_history",
+                    "select latest local commit",
+                    lambda: get_git_history("", limit=1),
+                )
                 if not history:
                     return []
                 commit_hash = history[0].chunk.metadata["commit_hash"]
-            if not self._record_tool(state, "get_commit_diff", f"commit {commit_hash}"):
-                return []
-            return [get_commit_diff(commit_hash)]
+            result = self._run_retryable_tool(
+                state,
+                "get_commit_diff",
+                f"commit {commit_hash}",
+                lambda: get_commit_diff(commit_hash),
+            )
+            return [result] if result is not None else []
 
         if state.category == "issue_search":
-            if not self._record_tool(state, "search_issues", "exported Issue records"):
-                return []
-            return search_issues(search_query, limit=top_k)
+            results = self._run_retryable_tool(
+                state,
+                "search_issues",
+                "exported Issue records",
+                lambda: search_issues(search_query, limit=top_k),
+            )
+            return results or []
 
         if state.category == "troubleshooting":
             if not self._record_tool(state, "search_documents", "hybrid evidence"):
-                return []
-            if not self._record_tool(state, "search_issues", "historical failures"):
-                return []
-            if not self._record_tool(state, "get_git_history", "recent repository changes"):
                 return []
             document_results = self.index_service.search_hybrid(
                 state.source_root,
@@ -257,8 +312,18 @@ class AgentRunner:
                 top_k=top_k,
             )[1]
             self._read_first_evidence(state, document_results)
-            issue_results = search_issues(state.query, limit=top_k)
-            git_results = get_git_history(state.query, limit=top_k)
+            issue_results = self._run_retryable_tool(
+                state,
+                "search_issues",
+                "historical failures",
+                lambda: search_issues(state.query, limit=top_k),
+            ) or []
+            git_results = self._run_retryable_tool(
+                state,
+                "get_git_history",
+                "recent repository changes",
+                lambda: get_git_history(state.query, limit=top_k),
+            ) or []
             from ..retrieval.rrf import reciprocal_rank_fusion
 
             return reciprocal_rank_fusion(

@@ -35,6 +35,7 @@ class AgentState:
     answer: object | None = None
     rewritten_query: str | None = None
     retry_count: int = 0
+    tool_retry_count: int = 0
 
     def set_category(self, category: str) -> None:
         if category not in QUESTION_CATEGORIES:
@@ -67,6 +68,7 @@ class AgentState:
             "answer": _serialize_answer(self.answer),
             "rewritten_query": self.rewritten_query,
             "retry_count": self.retry_count,
+            "tool_retry_count": self.tool_retry_count,
         }
 
     @classmethod
@@ -94,6 +96,7 @@ class AgentState:
         state.answer = _deserialize_answer(payload.get("answer"))
         state.rewritten_query = payload.get("rewritten_query")
         state.retry_count = int(payload.get("retry_count", 0))
+        state.tool_retry_count = int(payload.get("tool_retry_count", 0))
         return state
 
 
