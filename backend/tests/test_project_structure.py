@@ -22,6 +22,7 @@ class ProjectStructureTests(unittest.TestCase):
             "backend/app/storage/postgres_repository.py",
             "backend/tests/test_provider_adapters.py",
             "backend/app/services/index_service.py",
+            "backend/app/services/index_snapshot_store.py",
             "backend/app/services/knowledge_writeback.py",
             "backend/app/schemas/search.py",
             "backend/tests/test_api.py",

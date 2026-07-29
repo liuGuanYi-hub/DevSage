@@ -86,7 +86,7 @@ def list_projects() -> dict[str, object]:
 
 @app.post("/api/index", response_model=IndexResponse, tags=["index"])
 def index_source(request: IndexRequest) -> IndexResponse:
-    """Build an in-memory snapshot for a project-relative source directory."""
+    """Build or incrementally update a project-relative source snapshot."""
 
     try:
         source_root, snapshot = index_service.build(request.source_root)

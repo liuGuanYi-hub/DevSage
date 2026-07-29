@@ -1,4 +1,4 @@
-"""In-memory index service for the first DevMind API milestone."""
+"""Index service with offline file snapshots and optional PostgreSQL storage."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from ..retrieval.models import SearchResult
 from ..retrieval.rrf import reciprocal_rank_fusion, select_source_diverse
 from ..retrieval.provider_factory import create_embedding_provider
 from ..storage.postgres_repository import PostgresIndexRepository
+from .index_snapshot_store import FileIndexSnapshotStore
 
 
 PROJECT_ROOT = Path(
@@ -62,13 +63,21 @@ def resolve_source_root(source_root: str) -> Path:
 
 
 class IndexService:
-    """Build local snapshots and optionally persist/search them in PostgreSQL."""
+    """Build local snapshots with offline file recovery or PostgreSQL persistence."""
 
-    def __init__(self, embedding_provider=None, persistence=None) -> None:
+    def __init__(self, embedding_provider=None, persistence=None, snapshot_store=None) -> None:
         self._snapshots: dict[str, IndexSnapshot] = {}
         self._lock = RLock()
         self.embedding_provider = embedding_provider or create_embedding_provider()
         self.persistence = persistence if persistence is not None else self._create_persistence()
+        if snapshot_store is not None:
+            self.snapshot_store = snapshot_store
+        elif self.persistence is None:
+            self.snapshot_store = FileIndexSnapshotStore(
+                PROJECT_ROOT / "data" / "index-snapshots"
+            )
+        else:
+            self.snapshot_store = None
         self._persistence_initialized = False
 
     @staticmethod
@@ -102,11 +111,15 @@ class IndexService:
     def build(self, source_root: str) -> tuple[str, IndexSnapshot]:
         resolved = resolve_source_root(source_root)
         key = resolved.as_posix()
+        relative_root = resolved.relative_to(PROJECT_ROOT).as_posix()
         with self._lock:
             previous = self._snapshots.get(key)
+        if previous is None and self.snapshot_store is not None:
+            previous = self.snapshot_store.load(relative_root)
         snapshot = build_index(resolved, previous=previous)
-        relative_root = resolved.relative_to(PROJECT_ROOT).as_posix()
         self._persist_snapshot(relative_root, resolved, snapshot)
+        if self.snapshot_store is not None:
+            self.snapshot_store.save(relative_root, snapshot)
         with self._lock:
             self._snapshots[key] = snapshot
         return relative_root, snapshot

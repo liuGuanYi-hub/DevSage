@@ -1,4 +1,4 @@
-"""Build a deterministic in-memory index snapshot from local sample data."""
+"""Build a deterministic index snapshot from local project data."""
 
 from __future__ import annotations
 

@@ -61,7 +61,7 @@ npm run dev --prefix frontend
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | GET | `/health` | 后端存活检查 |
-| POST | `/api/index` | 构建本地索引并返回 Hash 增量统计 |
+| POST | `/api/index` | 构建或增量更新本地索引并返回 Hash 统计；离线快照默认保存到 `data/index-snapshots/` |
 | POST | `/api/search` | 关键词证据查询 |
 | POST | `/api/answer` | 混合检索与证据约束回答 |
 | POST | `/api/answer/stream` | SSE 流式回答 |
