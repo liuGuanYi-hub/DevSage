@@ -97,6 +97,31 @@ class ApiTests(unittest.TestCase):
         )
         self.assertEqual(400, response.status_code)
 
+    def test_registered_project_id_can_drive_answer_and_stream(self) -> None:
+        answer_response = self.client.post(
+            "/api/answer",
+            json={
+                "project_id": "sample-data",
+                "query": "8080 绔彛琚崰鐢ㄦ€庝箞鎺掓煡锛?",
+                "top_k": 5,
+            },
+        )
+        self.assertEqual(200, answer_response.status_code)
+        self.assertEqual("sample-data", answer_response.json()["source_root"])
+        self.assertTrue(answer_response.json()["citations"])
+
+        stream_response = self.client.post(
+            "/api/answer/stream",
+            json={
+                "project_id": "sample-data",
+                "query": "8080 绔彛琚崰鐢ㄦ€庝箞鎺掓煡锛?",
+            },
+        )
+        self.assertEqual(200, stream_response.status_code)
+        self.assertIn("event: meta", stream_response.text)
+        self.assertIn("sample-data", stream_response.text)
+        self.assertIn("event: done", stream_response.text)
+
     def test_api_rejects_source_root_escape(self) -> None:
         response = self.client.post(
             "/api/index",

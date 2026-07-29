@@ -67,7 +67,15 @@ try {
         throw "backend health check did not return status=ok"
     }
 
-    $indexBody = @{ source_root = "sample-data" } | ConvertTo-Json
+    $projects = Invoke-RestMethod `
+        -Uri "http://127.0.0.1:$backendPort/api/projects" `
+        -Method Get
+    $sampleProject = @($projects.items | Where-Object { $_.project_id -eq "sample-data" })
+    if ($projects.total -le 0 -or $sampleProject.Count -ne 1) {
+        throw "project discovery smoke did not return sample-data"
+    }
+
+    $indexBody = @{ project_id = "sample-data" } | ConvertTo-Json
     $index = Invoke-RestMethod `
         -Uri "http://127.0.0.1:$backendPort/api/index" `
         -Method Post `
@@ -79,7 +87,7 @@ try {
 
     $agentBody = @{
         query = "Spring Boot server.port"
-        source_root = "sample-data"
+        project_id = "sample-data"
         top_k = 5
         persist = $false
     } | ConvertTo-Json

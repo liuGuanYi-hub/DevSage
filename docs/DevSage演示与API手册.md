@@ -138,7 +138,7 @@ python -m unittest backend.tests.test_postgres_repository
 .\scripts\smoke-docker.ps1 -Execute
 ```
 
-脚本会依次检查后端健康、PostgreSQL 迁移/索引写入和 Agent 证据返回；默认结束时停止服务但保留命名卷，不使用 `docker compose down -v`。
+脚本会依次检查后端健康、项目注册发现、使用 `project_id` 的 PostgreSQL 迁移/索引写入和 Agent 证据返回；默认结束时停止服务但保留命名卷，不使用 `docker compose down -v`。
 
 ## 6. 验证入口
 
