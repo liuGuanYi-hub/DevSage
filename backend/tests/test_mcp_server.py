@@ -68,7 +68,7 @@ class MCPServerTests(unittest.TestCase):
         unknown = self.server.handle_request(
             {"jsonrpc": "2.0", "id": 5, "method": "no/such/method", "params": {}}
         )
-        self.assertEqual(-32602, unknown["error"]["code"])
+        self.assertEqual(-32601, unknown["error"]["code"])
 
     def test_notification_has_no_response(self) -> None:
         response = self.server.handle_request(

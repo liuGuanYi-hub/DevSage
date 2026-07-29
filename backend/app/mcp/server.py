@@ -24,6 +24,10 @@ SERVER_INFO = {
     "version": "0.1.0",
 }
 
+
+class MCPMethodNotFoundError(RuntimeError):
+    """Raised when a JSON-RPC method is not part of the MCP surface."""
+
 TOOL_DEFINITIONS = [
     {
         "name": "search_documents",
@@ -119,6 +123,8 @@ class MCPServer:
 
         try:
             result = self._dispatch(str(method), request.get("params") or {})
+        except MCPMethodNotFoundError as exc:
+            return _error_response(request_id, -32601, str(exc))
         except (SourceRootError, GitToolError, IssueToolError, ValueError) as exc:
             return _error_response(request_id, -32602, str(exc))
         except Exception:
@@ -140,7 +146,7 @@ class MCPServer:
             return {"tools": TOOL_DEFINITIONS}
         if method == "tools/call":
             return self._call_tool(params)
-        raise ValueError(f"unknown MCP method: {method}")
+        raise MCPMethodNotFoundError(f"unknown MCP method: {method}")
 
     def _call_tool(self, params: dict[str, Any]) -> dict[str, Any]:
         name = params.get("name")
