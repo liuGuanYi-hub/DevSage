@@ -171,7 +171,7 @@ python -m unittest backend.tests.test_postgres_repository
 .\scripts\verify-offline.ps1
 ```
 
-该入口会串行执行评估、backend unittest、pytest、MCP、可选 LangGraph、前端构建、本地 HTTP smoke、actor capability smoke 和 Compose dry-run；当前环境输出 `steps=16`。真实 Docker、外部 Issue 和远程 Embedding 仍保持显式配置/授权边界。
+该入口会串行执行评估、backend unittest、pytest、MCP、可选 LangGraph、前端构建、一键演示启动、本地 HTTP smoke、actor capability smoke 和 Compose dry-run；当前环境输出 `steps=17`。真实 Docker、外部 Issue 和远程 Embedding 仍保持显式配置/授权边界。
 
 默认只校验 Compose 配置，不会创建镜像、容器或卷：
 

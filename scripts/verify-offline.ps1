@@ -69,6 +69,12 @@ if (-not $SkipFrontend) {
     $npm = (Get-Command npm.cmd -ErrorAction Stop).Source
     Invoke-CheckedCommand "frontend production build" $npm @("run", "build", "--prefix", "frontend")
     $stepCount++
+    Invoke-CheckedCommand "one-click demo startup" $powershell @(
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+        (Join-Path $projectRoot "scripts\start-demo.ps1"),
+        "-DurationSeconds", "2"
+    )
+    $stepCount++
 }
 
 Invoke-CheckedCommand "local HTTP smoke" $powershell @(
