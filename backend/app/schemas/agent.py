@@ -39,6 +39,16 @@ class TroubleshootingReportResponse(BaseModel):
     evidence_sufficient: bool
 
 
+class AgentUsageResponse(BaseModel):
+    query_tokens: int
+    evidence_tokens: int
+    answer_tokens: int
+    total_token_estimate: int
+    tool_calls: int
+    tool_retries: int
+    runtime_ms: int
+
+
 class AgentResponse(BaseModel):
     task_id: str
     query: str
@@ -53,4 +63,5 @@ class AgentResponse(BaseModel):
     tool_retry_count: int = 0
     steps: list[AgentStepResponse]
     evidence: list[SearchHit]
+    usage: AgentUsageResponse
     report: TroubleshootingReportResponse | None = None

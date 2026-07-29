@@ -97,6 +97,7 @@ onMounted(refreshIndex);
           <small v-if="answer.warning" class="warning">{{ answer.warning }}</small>
           <small>工具链：{{ answer.tool_calls.join(" · ") || "未调用工具" }}</small>
           <small>工具重试：{{ answer.tool_retry_count }} 次</small>
+          <small>Token 估算：{{ answer.usage.total_token_estimate }}（查询 {{ answer.usage.query_tokens }} / 证据 {{ answer.usage.evidence_tokens }} / 答案 {{ answer.usage.answer_tokens }}）· {{ answer.usage.runtime_ms }}ms</small>
           <ol class="agent-steps">
             <li v-for="step in answer.steps" :key="`${step.name}-${step.status}`">
               <strong>{{ step.name }}</strong> · {{ step.status }} · {{ step.detail }}

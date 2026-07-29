@@ -40,6 +40,16 @@ export interface AgentStep {
   detail: string;
 }
 
+export interface AgentUsage {
+  query_tokens: number;
+  evidence_tokens: number;
+  answer_tokens: number;
+  total_token_estimate: number;
+  tool_calls: number;
+  tool_retries: number;
+  runtime_ms: number;
+}
+
 export interface TroubleshootingFinding {
   source_type: string;
   citations: string[];
@@ -63,6 +73,7 @@ export interface AgentResponse extends AnswerResponse {
   tool_retry_count: number;
   steps: AgentStep[];
   report: TroubleshootingReport | null;
+  usage: AgentUsage;
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";

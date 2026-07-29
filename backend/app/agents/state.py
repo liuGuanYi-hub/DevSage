@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..ingestion.models import ChunkRecord
+from ..retrieval.keyword_search import tokenize
 from ..retrieval.models import SearchResult
 from ..services.answer_service import AnswerDraft
 from .classifier import QUESTION_CATEGORIES
@@ -20,6 +21,46 @@ class AgentStep:
     name: str
     status: str
     detail: str
+
+
+@dataclass
+class AgentUsage:
+    """Explainable offline usage counters, not provider billing data."""
+
+    query_tokens: int = 0
+    evidence_tokens: int = 0
+    answer_tokens: int = 0
+    tool_calls: int = 0
+    tool_retries: int = 0
+    runtime_ms: int = 0
+
+    @property
+    def total_token_estimate(self) -> int:
+        return self.query_tokens + self.evidence_tokens + self.answer_tokens
+
+    def to_dict(self) -> dict[str, int]:
+        return {
+            "query_tokens": self.query_tokens,
+            "evidence_tokens": self.evidence_tokens,
+            "answer_tokens": self.answer_tokens,
+            "total_token_estimate": self.total_token_estimate,
+            "tool_calls": self.tool_calls,
+            "tool_retries": self.tool_retries,
+            "runtime_ms": self.runtime_ms,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any] | None) -> "AgentUsage":
+        if not payload:
+            return cls()
+        return cls(
+            query_tokens=int(payload.get("query_tokens", 0)),
+            evidence_tokens=int(payload.get("evidence_tokens", 0)),
+            answer_tokens=int(payload.get("answer_tokens", 0)),
+            tool_calls=int(payload.get("tool_calls", 0)),
+            tool_retries=int(payload.get("tool_retries", 0)),
+            runtime_ms=int(payload.get("runtime_ms", 0)),
+        )
 
 
 @dataclass
@@ -36,6 +77,7 @@ class AgentState:
     rewritten_query: str | None = None
     retry_count: int = 0
     tool_retry_count: int = 0
+    usage: AgentUsage = field(default_factory=AgentUsage)
 
     def set_category(self, category: str) -> None:
         if category not in QUESTION_CATEGORIES:
@@ -49,6 +91,21 @@ class AgentState:
             return False
         self.tool_calls.append(tool_name)
         return True
+
+    def refresh_usage(self) -> None:
+        """Refresh deterministic token and tool counters from current state."""
+
+        self.usage.query_tokens = len(tokenize(self.query))
+        self.usage.evidence_tokens = sum(
+            len(tokenize(result.chunk.content)) for result in self.evidence
+        )
+        self.usage.answer_tokens = (
+            len(tokenize(self.answer.answer))
+            if isinstance(self.answer, AnswerDraft)
+            else 0
+        )
+        self.usage.tool_calls = len(self.tool_calls)
+        self.usage.tool_retries = self.tool_retry_count
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-safe snapshot without runtime-only objects."""
@@ -69,6 +126,7 @@ class AgentState:
             "rewritten_query": self.rewritten_query,
             "retry_count": self.retry_count,
             "tool_retry_count": self.tool_retry_count,
+            "usage": self.usage.to_dict(),
         }
 
     @classmethod
@@ -91,12 +149,15 @@ class AgentState:
             ],
             tool_calls=[str(item) for item in payload.get("tool_calls", [])],
             evidence=[_deserialize_search_result(item) for item in payload.get("evidence", [])],
+            usage=AgentUsage.from_dict(payload.get("usage")),
         )
         state.set_category(state.category)
         state.answer = _deserialize_answer(payload.get("answer"))
         state.rewritten_query = payload.get("rewritten_query")
         state.retry_count = int(payload.get("retry_count", 0))
         state.tool_retry_count = int(payload.get("tool_retry_count", 0))
+        if "usage" not in payload:
+            state.refresh_usage()
         return state
 
 

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
+import time
 from pathlib import Path
 from typing import Callable
 from uuid import uuid4
@@ -19,6 +21,9 @@ from .issue_tools import IssueToolError, search_issues
 from .query_rewrite import rewrite_query
 from .state import AgentState, AgentStep
 from ..services.task_store import TaskNotResumableError
+
+
+logger = logging.getLogger("devsage.agent")
 
 
 class AgentRunner:
@@ -66,18 +71,21 @@ class AgentRunner:
 
     def run(self, query: str, source_root: str, top_k: int = 5) -> AgentState:
         state = AgentState(uuid4().hex, query, source_root)
+        started_at = time.perf_counter()
         try:
             self.graph.run(state, {"top_k": top_k})
+            if state.answer is None and state.status in {
+                "tool_limit_reached",
+                "step_limit_reached",
+                "task_timeout",
+            }:
+                state.answer = compose_evidence_answer(state.query, state.evidence)
         except (SourceRootError, GitToolError, IssueToolError):
             state.status = "failed"
             state.steps.append(AgentStep("retrieve_evidence", "failed", "invalid source root or tool input"))
             raise
-        if state.answer is None and state.status in {
-            "tool_limit_reached",
-            "step_limit_reached",
-            "task_timeout",
-        }:
-            state.answer = compose_evidence_answer(state.query, state.evidence)
+        finally:
+            self._record_usage(state, started_at)
         return state
 
     def resume(self, state: AgentState, top_k: int = 5) -> AgentState:
@@ -92,19 +100,38 @@ class AgentRunner:
         state.evidence = []
         state.tool_calls = []
         state.steps.append(AgentStep("resume", "started", "new bounded execution budget"))
+        started_at = time.perf_counter()
         try:
             self.graph.run(state, {"top_k": top_k}, start="retrieve_evidence")
+            if state.answer is None and state.status in {
+                "tool_limit_reached",
+                "step_limit_reached",
+                "task_timeout",
+            }:
+                state.answer = compose_evidence_answer(state.query, state.evidence)
         except (SourceRootError, GitToolError, IssueToolError):
             state.status = "failed"
             state.steps.append(AgentStep("retrieve_evidence", "failed", "resume tool input failed"))
             raise
-        if state.answer is None and state.status in {
-            "tool_limit_reached",
-            "step_limit_reached",
-            "task_timeout",
-        }:
-            state.answer = compose_evidence_answer(state.query, state.evidence)
+        finally:
+            self._record_usage(state, started_at)
         return state
+
+    @staticmethod
+    def _record_usage(state: AgentState, started_at: float) -> None:
+        state.refresh_usage()
+        state.usage.runtime_ms += max(0, round((time.perf_counter() - started_at) * 1000))
+        logger.info(
+            "agent_run_completed task_id=%s category=%s status=%s tool_calls=%d "
+            "tool_retries=%d runtime_ms=%d token_estimate=%d",
+            state.task_id,
+            state.category,
+            state.status,
+            state.usage.tool_calls,
+            state.usage.tool_retries,
+            state.usage.runtime_ms,
+            state.usage.total_token_estimate,
+        )
 
     def _classify_node(self, state: AgentState, _context: dict[str, object]) -> str:
         category = classify_question(state.query)

@@ -153,6 +153,17 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(state.status, restored.status)
         self.assertEqual(state.tool_calls, restored.tool_calls)
         self.assertEqual(state.answer.citations, restored.answer.citations)
+        self.assertEqual(state.usage.total_token_estimate, restored.usage.total_token_estimate)
+        self.assertEqual(state.usage.tool_calls, len(state.tool_calls))
+        self.assertGreaterEqual(state.usage.runtime_ms, 0)
+
+    def test_agent_usage_is_logged_without_query_content(self) -> None:
+        with self.assertLogs("devsage.agent", level="INFO") as logs:
+            state = self.runner.run("用户接口入口在哪里", "sample-data")
+
+        self.assertTrue(any("agent_run_completed" in message for message in logs.output))
+        self.assertTrue(all("用户接口入口在哪里" not in message for message in logs.output))
+        self.assertGreater(state.usage.total_token_estimate, 0)
 
     def test_tool_limit_stops_before_unbounded_read(self) -> None:
         runner = AgentRunner(IndexService(), max_tool_calls=1)

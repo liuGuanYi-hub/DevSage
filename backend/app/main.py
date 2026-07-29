@@ -25,6 +25,7 @@ from .schemas.agent import (
     AgentRequest,
     AgentResumeRequest,
     AgentResponse,
+    AgentUsageResponse,
     AgentStepResponse,
     TroubleshootingFindingResponse,
     TroubleshootingReportResponse,
@@ -265,6 +266,7 @@ def _agent_response(state) -> AgentResponse:
             for step in state.steps
         ],
         evidence=[_to_search_hit(result) for result in state.evidence],
+        usage=AgentUsageResponse(**state.usage.to_dict()),
         report=report,
     )
 
