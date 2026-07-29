@@ -20,11 +20,18 @@ from .schemas.search import (
     SearchRequest,
     SearchResponse,
 )
-from .schemas.agent import AgentRequest, AgentResponse, AgentStepResponse
+from .schemas.agent import (
+    AgentRequest,
+    AgentResponse,
+    AgentStepResponse,
+    TroubleshootingFindingResponse,
+    TroubleshootingReportResponse,
+)
 from .agents.runner import AgentRunner
 from .services.index_service import IndexService, SourceRootError
 from .services.answer_service import AnswerDraft, compose_evidence_answer
 from .services.knowledge_writeback import KnowledgeWritebackService, WritebackPolicyError
+from .services.troubleshooting import TroubleshootingReport, build_troubleshooting_report
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -121,6 +128,24 @@ def _answer_response(
     )
 
 
+def _troubleshooting_response(report: TroubleshootingReport) -> TroubleshootingReportResponse:
+    return TroubleshootingReportResponse(
+        query=report.query,
+        summary=report.summary,
+        findings=[
+            TroubleshootingFindingResponse(
+                source_type=finding.source_type,
+                citations=list(finding.citations),
+                snippets=list(finding.snippets),
+            )
+            for finding in report.findings
+        ],
+        next_steps=list(report.next_steps),
+        citations=list(report.citations),
+        evidence_sufficient=report.evidence_sufficient,
+    )
+
+
 @app.post("/api/answer", response_model=AnswerResponse, tags=["answer"])
 def answer_question(request: AnswerRequest) -> AnswerResponse:
     """Return a deterministic answer assembled only from direct evidence."""
@@ -176,6 +201,11 @@ def run_agent(request: AgentRequest) -> AgentResponse:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     draft = state.answer
+    report = None
+    if state.category == "troubleshooting":
+        report = _troubleshooting_response(
+            build_troubleshooting_report(state.query, state.evidence)
+        )
     return AgentResponse(
         task_id=state.task_id,
         query=state.query,
@@ -192,6 +222,7 @@ def run_agent(request: AgentRequest) -> AgentResponse:
             for step in state.steps
         ],
         evidence=[_to_search_hit(result) for result in state.evidence],
+        report=report,
     )
 
 

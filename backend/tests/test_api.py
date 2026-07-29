@@ -144,6 +144,21 @@ class ApiTests(unittest.TestCase):
         self.assertIn("search_issues", payload["tool_calls"])
         self.assertTrue(any("ISSUE-002" in citation for citation in payload["citations"]))
 
+    def test_agent_endpoint_returns_structured_troubleshooting_report(self) -> None:
+        response = self.client.post(
+            "/api/agent/run",
+            json={
+                "source_root": "sample-data",
+                "query": "8080 端口故障之前是否出现过",
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        payload = response.json()
+        self.assertEqual("troubleshooting", payload["category"])
+        self.assertIsNotNone(payload["report"])
+        self.assertTrue(payload["report"]["findings"])
+        self.assertTrue(payload["report"]["citations"])
+
 
 if __name__ == "__main__":
     unittest.main()

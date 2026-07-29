@@ -19,6 +19,21 @@ class AgentStepResponse(BaseModel):
     detail: str
 
 
+class TroubleshootingFindingResponse(BaseModel):
+    source_type: str
+    citations: list[str]
+    snippets: list[str]
+
+
+class TroubleshootingReportResponse(BaseModel):
+    query: str
+    summary: str
+    findings: list[TroubleshootingFindingResponse]
+    next_steps: list[str]
+    citations: list[str]
+    evidence_sufficient: bool
+
+
 class AgentResponse(BaseModel):
     task_id: str
     query: str
@@ -32,3 +47,4 @@ class AgentResponse(BaseModel):
     tool_calls: list[str]
     steps: list[AgentStepResponse]
     evidence: list[SearchHit]
+    report: TroubleshootingReportResponse | None = None

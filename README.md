@@ -44,7 +44,7 @@ npm run dev --prefix frontend
 
 ## 当前正在做
 
-当前 API 已支持索引 `sample-data`、关键词/混合证据查询、证据约束回答、SSE 流式输出、有限图多工具 Agent、脱敏 Issue 查询、本地 Git 历史和 Commit Diff 只读查询、来源行号、索引变化统计，以及知识笔记预览和审批写入项目暂存目录。Agent 状态可生成 JSON 快照，工具调用和图步骤有硬上限。Embedding 默认使用离线 Hash；显式配置远程 Provider 后才会发起请求。
+当前 API 已支持索引 `sample-data`、关键词/混合证据查询、证据约束回答、SSE 流式输出、有限图多工具 Agent、脱敏 Issue 查询、本地 Git 历史和 Commit Diff 只读查询、结构化故障排查报告、来源行号、索引变化统计，以及知识笔记预览和审批写入项目暂存目录。Agent 状态可生成 JSON 快照，工具调用和图步骤有硬上限。Embedding 默认使用离线 Hash；显式配置远程 Provider 后才会发起请求。
 
 ## 下一步
 
