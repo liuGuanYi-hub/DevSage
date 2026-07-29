@@ -259,6 +259,38 @@ class ApiTests(unittest.TestCase):
         self.assertEqual("pending", operator_response.json()["status"])
         self.assertEqual(original, target.read_text(encoding="utf-8"))
 
+    def test_code_change_approval_checks_actor_and_preview_state(self) -> None:
+        target = PROJECT_ROOT / "sample-data/repositories/springboot-demo/README.md"
+        original = target.read_text(encoding="utf-8")
+        preview_response = self.client.post(
+            "/api/code-changes/preview",
+            json={
+                "project_id": "sample-data",
+                "target_path": "repositories/springboot-demo/README.md",
+                "proposed_content": original,
+                "source_citations": ["sample-data/repositories/springboot-demo/README.md:1-4"],
+            },
+        )
+        self.assertEqual(200, preview_response.status_code)
+        preview_id = preview_response.json()["preview_id"]
+
+        viewer_response = self.client.post(
+            f"/api/code-changes/{preview_id}/approve",
+            headers={"X-DevSage-Actor": "local-editor"},
+        )
+        self.assertEqual(403, viewer_response.status_code)
+        self.assertEqual(original, target.read_text(encoding="utf-8"))
+
+        approved_response = self.client.post(f"/api/code-changes/{preview_id}/approve")
+        self.assertEqual(200, approved_response.status_code)
+        self.assertEqual("approved", approved_response.json()["status"])
+        self.assertEqual(original, target.read_text(encoding="utf-8"))
+
+        missing_response = self.client.post(
+            "/api/code-changes/missing-preview/approve",
+        )
+        self.assertEqual(400, missing_response.status_code)
+
     def test_answer_endpoint_returns_evidence_grounded_response(self) -> None:
         response = self.client.post(
             "/api/answer",
