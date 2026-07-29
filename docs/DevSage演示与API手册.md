@@ -54,6 +54,14 @@ Invoke-RestMethod http://127.0.0.1:8000/api/agent/run `
 npm run dev --prefix frontend
 ```
 
+也可以使用一键本地演示入口：
+
+```powershell
+.\scripts\start-demo.ps1
+```
+
+该脚本默认使用内存存储，启动后端和 Vite 前端并检查两个地址就绪；按 `Ctrl+C` 会只停止本次启动的两个进程，不启动 Docker 或创建数据库卷。`-DurationSeconds 5` 可用于自动化启动/清理检查。
+
 前端启动后会先加载 `/api/projects`，项目选择器默认使用 `sample-data`；切换项目会重新索引当前注册项目，并将 `project_id` 传给 Agent 查询。
 
 打开 Vite 提供的地址，点击“重新索引样例数据”，再输入“8080 端口被占用，应该怎么排查？”或“Laravel 登录逻辑在哪个控制器方法中？”。页面会展示答案、工具链、执行步骤和结构化故障排查报告。

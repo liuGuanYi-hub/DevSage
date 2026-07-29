@@ -63,6 +63,18 @@ npm install --prefix frontend
 npm run dev --prefix frontend
 ```
 
+也可以用一条命令启动本地演示（默认内存存储，不启动 Docker；按 `Ctrl+C` 会只清理本次启动的后端和前端进程）：
+
+```powershell
+.\scripts\start-demo.ps1
+```
+
+仅用于自动检查启动和清理时，可传入短暂运行时间：
+
+```powershell
+.\scripts\start-demo.ps1 -DurationSeconds 5
+```
+
 前端默认使用 Vite 代理把 `/api` 和 `/health` 转发到 `127.0.0.1:8000`；如需连接其他后端地址，可设置 `VITE_API_BASE_URL`。页面启动时读取 `/api/projects`，支持选择注册项目并把 `project_id` 传给索引和 Agent 查询；同时展示 Agent 分类、工具调用、执行步骤、引用证据和结构化故障排查报告。
 检索得到答案后，页面还提供可编辑的知识笔记草稿、代码变更草稿、Diff 预览和显式审批写入按钮；写回请求沿用当前项目 ID，服务端负责最终路径隔离、角色能力检查和过期 Hash 校验。
 
