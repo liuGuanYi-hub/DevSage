@@ -46,3 +46,4 @@ if ($null -ne $dDrive) {
     Write-Output ("D_free_GB={0:N2}" -f ($dDrive.Free / 1GB))
 }
 Write-Output "No dependency install, Docker start, image pull, container creation, or volume creation was performed."
+exit 0
