@@ -41,6 +41,7 @@ class ProjectStructureTests(unittest.TestCase):
             "evaluation/reports/2026-07-30-keyword-hybrid-baseline.md",
             "evaluation/scripts/evaluate_keyword_baseline.py",
             "evaluation/scripts/evaluate_hybrid_baseline.py",
+            "evaluation/scripts/evaluate_retrieval_strategies.py",
             "backend/requirements.txt",
             "frontend/package.json",
             "evaluation/datasets/devmind_mvp_questions.json",

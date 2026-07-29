@@ -114,3 +114,15 @@
 本轮针对跨文件项目总结设置独立的最小证据预算：项目总结至少保留 8 个候选来源，普通问答仍维持调用方指定的 Top-K，避免扩大检索范围污染其他任务。随后为 Git 历史、Commit Diff 和导出 Issue 查询增加一次有界失败重试；每次实际尝试计入工具调用预算，失败步骤、`tool_retry` 步骤和 `tool_retry_count` 都会写入 Agent 状态快照，路径越界等输入错误不会重试。
 
 更新后的 50 条 Agent 评估结果为：Agent Source Recall@5 `0.9800`，完整来源案例率 `0.9600`，失败案例 `2/50`；Expected Tool Coverage 保持 `0.9333`，Fully Covered Case Rate 保持 `0.8400`。剩余两条均为 expected source 中的 `.env.example` 超出当前 `sample-data` source root，保留作为数据边界提示。
+
+## 2026-07-30 03:13：三策略检索对比
+
+新增 `evaluation/scripts/evaluate_retrieval_strategies.py`，统一加载 50 条固定问题、`sample-data` 加根目录 `.env.example` 的同一批 Chunk，并固定使用 `HashEmbeddingProvider(dimension=1024)` 对比纯关键词、纯向量和混合检索。三种策略均使用 Top-K=5，指标定义保持 Case Recall@5、Source Recall@5 和 MRR。
+
+| 策略 | Case Recall@5 | Source Recall@5 | MRR |
+|---|---:|---:|---:|
+| 纯关键词 | 0.7200 | 0.5450 | 0.4347 |
+| 纯 Hash 向量 | 0.7800 | 0.6383 | 0.6807 |
+| 混合（关键词 + Hash 向量 + RRF） | 0.8200 | 0.6783 | 0.6753 |
+
+这组实测结果显示，在当前脱敏数据集上混合检索的来源覆盖最高，纯向量的 MRR 略高；不能据此推断真实 Embedding 或生产数据上的效果。Hash Provider 是确定性接口替身，后续仍需真实 Embedding、Reranker 和 PostgreSQL/pgvector 端到端结果。
