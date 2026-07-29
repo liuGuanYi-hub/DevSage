@@ -101,6 +101,7 @@
 - [ ] 增加日志和 Token 使用统计；
 - [ ] 增加 Redis 缓存；
 - [ ] 完善 Pytest、接口和错误场景测试；
+- [x] 增加默认只读的 Compose 配置校验和显式执行 smoke 脚本；
 - [ ] 完善 Docker Compose 部署。
 
 ### 阶段 5：量化评估

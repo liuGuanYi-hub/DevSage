@@ -44,6 +44,8 @@ class ProjectStructureTests(unittest.TestCase):
             "frontend/package.json",
             "evaluation/datasets/devmind_mvp_questions.json",
             "evaluation/scripts/validate_mvp_dataset.py",
+            "evaluation/scripts/evaluate_agent_grounding.py",
+            "scripts/smoke-docker.ps1",
             "sample-data/docs/springboot-errors.md",
             "sample-data/docs/laravel-auth.md",
         ]

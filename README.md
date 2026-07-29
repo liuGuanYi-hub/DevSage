@@ -36,6 +36,7 @@ python evaluation/scripts/evaluate_tool_call_accuracy.py
 python evaluation/scripts/evaluate_context_quality.py
 python -m unittest discover -s backend/tests -p "test_*.py"
 python -m compileall -q backend evaluation/scripts
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-docker.ps1
 ```
 
 FastAPI 和 Vue 依赖可分别启动：
@@ -49,6 +50,8 @@ npm run dev --prefix frontend
 前端默认使用 Vite 代理把 `/api` 和 `/health` 转发到 `127.0.0.1:8000`；如需连接其他后端地址，可设置 `VITE_API_BASE_URL`。页面已展示 Agent 分类、工具调用、执行步骤、引用证据和结构化故障排查报告。
 
 执行 Docker Compose 前必须先准备本地环境变量，并确认数据库数据目录和端口范围。不要把真实密码、Token 或 `.env` 文件提交到仓库。
+
+`scripts/smoke-docker.ps1` 默认只运行 `docker compose config --quiet`，不会创建镜像、容器或卷；确认 C 盘占用并获得许可后，才可在当前 PowerShell 会话设置 `POSTGRES_PASSWORD`、`DATABASE_URL`，再使用 `-Execute` 运行健康检查、索引写入和 Agent 查询 smoke。
 
 ## 当前正在做
 
