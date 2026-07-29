@@ -325,7 +325,7 @@ class AgentRunner:
             results = self._run_retryable_tool(
                 state,
                 "search_issues",
-                "exported Issue records",
+                "configured external or exported Issue records",
                 lambda: search_issues(search_query, limit=top_k),
             )
             return results or []
@@ -342,7 +342,7 @@ class AgentRunner:
             issue_results = self._run_retryable_tool(
                 state,
                 "search_issues",
-                "historical failures",
+                "historical failures from configured or exported Issues",
                 lambda: search_issues(state.query, limit=top_k),
             ) or []
             git_results = self._run_retryable_tool(

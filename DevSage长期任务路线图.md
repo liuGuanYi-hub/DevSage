@@ -80,7 +80,7 @@
 - [x] 接入本地 Git 历史查询；
 - [x] 接入脱敏 Issue 查询；
 - [x] 接入本地 Git Commit Diff 只读查询；
-- [ ] 接入外部 Issue 平台；
+- [x] 接入可选 GitHub-compatible 外部 Issue 只读适配器（真实平台 smoke 待配置）；
 - [x] 生成结构化故障排查报告；
 - [x] 展示 Agent 节点和工具调用过程；
 - [x] 前端展示 Agent 分类、工具链、执行步骤、引用证据和结构化排查报告；

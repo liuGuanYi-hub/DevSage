@@ -127,3 +127,16 @@
 | 混合 + 来源多样性重排 | 0.8200 | 0.6783 | 0.6753 |
 
 这组实测结果显示，在当前脱敏数据集上，来源多样性重排相对原始 RRF 将 Case Recall@5 从 `0.7400` 提升到 `0.8200`、Source Recall@5 从 `0.5717` 提升到 `0.6783`；纯向量的 MRR 仍略高。这里的 reranker 是可解释的来源多样性选择，不是神经 Cross-Encoder，不能据此推断真实 Embedding 或生产数据上的效果。
+
+## 2026-07-30 03:25：外部 Issue 配置模板回归
+
+本轮为外部 Issue 适配器在 `.env.example` 增加了空的 URL、仓库、Token 环境变量名和超时配置。由于评估集会把根目录 `.env.example` 纳入索引，配置模板变化会影响离线 Hash 向量的排序；重新运行当前脚本后的最新检索结果为：
+
+| 策略 | Case Recall@5 | Source Recall@5 | MRR |
+|---|---:|---:|---:|
+| 纯关键词 | 0.7200 | 0.5450 | 0.4347 |
+| 纯 Hash 向量 | 0.7800 | 0.6283 | 0.6807 |
+| 混合（关键词 + Hash 向量 + 原始 RRF） | 0.7400 | 0.5717 | 0.6540 |
+| 混合 + 来源多样性重排 | 0.8200 | 0.6783 | 0.6753 |
+
+Agent grounding 仍为 Source Recall@5 `0.9800`、完整来源案例率 `0.9600`；上下文质量代理当前为 Context Precision `0.2000`、Context Recall `0.6783`、Answer Relevance Proxy F1 `0.1213`、Faithfulness Proxy Precision `0.8661`。本轮未执行真实外部网络请求，适配器只通过 fake transport 测试。

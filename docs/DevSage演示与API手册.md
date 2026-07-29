@@ -100,7 +100,7 @@ python evaluation/scripts/smoke_mcp.py
 {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"search_code","arguments":{"query":"UserController getUser","source_root":"sample-data","top_k":5}}}
 ```
 
-当前暴露的工具：`search_documents`、`search_code`、`read_file`、`get_git_history`、`generate_troubleshooting_report`。所有文件读取保持 source root 相对路径约束，Git 和 Issue 工具为只读。
+当前暴露的工具：`search_documents`、`search_code`、`read_file`、`get_git_history`、`generate_troubleshooting_report`。所有文件读取保持 source root 相对路径约束，Git 和 Issue 工具为只读。Issue 查询默认读取脱敏 `sample-data/issues/issues.json`；设置 `DEVSAGE_EXTERNAL_ISSUE_URL` 与 `DEVSAGE_EXTERNAL_ISSUE_REPOSITORY` 后，Agent 会切换到 GitHub-compatible `/search/issues` 只读接口，Token 只从指定环境变量读取且不会写入日志或错误信息。
 
 ## 5. Docker / PostgreSQL smoke 边界
 
