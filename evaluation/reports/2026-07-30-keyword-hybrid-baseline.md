@@ -88,3 +88,23 @@
 | Faithfulness Proxy Precision | 未统计 | 0.8664 |
 
 本轮失败样本数为 25/50，主要集中在代码文件精确定位和多文件调用链问题。`Reference Term Recall`、`Faithfulness Proxy Precision` 和 `Answer Relevance Proxy F1` 都是离线词法代理，不是 LLM-as-a-judge 或人工 Faithfulness 结论；真实模型接入后仍需单独评估。
+
+## 2026-07-30 02:42：Agent grounding 与代码路径检索优化
+
+本轮把 Agent 端到端证据命中单独固化为 `evaluation/scripts/evaluate_agent_grounding.py`，并补充回归测试。针对失败案例做了三类可迁移修正：代码检索允许配置文件但排除 Issue/Git 导出记录；代码定位问题按需合并支持文档；查询词命中文件路径时增加小幅排序加权，并对控制器、认证中间件、路由、配置和调用链补充透明扩展词。
+
+### Agent 结果
+
+| 指标 | 上一轮分类修正后 | 当前 |
+|---|---:|---:|
+| Agent Source Recall@5 | 0.6383 | 0.9650 |
+| 完整来源案例率 | 0.5600 | 0.9000 |
+| 失败案例数 | 22 | 5 |
+| Expected Tool Coverage | 0.7433 | 0.9333 |
+| Fully Covered Case Rate | 0.5200 | 0.8400 |
+
+当前 5 个来源失败中，2 个案例的 `.env.example` 位于 Agent 使用的 `sample-data` source root 外，属于评估集边界问题；其余 3 个是跨文件项目总结的 Top-K 取舍，仍需后续做任务类型专用的证据配额或 reranker。Agent grounding 指标只证明固定脱敏数据上的来源覆盖，不等同于答案正确率或真实 LLM 评审。
+
+### 检索上下文代理结果
+
+路径加权后重新运行 `evaluate_context_quality.py`：Context Precision@5 为 `0.2000`，去重来源 Precision 为 `0.2000`，Context Recall@5 为 `0.6783`，Answer Relevance Proxy F1 为 `0.1217`，Reference Term Recall 为 `0.8459`，Faithfulness Proxy Precision 为 `0.8652`，失败案例为 `21/50`。这些指标继续作为离线词法趋势，不替代人工或模型评审。

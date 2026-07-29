@@ -45,6 +45,10 @@ def search_keyword(
         score = sum(min(content_terms[term], 3) for term in matched_terms)
         if query_text and query_text in content_text:
             score += 2
+        path_terms = set(tokenize(chunk.source_path))
+        path_matches = set(query_terms).intersection(path_terms)
+        if path_matches:
+            score += min(len(path_matches) * 2, 4)
         if query_text and query_text in chunk.source_path.lower():
             score += 1
         results.append(SearchResult(chunk, float(score), matched_terms))
@@ -53,4 +57,3 @@ def search_keyword(
         key=lambda result: (-result.score, result.chunk.source_path, result.chunk.start_line)
     )
     return results[:top_k]
-

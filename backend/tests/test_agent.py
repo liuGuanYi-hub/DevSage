@@ -26,6 +26,28 @@ class AgentTests(unittest.TestCase):
         self.assertEqual("git_history", classify_question("最近一次提交是什么"))
         self.assertEqual("issue_search", classify_question("这个历史故障之前出现过吗"))
 
+    def test_classifier_routes_code_details_before_generic_troubleshooting(self) -> None:
+        self.assertEqual(
+            "code_location",
+            classify_question("示例 Spring Boot 项目当前配置的服务端口是多少？"),
+        )
+        self.assertEqual(
+            "code_location",
+            classify_question("Laravel 示例项目的任务列表接口使用了什么中间件？"),
+        )
+        self.assertEqual(
+            "code_location",
+            classify_question("AuthController 的 login 方法首先校验哪个凭据字段？"),
+        )
+        self.assertEqual(
+            "code_location",
+            classify_question("UserController 获取用户时调用了哪个业务方法？"),
+        )
+        self.assertEqual(
+            "code_location",
+            classify_question("Laravel Authenticate 中间件如何判断 Bearer Token 不是空值？"),
+        )
+
     def test_code_question_uses_code_tool_and_citations(self) -> None:
         state = self.runner.run("用户接口入口在哪个类？", "sample-data")
         self.assertEqual("code_location", state.category)
@@ -33,6 +55,18 @@ class AgentTests(unittest.TestCase):
         self.assertIn("read_file", state.tool_calls)
         self.assertTrue(state.answer.citations)
         self.assertEqual("completed", state.status)
+
+    def test_code_location_can_retrieve_config_and_supporting_documents(self) -> None:
+        state = self.runner.run("Spring Boot 示例配置中的 server.port 是多少？", "sample-data")
+
+        sources = {result.chunk.source_path for result in state.evidence}
+        self.assertEqual("code_location", state.category)
+        self.assertIn("search_code", state.tool_calls)
+        self.assertIn("search_documents", state.tool_calls)
+        self.assertIn(
+            "repositories/springboot-demo/src/main/resources/application.yml",
+            sources,
+        )
 
     def test_project_summary_uses_document_and_code_evidence_contract(self) -> None:
         state = self.runner.run("总结用户接口项目技术点", "sample-data")

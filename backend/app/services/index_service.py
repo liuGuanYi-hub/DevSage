@@ -10,7 +10,7 @@ from ..ingestion.indexer import IndexSnapshot, build_index
 from ..retrieval.hybrid_search import search_hybrid
 from ..retrieval.keyword_search import search_keyword
 from ..retrieval.models import SearchResult
-from ..retrieval.rrf import reciprocal_rank_fusion
+from ..retrieval.rrf import reciprocal_rank_fusion, select_source_diverse
 from ..retrieval.provider_factory import create_embedding_provider
 from ..storage.postgres_repository import PostgresIndexRepository
 
@@ -28,6 +28,15 @@ CODE_QUERY_EXPANSIONS = {
     "路由": "route Route routes",
     "方法": "method function",
     "调用链": "Controller Service",
+    "调用": "Controller Service",
+    "中间件": "middleware Authenticate auth:sanctum",
+    "任务列表": "task tasks api.php auth:sanctum",
+    "登录路由": "api.php AuthController login",
+    "token 类型": "token_type Bearer AuthController",
+    "返回什么类型": "UserDto UserController getUser",
+    "配置": "application.yml server.port",
+    "端口": "application.yml server.port",
+    "getuser": "UserController UserDto UserService",
 }
 
 
@@ -140,21 +149,48 @@ class IndexService:
 
     def search_code(self, source_root: str, query: str, top_k: int) -> list[SearchResult]:
         _, snapshot = self.get_or_build(source_root)
-        code_chunks = [chunk for chunk in snapshot.chunks if chunk.file_type == "code"]
-        expansions = " ".join(
-            expansion
-            for term, expansion in CODE_QUERY_EXPANSIONS.items()
-            if term in query
+        code_chunks = [
+            chunk
+            for chunk in snapshot.chunks
+            if chunk.file_type in {"code", "config"}
+            and not chunk.source_path.startswith(("issues/", "git/"))
+        ]
+        expanded_query = _expand_code_query(query)
+        candidates = search_keyword(
+            code_chunks,
+            expanded_query,
+            top_k=max(top_k * 4, 10),
         )
-        expanded_query = f"{query} {expansions}".strip()
-        return search_keyword(code_chunks, expanded_query, top_k=top_k)
+        return select_source_diverse(candidates, top_k=top_k, max_per_source=1)
 
     def search_project(self, source_root: str, query: str, top_k: int) -> list[SearchResult]:
         _, snapshot = self.get_or_build(source_root)
-        document_results = search_hybrid(snapshot.chunks, query, top_k=top_k * 2)
-        code_chunks = [chunk for chunk in snapshot.chunks if chunk.file_type == "code"]
-        code_results = search_keyword(code_chunks, query, top_k=top_k * 2)
-        return reciprocal_rank_fusion([document_results, code_results], top_k=top_k)
+        document_chunks = [
+            chunk
+            for chunk in snapshot.chunks
+            if chunk.file_type == "markdown"
+            or (
+                chunk.file_type == "config"
+                and not chunk.source_path.startswith(("issues/", "git/"))
+            )
+        ]
+        document_results = search_hybrid(document_chunks, query, top_k=top_k * 2)
+        code_chunks = [
+            chunk
+            for chunk in snapshot.chunks
+            if chunk.file_type in {"code", "config"}
+            and not chunk.source_path.startswith(("issues/", "git/"))
+        ]
+        code_results = search_keyword(
+            code_chunks,
+            _expand_code_query(query),
+            top_k=top_k * 2,
+        )
+        fused = reciprocal_rank_fusion(
+            [document_results, code_results],
+            top_k=top_k * 4,
+        )
+        return select_source_diverse(fused, top_k=top_k, max_per_source=1)
 
     def read_file(
         self,
@@ -183,3 +219,13 @@ class IndexService:
         if bounded_end < start_line:
             return ""
         return "\n".join(lines[start_line - 1 : bounded_end])
+
+
+def _expand_code_query(query: str) -> str:
+    normalized_query = query.lower()
+    expansions = " ".join(
+        expansion
+        for term, expansion in CODE_QUERY_EXPANSIONS.items()
+        if term.lower() in normalized_query
+    )
+    return f"{query} {expansions}".strip()

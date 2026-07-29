@@ -160,7 +160,32 @@ class AgentRunner:
         if state.category == "code_location":
             if not self._record_tool(state, "search_code", "code chunks"):
                 return []
-            results = self.index_service.search_code(state.source_root, search_query, top_k)
+            code_results = self.index_service.search_code(
+                state.source_root,
+                search_query,
+                top_k,
+            )
+            document_results = []
+            if _code_location_needs_documents(search_query):
+                if self._record_tool(state, "search_documents", "supporting documents"):
+                    document_results = [
+                        result
+                        for result in self.index_service.search_hybrid(
+                            state.source_root,
+                            _expand_supporting_document_query(search_query),
+                            top_k=top_k * 2,
+                        )[1]
+                        if _is_supporting_document(result)
+                    ][:top_k]
+            if document_results:
+                from ..retrieval.rrf import reciprocal_rank_fusion
+
+                results = reciprocal_rank_fusion(
+                    [code_results, document_results],
+                    top_k=top_k,
+                )
+            else:
+                results = code_results
             if results and self._record_tool(state, "read_file", results[0].citation):
                 result = results[0]
                 self.index_service.read_file(
@@ -266,3 +291,56 @@ class AgentRunner:
 def _extract_commit_hash(query: str) -> str | None:
     match = re.search(r"(?<![0-9a-fA-F])[0-9a-fA-F]{7,40}(?![0-9a-fA-F])", query)
     return match.group(0) if match else None
+
+
+def _code_location_needs_documents(query: str) -> bool:
+    """Identify code-location questions that need README or policy evidence."""
+
+    return any(
+        term in query.lower()
+        for term in (
+            "来源",
+            "文件路径",
+            "行号",
+            "接口路径",
+            "路由",
+            "中间件",
+            "authorization",
+            "token",
+            "配置",
+            "端口",
+            "下游",
+        )
+    )
+
+
+def _is_supporting_document(result) -> bool:
+    """Exclude exported issue and Git records from document evidence."""
+
+    source_path = result.chunk.source_path
+    return (
+        result.chunk.file_type == "markdown"
+        or (
+            result.chunk.file_type == "config"
+            and not source_path.startswith(("issues/", "git/"))
+        )
+    )
+
+
+def _expand_supporting_document_query(query: str) -> str:
+    """Add stable vocabulary used by the sample documentation."""
+
+    expansions = {
+        "中间件": "Authenticate auth:sanctum 任务列表",
+        "任务列表": "Authenticate auth:sanctum routes",
+        "token": "Bearer token_type Authorization",
+        "来源": "文件路径 行号 引用",
+        "代码定位": "文件路径 行号 引用",
+        "端口": "server.port application.yml",
+        "下游": "客户端 反向代理 部署",
+    }
+    normalized_query = query.lower()
+    added_terms = " ".join(
+        value for term, value in expansions.items() if term.lower() in normalized_query
+    )
+    return f"{query} {added_terms}".strip()

@@ -38,6 +38,14 @@ class RetrievalTests(unittest.TestCase):
         sources = [result.chunk.source_path for result in selected]
         self.assertEqual(len(sources), len(set(sources)))
 
+    def test_keyword_search_boosts_named_source_paths(self) -> None:
+        results = search_keyword(self.chunks, "application.yml server.port", top_k=1)
+
+        self.assertEqual(
+            "repositories/springboot-demo/src/main/resources/application.yml",
+            results[0].chunk.source_path,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
