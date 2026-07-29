@@ -3,6 +3,7 @@ import unittest
 from backend.app.ingestion.indexer import IndexSnapshot
 from backend.app.ingestion.models import ChunkRecord, DocumentRecord
 from backend.app.retrieval.embeddings import HashEmbeddingProvider
+from backend.app.services.index_service import IndexService
 from backend.app.storage.postgres_repository import PostgresIndexRepository
 
 
@@ -236,6 +237,25 @@ class PostgresRepositoryContractTests(unittest.TestCase):
         self.assertEqual(2, connection.commit_count)
         self.assertEqual(0, connection.rollback_count)
         self.assertGreaterEqual(connection.close_count, 5)
+
+    def test_index_service_persistence_branch_round_trips_through_repository(self) -> None:
+        connection = FakePostgresConnection()
+        repository = PostgresIndexRepository(connection_factory=lambda: connection)
+        service = IndexService(
+            embedding_provider=HashEmbeddingProvider(),
+            persistence=repository,
+            snapshot_store=None,
+        )
+
+        source_root, snapshot = service.build("sample-data")
+        _, results = service.search_hybrid("sample-data", "server.port", top_k=3)
+
+        self.assertEqual("sample-data", source_root)
+        self.assertGreater(len(snapshot.chunks), 0)
+        self.assertTrue(results)
+        self.assertTrue(any("springboot-errors.md" in result.chunk.source_path for result in results))
+        self.assertEqual(2, connection.commit_count)
+        self.assertEqual(0, connection.rollback_count)
 
 
 if __name__ == "__main__":
