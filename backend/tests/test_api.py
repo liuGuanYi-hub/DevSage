@@ -19,6 +19,20 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         self.assertEqual("ok", response.json()["status"])
 
+    def test_project_registry_lists_safe_metadata(self) -> None:
+        response = self.client.get("/api/projects")
+        self.assertEqual(200, response.status_code)
+        payload = response.json()
+        self.assertGreaterEqual(payload["total"], 1)
+        sample = next(item for item in payload["items"] if item["project_id"] == "sample-data")
+        self.assertEqual("sample-data", sample["source_root"])
+        self.assertTrue(all("D:" not in str(item) for item in sample.values()))
+
+        detail = self.client.get("/api/projects/sample-data")
+        self.assertEqual(200, detail.status_code)
+        self.assertEqual("sample-data", detail.json()["project_id"])
+        self.assertEqual(404, self.client.get("/api/projects/missing").status_code)
+
     def test_index_and_search_endpoints_return_citations(self) -> None:
         index_response = self.client.post(
             "/api/index",

@@ -30,10 +30,12 @@ from .schemas.agent import (
     TroubleshootingFindingResponse,
     TroubleshootingReportResponse,
 )
+from .schemas.projects import ProjectListResponse, ProjectResponse
 from .agents.runner import AgentRunner
 from .services.index_service import IndexService, SourceRootError
 from .services.answer_service import AnswerDraft, compose_evidence_answer
 from .services.knowledge_writeback import KnowledgeWritebackService, WritebackPolicyError
+from .services.project_registry import ProjectRegistry, ProjectRegistryError
 from .services.troubleshooting import TroubleshootingReport, build_troubleshooting_report
 from .services.task_store import (
     FileTaskStateStore,
@@ -59,6 +61,7 @@ app = FastAPI(
 index_service = IndexService()
 agent_runner = AgentRunner(index_service)
 writeback_service = KnowledgeWritebackService(PROJECT_ROOT / "data" / "approved-notes")
+project_registry = ProjectRegistry.from_environment(PROJECT_ROOT)
 
 
 def _create_task_store():
@@ -78,11 +81,23 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "devsage-api"}
 
 
-@app.get("/api/projects", tags=["projects"])
-def list_projects() -> dict[str, object]:
-    """Return an empty project list until persistence is implemented."""
+@app.get("/api/projects", response_model=ProjectListResponse, tags=["projects"])
+def list_projects() -> ProjectListResponse:
+    """List safe project metadata and local role capability boundaries."""
 
-    return {"items": [], "total": 0}
+    items = [ProjectResponse(**definition.to_dict()) for definition in project_registry.list_projects()]
+    return ProjectListResponse(items=items, total=len(items))
+
+
+@app.get("/api/projects/{project_id}", response_model=ProjectResponse, tags=["projects"])
+def get_project(project_id: str) -> ProjectResponse:
+    """Return one registered project without exposing absolute filesystem paths."""
+
+    try:
+        definition = project_registry.get(project_id)
+    except ProjectRegistryError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return ProjectResponse(**definition.to_dict())
 
 
 @app.post("/api/index", response_model=IndexResponse, tags=["index"])

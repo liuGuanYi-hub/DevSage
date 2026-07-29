@@ -61,6 +61,8 @@ npm run dev --prefix frontend
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | GET | `/health` | 后端存活检查 |
+| GET | `/api/projects` | 列出项目相对路径和本地角色能力矩阵 |
+| GET | `/api/projects/{project_id}` | 查询单个注册项目 |
 | POST | `/api/index` | 构建或增量更新本地索引并返回 Hash 统计；离线快照默认保存到 `data/index-snapshots/` |
 | POST | `/api/search` | 关键词证据查询 |
 | POST | `/api/answer` | 混合检索与证据约束回答 |
@@ -71,6 +73,8 @@ npm run dev --prefix frontend
 | GET/POST | `/api/agent/tasks/*` | 查询、恢复和持久化 Agent 状态 |
 
 FastAPI 运行后也可通过 `/docs` 查看当前 OpenAPI 页面；接口响应不会返回环境变量内容或真实凭据。
+
+项目注册默认包含 `sample-data` 脱敏项目，也可通过 `DEVSAGE_PROJECT_MANIFEST` 指向项目根目录内的相对 JSON manifest。返回的 viewer/editor/operator 是能力矩阵边界，不是身份认证；正式用户身份和组织权限仍需后续接入。
 
 知识写回预览默认不落盘。预览响应中的 `diff.operation` 为 `create`、`update` 或 `noop`，并包含 `current_content_hash`、`proposed_content_hash`、`additions`、`deletions` 和 `unified_diff`。审批会再次读取目标文件并校验预览时的 Hash；如果目标在预览后发生变化，接口返回 400，必须重新生成预览。
 
