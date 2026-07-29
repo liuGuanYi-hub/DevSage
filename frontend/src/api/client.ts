@@ -8,6 +8,24 @@ export interface IndexResponse {
   removed_documents: number;
 }
 
+export interface ProjectRole {
+  role: string;
+  actions: string[];
+}
+
+export interface Project {
+  project_id: string;
+  name: string;
+  source_root: string;
+  description: string;
+  roles: ProjectRole[];
+}
+
+export interface ProjectListResponse {
+  items: Project[];
+  total: number;
+}
+
 export interface SearchHit {
   citation: string;
   source_path: string;
@@ -89,10 +107,19 @@ async function request<T>(path: string, options: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function indexSource(sourceRoot = "sample-data"): Promise<IndexResponse> {
+export function listProjects(): Promise<ProjectListResponse> {
+  return request<ProjectListResponse>("/api/projects", {
+    method: "GET",
+  });
+}
+
+export function indexSource(
+  sourceRoot = "sample-data",
+  projectId?: string,
+): Promise<IndexResponse> {
   return request<IndexResponse>("/api/index", {
     method: "POST",
-    body: JSON.stringify({ source_root: sourceRoot }),
+    body: JSON.stringify({ source_root: sourceRoot, project_id: projectId }),
   });
 }
 
@@ -100,10 +127,11 @@ export function searchEvidence(
   query: string,
   sourceRoot = "sample-data",
   topK = 5,
+  projectId?: string,
 ): Promise<SearchResponse> {
   return request<SearchResponse>("/api/search", {
     method: "POST",
-    body: JSON.stringify({ query, source_root: sourceRoot, top_k: topK }),
+    body: JSON.stringify({ query, source_root: sourceRoot, top_k: topK, project_id: projectId }),
   });
 }
 
@@ -111,10 +139,11 @@ export function answerQuestion(
   query: string,
   sourceRoot = "sample-data",
   topK = 5,
+  projectId?: string,
 ): Promise<AnswerResponse> {
   return request<AnswerResponse>("/api/answer", {
     method: "POST",
-    body: JSON.stringify({ query, source_root: sourceRoot, top_k: topK }),
+    body: JSON.stringify({ query, source_root: sourceRoot, top_k: topK, project_id: projectId }),
   });
 }
 
@@ -122,9 +151,10 @@ export function runAgent(
   query: string,
   sourceRoot = "sample-data",
   topK = 5,
+  projectId?: string,
 ): Promise<AgentResponse> {
   return request<AgentResponse>("/api/agent/run", {
     method: "POST",
-    body: JSON.stringify({ query, source_root: sourceRoot, top_k: topK }),
+    body: JSON.stringify({ query, source_root: sourceRoot, top_k: topK, project_id: projectId }),
   });
 }

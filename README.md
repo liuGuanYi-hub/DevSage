@@ -52,7 +52,7 @@ npm install --prefix frontend
 npm run dev --prefix frontend
 ```
 
-前端默认使用 Vite 代理把 `/api` 和 `/health` 转发到 `127.0.0.1:8000`；如需连接其他后端地址，可设置 `VITE_API_BASE_URL`。页面已展示 Agent 分类、工具调用、执行步骤、引用证据和结构化故障排查报告。
+前端默认使用 Vite 代理把 `/api` 和 `/health` 转发到 `127.0.0.1:8000`；如需连接其他后端地址，可设置 `VITE_API_BASE_URL`。页面启动时读取 `/api/projects`，支持选择注册项目并把 `project_id` 传给索引和 Agent 查询；同时展示 Agent 分类、工具调用、执行步骤、引用证据和结构化故障排查报告。
 
 执行 Docker Compose 前必须先准备本地环境变量，并确认数据库数据目录和端口范围。不要把真实密码、Token 或 `.env` 文件提交到仓库。
 

@@ -3,9 +3,11 @@ import { onMounted, ref } from "vue";
 
 import {
   indexSource,
+  listProjects,
   runAgent,
   type AgentResponse,
   type IndexResponse,
+  type Project,
   type SearchHit,
 } from "./api/client";
 
@@ -13,6 +15,8 @@ const query = ref("");
 const results = ref<SearchHit[]>([]);
 const answer = ref<AgentResponse | null>(null);
 const indexInfo = ref<IndexResponse | null>(null);
+const projects = ref<Project[]>([]);
+const selectedProjectId = ref("sample-data");
 const status = ref("等待连接后端");
 const isLoading = ref(false);
 
@@ -28,9 +32,12 @@ function categoryLabel(category: string): string {
 }
 
 async function refreshIndex() {
-  status.value = "正在建立样例索引…";
+  status.value = "正在建立当前项目索引…";
   try {
-    indexInfo.value = await indexSource();
+    indexInfo.value = await indexSource(
+      "sample-data",
+      selectedProjectId.value || undefined,
+    );
     status.value = `已索引 ${indexInfo.value.document_count} 个文件、${indexInfo.value.chunk_count} 个 Chunk`;
   } catch (error) {
     status.value = `后端未连接：${error instanceof Error ? error.message : "未知错误"}`;
@@ -42,7 +49,12 @@ async function search() {
   isLoading.value = true;
   status.value = "Agent 正在分类、检索并组织证据…";
   try {
-    const response = await runAgent(query.value);
+    const response = await runAgent(
+      query.value,
+      "sample-data",
+      5,
+      selectedProjectId.value || undefined,
+    );
     answer.value = response;
     results.value = response.evidence;
     status.value = response.evidence_sufficient
@@ -55,7 +67,22 @@ async function search() {
   }
 }
 
-onMounted(refreshIndex);
+async function loadProjects() {
+  try {
+    const response = await listProjects();
+    projects.value = response.items;
+    if (!projects.value.some((project) => project.project_id === selectedProjectId.value)) {
+      selectedProjectId.value = projects.value[0]?.project_id ?? "sample-data";
+    }
+  } catch (error) {
+    status.value = `项目列表未连接：${error instanceof Error ? error.message : "未知错误"}`;
+  }
+}
+
+onMounted(async () => {
+  await loadProjects();
+  await refreshIndex();
+});
 </script>
 
 <template>
@@ -71,7 +98,15 @@ onMounted(refreshIndex);
       </p>
 
       <div class="toolbar">
-        <button type="button" @click="refreshIndex">重新索引样例数据</button>
+        <label class="project-picker">
+          项目
+          <select v-model="selectedProjectId" @change="refreshIndex" aria-label="选择项目">
+            <option v-for="project in projects" :key="project.project_id" :value="project.project_id">
+              {{ project.name }}
+            </option>
+          </select>
+        </label>
+        <button type="button" @click="refreshIndex">重新索引当前项目</button>
         <span>{{ status }}</span>
         <span v-if="indexInfo" class="index-count">{{ indexInfo.document_count }} files / {{ indexInfo.chunk_count }} chunks</span>
       </div>
@@ -180,6 +215,8 @@ h1 { margin: 12px 0; font-size: clamp(2rem, 5vw, 3.6rem); line-height: 1.05; }
 .summary { color: #526176; font-size: 1.08rem; line-height: 1.7; }
 
 .toolbar { margin: 28px 0 16px; color: #526176; font-size: 0.9rem; flex-wrap: wrap; }
+.project-picker { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+select { border: 1px solid #cbd6e2; border-radius: 10px; padding: 10px 12px; color: #26384f; background: #ffffff; font: inherit; }
 .index-count { margin-left: auto; color: #7890aa; }
 button { border: 0; border-radius: 10px; padding: 10px 14px; color: #ffffff; background: #326aa5; cursor: pointer; font: inherit; font-weight: 600; }
 button:disabled { cursor: wait; opacity: 0.6; }
