@@ -55,6 +55,7 @@ class ProjectStructureTests(unittest.TestCase):
             "evaluation/scripts/evaluate_agent_grounding.py",
             "evaluation/scripts/smoke_mcp.py",
             "scripts/smoke-http.ps1",
+            "scripts/preflight.ps1",
             "scripts/start-demo.ps1",
             "scripts/verify-offline.ps1",
             "scripts/smoke-docker.ps1",
