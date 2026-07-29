@@ -6,7 +6,7 @@ DevSage 是基于 Agentic RAG 的研发知识库与故障排查系统。当前�
 
 - `DevMind`：个人模式，优先连接 Obsidian 笔记和个人项目代码；
 - `DevSage`：后续扩展到 Git、Issue、多项目和团队协作；
-- 已接入可选 PostgreSQL/pgvector 持久化适配器、迁移和数据库检索路径；真实容器迁移与端到端 smoke 仍待启动验证。真实 Embedding 服务和外部 Issue 平台仍未接入；LangGraph 已在项目本地虚拟环境完成可选适配 smoke。
+- 已接入可选 PostgreSQL/pgvector 索引与 Agent task state 持久化、迁移和数据库检索路径；真实容器迁移与端到端 smoke 仍待启动验证。真实 Embedding 服务和外部 Issue 平台仍未接入；LangGraph 已在项目本地虚拟环境完成可选适配 smoke。
 
 ## 目录结构
 

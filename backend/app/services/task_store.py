@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from ..agents.state import AgentState
 
@@ -19,6 +22,10 @@ class TaskStateNotFoundError(TaskStateError):
 
 class TaskNotResumableError(TaskStateError):
     """Raised when a task is not in a bounded-interruption state."""
+
+
+class TaskStateStorageError(TaskStateError):
+    """Raised when the configured task-state database is unavailable."""
 
 
 class FileTaskStateStore:
@@ -57,3 +64,148 @@ class FileTaskStateStore:
         except ValueError as exc:
             raise TaskStateError("task id escaped state directory") from exc
         return path
+
+
+class PostgresTaskStateStore:
+    """Persist Agent snapshots as JSONB when PostgreSQL storage is enabled."""
+
+    _TASK_ID_PATTERN = FileTaskStateStore._TASK_ID_PATTERN
+
+    def __init__(
+        self,
+        database_url: str | None = None,
+        connection_factory: Callable[[], Any] | None = None,
+    ) -> None:
+        self.database_url = database_url or os.getenv("DATABASE_URL", "").strip()
+        self._connection_factory = connection_factory
+        self._initialized = False
+
+    def _connect(self):
+        if self._connection_factory is not None:
+            return self._connection_factory()
+        if not self.database_url:
+            raise TaskStateStorageError("DATABASE_URL is not configured")
+        database_url = self.database_url.replace(
+            "postgresql+psycopg://", "postgresql://", 1
+        )
+        try:
+            import psycopg
+        except ImportError as exc:
+            raise TaskStateStorageError(
+                "psycopg is required only when PostgreSQL task storage is enabled"
+            ) from exc
+        try:
+            return psycopg.connect(database_url)
+        except Exception as exc:
+            raise TaskStateStorageError("PostgreSQL task storage connection failed") from exc
+
+    def initialize(self) -> None:
+        """Create the task table without requiring the vector tables first."""
+
+        connection = self._connect()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS agent_tasks (
+                        task_id TEXT PRIMARY KEY,
+                        query TEXT NOT NULL,
+                        source_root TEXT NOT NULL,
+                        category TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        payload JSONB NOT NULL,
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                    """
+                )
+                cursor.execute(
+                    """
+                    CREATE INDEX IF NOT EXISTS agent_tasks_status_idx
+                        ON agent_tasks (status, updated_at DESC)
+                    """
+                )
+            connection.commit()
+            self._initialized = True
+        except Exception as exc:
+            connection.rollback()
+            raise TaskStateStorageError("PostgreSQL task table initialization failed") from exc
+        finally:
+            connection.close()
+
+    def _ensure_initialized(self) -> None:
+        if not self._initialized:
+            self.initialize()
+
+    def save(self, state: AgentState) -> str:
+        """Upsert one complete JSON-safe Agent state snapshot."""
+
+        self._validate_task_id(state.task_id)
+        self._ensure_initialized()
+        payload = json.dumps(state.to_dict(), ensure_ascii=False)
+        connection = self._connect()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO agent_tasks
+                        (task_id, query, source_root, category, status, payload)
+                    VALUES (%s, %s, %s, %s, %s, %s::jsonb)
+                    ON CONFLICT (task_id) DO UPDATE
+                    SET query = EXCLUDED.query,
+                        source_root = EXCLUDED.source_root,
+                        category = EXCLUDED.category,
+                        status = EXCLUDED.status,
+                        payload = EXCLUDED.payload,
+                        updated_at = NOW()
+                    """,
+                    (
+                        state.task_id,
+                        state.query,
+                        state.source_root,
+                        state.category,
+                        state.status,
+                        payload,
+                    ),
+                )
+            connection.commit()
+            return state.task_id
+        except Exception as exc:
+            connection.rollback()
+            raise TaskStateStorageError("PostgreSQL task state save failed") from exc
+        finally:
+            connection.close()
+
+    def load(self, task_id: str) -> AgentState:
+        """Load and validate one task snapshot from JSONB."""
+
+        self._validate_task_id(task_id)
+        self._ensure_initialized()
+        connection = self._connect()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT payload FROM agent_tasks WHERE task_id = %s",
+                    (task_id,),
+                )
+                row = cursor.fetchone()
+            if row is None:
+                raise TaskStateNotFoundError(f"task state not found: {task_id}")
+            payload = row[0]
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            if not isinstance(payload, dict):
+                raise ValueError("task payload must be an object")
+            return AgentState.from_dict(payload)
+        except TaskStateNotFoundError:
+            raise
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            raise TaskStateError("task state is invalid") from exc
+        except Exception as exc:
+            raise TaskStateStorageError("PostgreSQL task state load failed") from exc
+        finally:
+            connection.close()
+
+    @classmethod
+    def _validate_task_id(cls, task_id: str) -> None:
+        if not cls._TASK_ID_PATTERN.fullmatch(task_id):
+            raise TaskStateError("invalid task id")

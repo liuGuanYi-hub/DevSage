@@ -36,9 +36,11 @@ from .services.knowledge_writeback import KnowledgeWritebackService, WritebackPo
 from .services.troubleshooting import TroubleshootingReport, build_troubleshooting_report
 from .services.task_store import (
     FileTaskStateStore,
+    PostgresTaskStateStore,
     TaskNotResumableError,
     TaskStateError,
     TaskStateNotFoundError,
+    TaskStateStorageError,
 )
 from .storage.postgres_repository import PostgresRepositoryError
 
@@ -56,7 +58,16 @@ app = FastAPI(
 index_service = IndexService()
 agent_runner = AgentRunner(index_service)
 writeback_service = KnowledgeWritebackService(PROJECT_ROOT / "data" / "approved-notes")
-task_store = FileTaskStateStore(PROJECT_ROOT / "data" / "task-state")
+
+
+def _create_task_store():
+    storage_mode = os.getenv("DEVSAGE_STORAGE", "memory").strip().lower()
+    if storage_mode in {"postgres", "postgresql"}:
+        return PostgresTaskStateStore()
+    return FileTaskStateStore(PROJECT_ROOT / "data" / "task-state")
+
+
+task_store = _create_task_store()
 
 
 @app.get("/health", tags=["system"])
@@ -265,6 +276,8 @@ def get_agent_task(task_id: str) -> AgentResponse:
         return _agent_response(task_store.load(task_id))
     except TaskStateNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except TaskStateStorageError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except TaskStateError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -282,6 +295,8 @@ def resume_agent_task(task_id: str, request: AgentResumeRequest) -> AgentRespons
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except TaskNotResumableError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except TaskStateStorageError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except (TaskStateError, SourceRootError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

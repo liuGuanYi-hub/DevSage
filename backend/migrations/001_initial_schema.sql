@@ -46,3 +46,16 @@ CREATE INDEX IF NOT EXISTS chunks_content_fts_idx
 
 CREATE INDEX IF NOT EXISTS chunks_embedding_hnsw_idx
     ON chunks USING hnsw (embedding vector_cosine_ops);
+
+CREATE TABLE IF NOT EXISTS agent_tasks (
+    task_id TEXT PRIMARY KEY,
+    query TEXT NOT NULL,
+    source_root TEXT NOT NULL,
+    category TEXT NOT NULL,
+    status TEXT NOT NULL,
+    payload JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS agent_tasks_status_idx
+    ON agent_tasks (status, updated_at DESC);

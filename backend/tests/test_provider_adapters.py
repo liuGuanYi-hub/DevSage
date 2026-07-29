@@ -77,6 +77,7 @@ class ProviderAdapterTests(unittest.TestCase):
         self.assertIn("CREATE EXTENSION IF NOT EXISTS vector", migration)
         self.assertIn("projects_name_idx", migration)
         self.assertIn("embedding vector(1024)", migration)
+        self.assertIn("CREATE TABLE IF NOT EXISTS agent_tasks", migration)
 
     def test_postgres_repository_reconstructs_chunk_rows(self) -> None:
         chunk = PostgresIndexRepository._chunk_from_row(
