@@ -14,7 +14,7 @@
 
 脚本会启动 FastAPI 和 Vite，确认 `http://127.0.0.1:8000/health` 与 `http://127.0.0.1:5173` 就绪，然后保持运行。前端依赖需要已经存在于 `frontend/node_modules/`；脚本不会自动安装依赖。
 
-打开 `http://127.0.0.1:5173`，页面顶部应显示项目选择器、索引按钮、后端在线状态和 Agentic RAG 标识。
+打开 `http://127.0.0.1:5173`，页面顶部应显示项目选择器、actor 角色选择器、索引按钮、后端在线状态和 Agentic RAG 标识。
 
 ## 按时间演示
 
@@ -64,7 +64,15 @@ Invoke-RestMethod http://127.0.0.1:8000/api/index -Method Post `
 
 说明代码定位会优先返回 `UserController.java` 等代码证据，项目总结会扩大来源预算并同时组织文档与代码；普通代码问题不会无条件读取根目录 `.env.example`。
 
-### 2:40–3:30：知识笔记审批
+### 2:40–3:10：本地角色能力边界
+
+1. 在角色选择器中从 `local-demo / operator` 切换到 `local-viewer`。
+2. 观察重新索引按钮和写回按钮按能力被禁用；查询按钮仍可用。
+3. 提交同一个 Agent 问题，说明请求会携带 `X-DevSage-Actor`，后端而不是前端最终决定权限。
+4. 切换到 `local-editor`，说明知识笔记预览和审批可用，但代码变更审批仍需要 operator。
+5. 强调 actor 选择器只是本地 capability boundary 演示，不是正式身份认证。
+
+### 3:10–3:50：知识笔记审批
 
 1. 在回答下方检查可编辑的标题、目标路径和草稿内容。
 2. 点击 `Generate preview`。
@@ -72,7 +80,7 @@ Invoke-RestMethod http://127.0.0.1:8000/api/index -Method Post `
 4. 解释预览阶段不写盘，审批阶段会重新校验目标 Hash。
 5. 如需展示写入，点击 `Approve and write`；只使用 `data/approved-notes/projects/sample-data/` 下的演示目标，结束后删除本次明确创建的文件。
 
-### 3:30–4:10：代码变更审批
+### 3:50–4:30：代码变更审批
 
 在代码变更面板中指定已有样例文件，并粘贴完整的拟议文件内容：
 
@@ -82,7 +90,7 @@ repositories/springboot-demo/README.md
 
 点击 `Generate code preview`，展示代码 Diff。说明只有 operator 能力可以批准，目标文件必须已存在且位于项目 source root 内；批准前再次比较 Hash，预览期间文件被修改则拒绝覆盖。
 
-### 4:10–4:40：MCP 与交付门禁
+### 4:30–5:00：MCP 与交付门禁
 
 停止前端演示或另开终端运行：
 
