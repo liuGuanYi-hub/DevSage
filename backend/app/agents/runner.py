@@ -7,6 +7,8 @@ from uuid import uuid4
 from ..services.answer_service import compose_evidence_answer
 from ..services.index_service import IndexService, SourceRootError
 from .classifier import classify_question
+from .git_tools import GitToolError, get_git_history
+from .issue_tools import IssueToolError, search_issues
 from .state import AgentState, AgentStep
 
 
@@ -25,7 +27,7 @@ class AgentRunner:
 
         try:
             state.evidence = self._retrieve(state, top_k)
-        except SourceRootError:
+        except (SourceRootError, GitToolError, IssueToolError):
             state.status = "failed"
             state.steps.append(AgentStep("retrieve_evidence", "failed", "invalid source root"))
             raise
@@ -65,6 +67,35 @@ class AgentRunner:
             state.steps.append(AgentStep("search_documents", "completed", "project docs"))
             state.steps.append(AgentStep("search_code", "completed", "project code"))
             return self.index_service.search_project(state.source_root, state.query, top_k)
+
+        if state.category == "git_history":
+            state.tool_calls.append("get_git_history")
+            state.steps.append(AgentStep("get_git_history", "completed", "local repository"))
+            return get_git_history(state.query, limit=top_k)
+
+        if state.category == "issue_search":
+            state.tool_calls.append("search_issues")
+            state.steps.append(AgentStep("search_issues", "completed", "exported Issue records"))
+            return search_issues(state.query, limit=top_k)
+
+        if state.category == "troubleshooting":
+            state.tool_calls.extend(["search_documents", "search_issues", "get_git_history"])
+            state.steps.append(AgentStep("search_documents", "completed", "hybrid evidence"))
+            state.steps.append(AgentStep("search_issues", "completed", "historical failures"))
+            state.steps.append(AgentStep("get_git_history", "completed", "recent repository changes"))
+            document_results = self.index_service.search_hybrid(
+                state.source_root,
+                state.query,
+                top_k=top_k,
+            )[1]
+            issue_results = search_issues(state.query, limit=top_k)
+            git_results = get_git_history(state.query, limit=top_k)
+            from ..retrieval.rrf import reciprocal_rank_fusion
+
+            return reciprocal_rank_fusion(
+                [document_results, issue_results, git_results],
+                top_k=top_k,
+            )
 
         state.tool_calls.append("search_documents")
         state.steps.append(AgentStep("search_documents", "completed", "hybrid evidence"))

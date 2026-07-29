@@ -32,4 +32,3 @@ class AgentResponse(BaseModel):
     tool_calls: list[str]
     steps: list[AgentStepResponse]
     evidence: list[SearchHit]
-

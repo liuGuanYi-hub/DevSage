@@ -94,7 +94,7 @@ class ApiTests(unittest.TestCase):
             "/api/answer",
             json={
                 "source_root": "sample-data",
-                "query": "zzzz-not-in-knowledge-base",
+                "query": "frobulate_qzxv_731942_unindexed",
             },
         )
         self.assertEqual(200, response.status_code)
@@ -129,6 +129,20 @@ class ApiTests(unittest.TestCase):
         self.assertIn("read_file", payload["tool_calls"])
         self.assertTrue(payload["steps"])
         self.assertTrue(payload["citations"])
+
+    def test_agent_endpoint_supports_issue_search(self) -> None:
+        response = self.client.post(
+            "/api/agent/run",
+            json={
+                "source_root": "sample-data",
+                "query": "Laravel 认证 401 之前出现过吗",
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        payload = response.json()
+        self.assertEqual("issue_search", payload["category"])
+        self.assertIn("search_issues", payload["tool_calls"])
+        self.assertTrue(any("ISSUE-002" in citation for citation in payload["citations"]))
 
 
 if __name__ == "__main__":

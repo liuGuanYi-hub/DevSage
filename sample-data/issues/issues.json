@@ -1,0 +1,45 @@
+[
+  {
+    "id": "ISSUE-001",
+    "title": "Spring Boot 启动失败：8080 端口已被占用",
+    "description": "开发环境启动服务时出现端口绑定失败，服务没有正常监听端口。",
+    "error": "Web server failed to start. Port 8080 was already in use.",
+    "solution": "使用 netstat 查询 PID，确认进程用途后结束进程，或在 application.yml 中改用未占用端口。",
+    "related_files": [
+      "sample-data/docs/springboot-errors.md",
+      "sample-data/repositories/springboot-demo/src/main/resources/application.yml"
+    ],
+    "related_commits": [],
+    "labels": ["spring-boot", "startup", "resolved"],
+    "status": "resolved"
+  },
+  {
+    "id": "ISSUE-002",
+    "title": "Laravel 任务接口返回 401",
+    "description": "登录成功后访问任务列表接口仍然返回未认证。",
+    "error": "Unauthenticated.",
+    "solution": "检查请求是否携带 Authorization: Bearer <token>，并确认路由使用 auth:sanctum 中间件。",
+    "related_files": [
+      "sample-data/docs/laravel-auth.md",
+      "sample-data/repositories/laravel-task-api/routes/api.php",
+      "sample-data/repositories/laravel-task-api/app/Http/Middleware/Authenticate.php"
+    ],
+    "related_commits": [],
+    "labels": ["laravel", "auth", "api"],
+    "status": "resolved"
+  },
+  {
+    "id": "ISSUE-003",
+    "title": "知识库回答引用了错误文件",
+    "description": "检索结果命中了相似文字，但没有显示正确的来源路径和行号。",
+    "error": "Source citation is missing or points to an unrelated chunk.",
+    "solution": "为 Chunk 保存相对路径、起止行号和内容 Hash，并在回答前执行证据充分性检查。",
+    "related_files": [
+      "sample-data/docs/knowledge-writing-policy.md"
+    ],
+    "related_commits": [],
+    "labels": ["rag", "citation", "quality"],
+    "status": "open"
+  }
+]
+
