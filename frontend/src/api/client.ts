@@ -8,6 +8,10 @@ export interface IndexResponse {
   removed_documents: number;
 }
 
+export interface HealthResponse {
+  status: string;
+}
+
 export interface ProjectRole {
   role: string;
   actions: string[];
@@ -148,6 +152,12 @@ async function request<T>(path: string, options: RequestInit): Promise<T> {
 
 export function listProjects(): Promise<ProjectListResponse> {
   return request<ProjectListResponse>("/api/projects", {
+    method: "GET",
+  });
+}
+
+export function getHealth(): Promise<HealthResponse> {
+  return request<HealthResponse>("/health", {
     method: "GET",
   });
 }
