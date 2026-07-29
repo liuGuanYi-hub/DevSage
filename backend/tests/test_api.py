@@ -477,15 +477,25 @@ class ApiTests(unittest.TestCase):
             json={
                 "source_root": "sample-data",
                 "query": "用户接口入口在哪个类？",
+                "project_id": "sample-data",
                 "persist": True,
             },
         )
         self.assertEqual(200, response.status_code)
         task_id = response.json()["task_id"]
         try:
-            loaded = self.client.get(f"/api/agent/tasks/{task_id}")
+            loaded = self.client.get(
+                f"/api/agent/tasks/{task_id}",
+                headers={"X-DevSage-Actor": "local-viewer"},
+            )
             self.assertEqual(200, loaded.status_code)
             self.assertEqual(task_id, loaded.json()["task_id"])
+            self.assertEqual("sample-data", loaded.json()["project_id"])
+            unauthorized = self.client.get(
+                f"/api/agent/tasks/{task_id}",
+                headers={"X-DevSage-Actor": "unknown"},
+            )
+            self.assertEqual(403, unauthorized.status_code)
         finally:
             task_path = PROJECT_ROOT / "data" / "task-state" / f"{task_id}.json"
             if task_path.is_file():

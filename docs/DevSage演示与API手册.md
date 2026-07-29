@@ -90,7 +90,7 @@ npm run dev --prefix frontend
 | POST | `/api/knowledge-notes/{preview_id}/approve` | 审批后写入项目暂存目录；目标文件变更时拒绝过期覆盖 |
 | POST | `/api/code-changes/preview` | 生成项目内已有代码文件的待审批 Diff，不写盘 |
 | POST | `/api/code-changes/{preview_id}/approve` | 通过 operator 能力检查并重新校验 Hash 后写入代码文件 |
-| GET/POST | `/api/agent/tasks/*` | 查询、恢复和持久化 Agent 状态 |
+| GET/POST | `/api/agent/tasks/*` | 查询、恢复和持久化 Agent 状态；绑定 `project_id` 的任务按 actor 能力检查 |
 
 FastAPI 运行后也可通过 `/docs` 查看当前 OpenAPI 页面；接口响应不会返回环境变量内容或真实凭据。
 
@@ -108,6 +108,10 @@ FastAPI 运行后也可通过 `/docs` 查看当前 OpenAPI 页面；接口响应
 代码变更预览只接受 source root 内已存在的文件，预览阶段不会写盘；批准阶段会重新读取目标文件并比较 current Hash，内容发生变化时拒绝覆盖。带 `project_id` 的代码变更需要 operator actor 的 `code_write_preview` / `code_write_approve` 能力；当前不执行远程 Issue 写入。
 
 `/api/agent/run` 和任务恢复响应中的 `usage` 包含 `query_tokens`、`evidence_tokens`、`answer_tokens`、`total_token_estimate`、`tool_calls`、`tool_retries` 和 `runtime_ms`。其中 token 字段是基于离线 tokenizer 的可解释估算，不等同于远程模型供应商计费 Token；完成日志只记录任务 ID、分类、状态和计数，不记录查询正文。
+
+持久化 Agent 状态会保存可选的 `project_id`。绑定项目的任务读取需要该项目的 `read` 能力，任务恢复需要 `agent` 能力；请求通过 `X-DevSage-Actor` 传递本地 actor。没有 `project_id` 的旧版任务保持兼容，但不代表已经接入正式身份认证。
+
+知识和代码审批还会通过 `devsage.approval` 记录动作、preview ID、actor、项目、相对目标路径和状态，不记录笔记正文或代码内容。
 
 ## 4. MCP stdio 演示
 

@@ -54,6 +54,7 @@ class AgentResponse(BaseModel):
     task_id: str
     query: str
     source_root: str
+    project_id: str | None = None
     category: str
     status: str
     answer: str

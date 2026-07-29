@@ -417,7 +417,12 @@ def run_agent(
         if request.project_id:
             _authorize_project(request.project_id, actor_id, "agent")
         requested_root = _resolve_request_source_root(request.project_id, request.source_root)
-        state = agent_runner.run(request.query, requested_root, request.top_k)
+        state = agent_runner.run(
+            request.query,
+            requested_root,
+            request.top_k,
+            project_id=request.project_id,
+        )
     except (SourceRootError, ProjectRegistryError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PostgresRepositoryError as exc:
@@ -442,6 +447,7 @@ def _agent_response(state) -> AgentResponse:
         task_id=state.task_id,
         query=state.query,
         source_root=state.source_root,
+        project_id=state.project_id,
         category=state.category,
         status=state.status,
         answer=draft.answer,
@@ -461,11 +467,17 @@ def _agent_response(state) -> AgentResponse:
 
 
 @app.get("/api/agent/tasks/{task_id}", response_model=AgentResponse, tags=["agent"])
-def get_agent_task(task_id: str) -> AgentResponse:
+def get_agent_task(
+    task_id: str,
+    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+) -> AgentResponse:
     """Load an explicitly persisted Agent task snapshot."""
 
     try:
-        return _agent_response(task_store.load(task_id))
+        state = task_store.load(task_id)
+        if state.project_id:
+            _authorize_project(state.project_id, actor_id, "read")
+        return _agent_response(state)
     except TaskStateNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except TaskStateStorageError as exc:
@@ -475,11 +487,17 @@ def get_agent_task(task_id: str) -> AgentResponse:
 
 
 @app.post("/api/agent/tasks/{task_id}/resume", response_model=AgentResponse, tags=["agent"])
-def resume_agent_task(task_id: str, request: AgentResumeRequest) -> AgentResponse:
+def resume_agent_task(
+    task_id: str,
+    request: AgentResumeRequest,
+    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+) -> AgentResponse:
     """Resume a task stopped by the local tool or graph budget."""
 
     try:
         state = task_store.load(task_id)
+        if state.project_id:
+            _authorize_project(state.project_id, actor_id, "agent")
         state = agent_runner.resume(state, request.top_k)
         task_store.save(state)
         return _agent_response(state)

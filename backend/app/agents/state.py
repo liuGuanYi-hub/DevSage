@@ -68,6 +68,7 @@ class AgentState:
     task_id: str
     query: str
     source_root: str
+    project_id: str | None = None
     category: str = "knowledge_qa"
     status: str = "running"
     steps: list[AgentStep] = field(default_factory=list)
@@ -114,6 +115,7 @@ class AgentState:
             "task_id": self.task_id,
             "query": self.query,
             "source_root": self.source_root,
+            "project_id": self.project_id,
             "category": self.category,
             "status": self.status,
             "steps": [
@@ -137,6 +139,7 @@ class AgentState:
             task_id=str(payload["task_id"]),
             query=str(payload["query"]),
             source_root=str(payload["source_root"]),
+            project_id=(str(payload["project_id"]) if payload.get("project_id") else None),
             category=str(payload.get("category", "knowledge_qa")),
             status=str(payload.get("status", "running")),
             steps=[

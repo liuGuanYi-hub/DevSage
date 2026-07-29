@@ -74,8 +74,14 @@ class AgentRunner:
             ),
         )
 
-    def run(self, query: str, source_root: str, top_k: int = 5) -> AgentState:
-        state = AgentState(uuid4().hex, query, source_root)
+    def run(
+        self,
+        query: str,
+        source_root: str,
+        top_k: int = 5,
+        project_id: str | None = None,
+    ) -> AgentState:
+        state = AgentState(uuid4().hex, query, source_root, project_id=project_id)
         started_at = time.perf_counter()
         try:
             self.graph.run(state, {"top_k": top_k})
