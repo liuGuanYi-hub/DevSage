@@ -74,6 +74,46 @@ class ApiTests(unittest.TestCase):
         )
         self.assertEqual(400, unsafe_response.status_code)
 
+    def test_answer_endpoint_returns_evidence_grounded_response(self) -> None:
+        response = self.client.post(
+            "/api/answer",
+            json={
+                "source_root": "sample-data",
+                "query": "8080 端口被占用怎么排查？",
+                "top_k": 5,
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        payload = response.json()
+        self.assertTrue(payload["evidence_sufficient"])
+        self.assertTrue(payload["citations"])
+        self.assertIn("springboot-errors.md", payload["answer"])
+
+    def test_answer_endpoint_refuses_unsupported_conclusion(self) -> None:
+        response = self.client.post(
+            "/api/answer",
+            json={
+                "source_root": "sample-data",
+                "query": "zzzz-not-in-knowledge-base",
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        payload = response.json()
+        self.assertFalse(payload["evidence_sufficient"])
+        self.assertEqual([], payload["citations"])
+
+    def test_answer_stream_returns_sse_events(self) -> None:
+        response = self.client.post(
+            "/api/answer/stream",
+            json={
+                "source_root": "sample-data",
+                "query": "8080 端口被占用怎么排查？",
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        self.assertIn("event: meta", response.text)
+        self.assertIn("event: done", response.text)
+
 
 if __name__ == "__main__":
     unittest.main()

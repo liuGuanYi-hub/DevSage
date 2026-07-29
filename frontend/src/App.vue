@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 
-import { indexSource, searchEvidence, type IndexResponse, type SearchHit } from "./api/client";
+import { answerQuestion, indexSource, type AnswerResponse, type IndexResponse, type SearchHit } from "./api/client";
 
 const query = ref("");
 const results = ref<SearchHit[]>([]);
+const answer = ref<AnswerResponse | null>(null);
 const indexInfo = ref<IndexResponse | null>(null);
 const status = ref("等待连接后端");
 const isLoading = ref(false);
@@ -24,9 +25,12 @@ async function search() {
   isLoading.value = true;
   status.value = "正在检索证据…";
   try {
-    const response = await searchEvidence(query.value);
-    results.value = response.results;
-    status.value = `找到 ${response.results.length} 条候选证据`;
+    const response = await answerQuestion(query.value);
+    answer.value = response;
+    results.value = response.evidence;
+    status.value = response.evidence_sufficient
+      ? `找到 ${response.evidence.length} 条直接证据`
+      : "证据不足，未生成确定性结论";
   } catch (error) {
     status.value = `检索失败：${error instanceof Error ? error.message : "未知错误"}`;
   } finally {
@@ -53,7 +57,15 @@ onMounted(refreshIndex);
         <input v-model="query" placeholder="例如：8080 端口被占用怎么排查？" />
         <button type="submit" :disabled="isLoading">{{ isLoading ? "检索中…" : "开始检索" }}</button>
       </form>
-      <section v-if="results.length" class="results">
+      <section v-if="answer" class="results">
+        <article v-if="answer" class="answer-card">
+          <div class="result-meta">
+            <strong>证据约束回答</strong>
+            <span>{{ answer.evidence_sufficient ? "证据充分" : "证据不足" }}</span>
+          </div>
+          <p>{{ answer.answer }}</p>
+          <small v-if="answer.warning">{{ answer.warning }}</small>
+        </article>
         <article v-for="result in results" :key="result.citation" class="result-card">
           <div class="result-meta">
             <strong>{{ result.source_path }}</strong>
@@ -163,6 +175,13 @@ input {
   border: 1px solid #d7e0ea;
   border-radius: 14px;
   background: #f8fbfd;
+}
+
+.answer-card {
+  padding: 18px;
+  border: 1px solid #8bb5d8;
+  border-radius: 14px;
+  background: #eef7ff;
 }
 
 .result-meta {

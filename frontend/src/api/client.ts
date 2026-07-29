@@ -24,6 +24,16 @@ export interface SearchResponse {
   results: SearchHit[];
 }
 
+export interface AnswerResponse {
+  query: string;
+  source_root: string;
+  answer: string;
+  citations: string[];
+  evidence: SearchHit[];
+  evidence_sufficient: boolean;
+  warning: string | null;
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 async function request<T>(path: string, options: RequestInit): Promise<T> {
@@ -55,3 +65,13 @@ export function searchEvidence(
   });
 }
 
+export function answerQuestion(
+  query: string,
+  sourceRoot = "sample-data",
+  topK = 5,
+): Promise<AnswerResponse> {
+  return request<AnswerResponse>("/api/answer", {
+    method: "POST",
+    body: JSON.stringify({ query, source_root: sourceRoot, top_k: topK }),
+  });
+}

@@ -6,6 +6,7 @@ from pathlib import Path
 from threading import RLock
 
 from ..ingestion.indexer import IndexSnapshot, build_index
+from ..retrieval.hybrid_search import search_hybrid
 from ..retrieval.keyword_search import search_keyword
 from ..retrieval.models import SearchResult
 
@@ -63,3 +64,12 @@ class IndexService:
     def search(self, source_root: str, query: str, top_k: int) -> tuple[str, list[SearchResult]]:
         relative_root, snapshot = self.get_or_build(source_root)
         return relative_root, search_keyword(snapshot.chunks, query, top_k=top_k)
+
+    def search_hybrid(
+        self,
+        source_root: str,
+        query: str,
+        top_k: int,
+    ) -> tuple[str, list[SearchResult]]:
+        relative_root, snapshot = self.get_or_build(source_root)
+        return relative_root, search_hybrid(snapshot.chunks, query, top_k=top_k)

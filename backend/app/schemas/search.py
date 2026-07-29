@@ -41,6 +41,20 @@ class SearchResponse(BaseModel):
     results: list[SearchHit]
 
 
+class AnswerRequest(SearchRequest):
+    pass
+
+
+class AnswerResponse(BaseModel):
+    query: str
+    source_root: str
+    answer: str
+    citations: list[str]
+    evidence: list[SearchHit]
+    evidence_sufficient: bool
+    warning: str | None = None
+
+
 class KnowledgeNotePreviewRequest(BaseModel):
     title: str = Field(min_length=1)
     content: str = Field(min_length=1)

@@ -4,12 +4,16 @@
 """
 
 from pathlib import Path
+import json
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 
 from .schemas.search import (
     IndexRequest,
     IndexResponse,
+    AnswerRequest,
+    AnswerResponse,
     KnowledgeNotePreviewRequest,
     KnowledgeNotePreviewResponse,
     SearchHit,
@@ -17,6 +21,7 @@ from .schemas.search import (
     SearchResponse,
 )
 from .services.index_service import IndexService, SourceRootError
+from .services.answer_service import AnswerDraft, compose_evidence_answer
 from .services.knowledge_writeback import KnowledgeWritebackService, WritebackPolicyError
 
 
@@ -79,26 +84,86 @@ def search_source(request: SearchRequest) -> SearchResponse:
     except SourceRootError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    hits = [
-        SearchHit(
-            citation=result.citation,
-            source_path=result.chunk.source_path,
-            start_line=result.chunk.start_line,
-            end_line=result.chunk.end_line,
-            score=result.score,
-            matched_terms=list(result.matched_terms),
-            content=result.chunk.content,
-        )
-        for result in results
-    ]
+    hits = [_to_search_hit(result) for result in results]
     return SearchResponse(query=request.query, source_root=source_root, results=hits)
 
 
-@app.post(
-    "/api/knowledge-notes/preview",
-    response_model=KnowledgeNotePreviewResponse,
-    tags=["knowledge-notes"],
-)
+def _to_search_hit(result) -> SearchHit:
+    """Convert an internal result to the public citation contract."""
+
+    return SearchHit(
+        citation=result.citation,
+        source_path=result.chunk.source_path,
+        start_line=result.chunk.start_line,
+        end_line=result.chunk.end_line,
+        score=result.score,
+        matched_terms=list(result.matched_terms),
+        content=result.chunk.content,
+    )
+
+
+def _answer_response(
+    query: str,
+    source_root: str,
+    draft: AnswerDraft,
+) -> AnswerResponse:
+    return AnswerResponse(
+        query=query,
+        source_root=source_root,
+        answer=draft.answer,
+        citations=list(draft.citations),
+        evidence=[_to_search_hit(result) for result in draft.evidence],
+        evidence_sufficient=draft.evidence_sufficient,
+        warning=draft.warning,
+    )
+
+
+@app.post("/api/answer", response_model=AnswerResponse, tags=["answer"])
+def answer_question(request: AnswerRequest) -> AnswerResponse:
+    """Return a deterministic answer assembled only from direct evidence."""
+
+    try:
+        source_root, results = index_service.search_hybrid(
+            request.source_root,
+            request.query,
+            request.top_k,
+        )
+    except SourceRootError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _answer_response(
+        request.query,
+        source_root,
+        compose_evidence_answer(request.query, results),
+    )
+
+
+@app.post("/api/answer/stream", tags=["answer"])
+def stream_answer(request: AnswerRequest) -> StreamingResponse:
+    """Stream the evidence-grounded answer as Server-Sent Events."""
+
+    try:
+        source_root, results = index_service.search_hybrid(
+            request.source_root,
+            request.query,
+            request.top_k,
+        )
+    except SourceRootError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    draft = compose_evidence_answer(request.query, results)
+    response = _answer_response(request.query, source_root, draft)
+
+    def events():
+        yield f"event: meta\ndata: {json.dumps({'source_root': source_root}, ensure_ascii=False)}\n\n"
+        for start in range(0, len(response.answer), 96):
+            payload = {"text": response.answer[start : start + 96]}
+            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+        yield f"event: done\ndata: {response.model_dump_json() if hasattr(response, 'model_dump_json') else response.json()}\n\n"
+
+    return StreamingResponse(events(), media_type="text/event-stream")
+
+
+@app.post("/api/knowledge-notes/preview", response_model=KnowledgeNotePreviewResponse, tags=["knowledge-notes"])
 def create_knowledge_note_preview(
     request: KnowledgeNotePreviewRequest,
 ) -> KnowledgeNotePreviewResponse:
@@ -123,11 +188,7 @@ def create_knowledge_note_preview(
     )
 
 
-@app.post(
-    "/api/knowledge-notes/{preview_id}/approve",
-    response_model=KnowledgeNotePreviewResponse,
-    tags=["knowledge-notes"],
-)
+@app.post("/api/knowledge-notes/{preview_id}/approve", response_model=KnowledgeNotePreviewResponse, tags=["knowledge-notes"])
 def approve_knowledge_note(preview_id: str) -> KnowledgeNotePreviewResponse:
     """Write a previously previewed note into the approved-note staging root."""
 

@@ -22,6 +22,7 @@ class ProjectStructureTests(unittest.TestCase):
             "backend/app/services/knowledge_writeback.py",
             "backend/app/schemas/search.py",
             "backend/tests/test_api.py",
+            "backend/tests/test_answer_service.py",
             "backend/tests/test_writeback.py",
             "backend/migrations/001_initial_schema.sql",
             "frontend/src/api/client.ts",
