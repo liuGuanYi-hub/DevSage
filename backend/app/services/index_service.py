@@ -10,6 +10,7 @@ from ..retrieval.hybrid_search import search_hybrid
 from ..retrieval.keyword_search import search_keyword
 from ..retrieval.models import SearchResult
 from ..retrieval.rrf import reciprocal_rank_fusion
+from ..retrieval.provider_factory import create_embedding_provider
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -50,9 +51,10 @@ def resolve_source_root(source_root: str) -> Path:
 class IndexService:
     """Cache deterministic snapshots until persistence is introduced."""
 
-    def __init__(self) -> None:
+    def __init__(self, embedding_provider=None) -> None:
         self._snapshots: dict[str, IndexSnapshot] = {}
         self._lock = RLock()
+        self.embedding_provider = embedding_provider or create_embedding_provider()
 
     def build(self, source_root: str) -> tuple[str, IndexSnapshot]:
         resolved = resolve_source_root(source_root)
@@ -84,7 +86,12 @@ class IndexService:
         top_k: int,
     ) -> tuple[str, list[SearchResult]]:
         relative_root, snapshot = self.get_or_build(source_root)
-        return relative_root, search_hybrid(snapshot.chunks, query, top_k=top_k)
+        return relative_root, search_hybrid(
+            snapshot.chunks,
+            query,
+            top_k=top_k,
+            provider=self.embedding_provider,
+        )
 
     def search_code(self, source_root: str, query: str, top_k: int) -> list[SearchResult]:
         _, snapshot = self.get_or_build(source_root)

@@ -54,7 +54,7 @@
 
 ### 阶段 2：DevMind 可用 MVP
 
-- [x] 接入可替换的 Embedding 服务抽象，并提供仅用于离线测试的 Hash Provider；
+- [x] 接入可选的 OpenAI-compatible Embedding Provider，并保留仅用于离线测试的 Hash Provider；
 - [x] 写入 PostgreSQL + pgvector 初始迁移草案，尚未启动真实数据库；
 - [x] 实现离线向量检索边界；
 - [x] 实现关键词与离线向量的 RRF 融合基线；
@@ -126,4 +126,4 @@
 
 ## 当前执行项
 
-> 接入真实 Embedding Provider 和 PostgreSQL + pgvector 持久化，替换当前离线 Hash/内存实现。
+> 在不破坏离线模式的前提下，完成真实 Embedding/pgvector 的配置验证和一次可控集成 smoke。

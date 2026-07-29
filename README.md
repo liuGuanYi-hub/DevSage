@@ -44,7 +44,7 @@ npm run dev --prefix frontend
 
 ## 当前正在做
 
-当前 API 已支持索引 `sample-data`、关键词/混合证据查询、证据约束回答、SSE 流式输出、有限状态多工具 Agent、来源行号、索引变化统计，以及知识笔记预览和审批写入项目暂存目录。下一步是替换离线 Hash Provider，并接入 PostgreSQL + pgvector 持久化。
+当前 API 已支持索引 `sample-data`、关键词/混合证据查询、证据约束回答、SSE 流式输出、有限状态多工具 Agent、来源行号、索引变化统计，以及知识笔记预览和审批写入项目暂存目录。Embedding 默认使用离线 Hash；显式配置远程 Provider 后才会发起请求。下一步是接入 PostgreSQL + pgvector 持久化。
 
 ## 下一步
 
