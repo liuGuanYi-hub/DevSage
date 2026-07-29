@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import json
+import logging
 import os
 
 from fastapi import FastAPI, Header, HTTPException
@@ -70,6 +71,7 @@ agent_runner = AgentRunner(index_service)
 writeback_service = KnowledgeWritebackService(PROJECT_ROOT / "data" / "approved-notes")
 code_writeback_service = CodeChangeWritebackService(PROJECT_ROOT)
 project_registry = ProjectRegistry.from_environment(PROJECT_ROOT)
+approval_logger = logging.getLogger("devsage.approval")
 
 
 def _create_task_store():
@@ -365,6 +367,13 @@ def create_code_change_preview(
         )
     except (SourceRootError, ProjectRegistryError, CodeChangePolicyError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    approval_logger.info(
+        "code_preview_created preview_id=%s actor_id=%s project_id=%s target_path=%s",
+        preview.preview_id,
+        actor_id,
+        preview.project_id,
+        preview.target_path,
+    )
     return _code_change_response(preview)
 
 
@@ -386,6 +395,14 @@ def approve_code_change(
         approved = code_writeback_service.approve(preview_id)
     except (ProjectRegistryError, CodeChangePolicyError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    approval_logger.info(
+        "code_approved preview_id=%s actor_id=%s project_id=%s target_path=%s status=%s",
+        approved.preview_id,
+        actor_id,
+        approved.project_id,
+        approved.target_path,
+        approved.status,
+    )
     return _code_change_response(approved)
 
 
@@ -495,6 +512,13 @@ def create_knowledge_note_preview(
         )
     except (ProjectRegistryError, WritebackPolicyError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    approval_logger.info(
+        "knowledge_preview_created preview_id=%s actor_id=%s project_id=%s target_path=%s",
+        preview.preview_id,
+        actor_id,
+        request.project_id,
+        preview.target_path,
+    )
     return KnowledgeNotePreviewResponse(
         preview_id=preview.preview_id,
         title=preview.title,
@@ -529,6 +553,14 @@ def approve_knowledge_note(
         preview = writeback_service.approve(preview_id)
     except (ProjectRegistryError, WritebackPolicyError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    approval_logger.info(
+        "knowledge_approved preview_id=%s actor_id=%s project_id=%s target_path=%s status=%s",
+        preview.preview_id,
+        actor_id,
+        project_id,
+        preview.target_path,
+        preview.status,
+    )
     return KnowledgeNotePreviewResponse(
         preview_id=preview.preview_id,
         title=preview.title,

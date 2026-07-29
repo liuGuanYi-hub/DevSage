@@ -1,4 +1,5 @@
 import unittest
+import logging
 from pathlib import Path
 from uuid import uuid4
 
@@ -294,13 +295,19 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(403, viewer_response.status_code)
             self.assertFalse(target.exists())
 
-            approved_response = self.client.post(
-                f"/api/knowledge-notes/{preview_id}/approve",
-                headers={"X-DevSage-Actor": "local-editor"},
-            )
+            with self.assertLogs("devsage.approval", level=logging.INFO) as approval_logs:
+                approved_response = self.client.post(
+                    f"/api/knowledge-notes/{preview_id}/approve",
+                    headers={"X-DevSage-Actor": "local-editor"},
+                )
             self.assertEqual(200, approved_response.status_code)
             self.assertEqual("approved", approved_response.json()["status"])
             self.assertEqual("# API approval test\n", target.read_text(encoding="utf-8"))
+            approval_log = "\n".join(approval_logs.output)
+            self.assertIn("knowledge_approved", approval_log)
+            self.assertIn("actor_id=local-editor", approval_log)
+            self.assertIn(relative_target, approval_log)
+            self.assertNotIn("API approval test", approval_log)
         finally:
             if target.is_file():
                 target.unlink()

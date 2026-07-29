@@ -1,6 +1,6 @@
 # DevSage 交付就绪审计
 
-- 审计时间：2026-07-30 06:10
+- 审计时间：2026-07-30 06:26
 - 审计范围：DevMind MVP、DevSage Agent、工程化部署、量化评估、MCP 展示
 - 审计原则：只把当前文件、测试、运行输出或远端状态能直接证明的内容标记为已完成。
 
@@ -14,7 +14,7 @@
 | 关键词/Hash 向量/RRF 检索 | 已完成 | `evaluate_retrieval_strategies.py` 实测报告 |
 | 分类答案检索与项目总结 | 已完成 | `answer_search.py`、API 回归测试、上下文质量评估 |
 | 问答 API 与 SSE | 已完成 | `test_api.py`、`scripts/smoke-http.ps1` |
-| 知识写回预览与审批 | 已完成 | Diff、Hash 防过期覆盖、写回测试和 HTTP smoke |
+| 知识写回预览与审批 | 已完成 | Diff、Hash 防过期覆盖、写回测试、HTTP smoke 和不记录正文的结构化审批日志 |
 | 项目代码变更审批 | 已完成（本地文件） | 已有文件限定、Diff、Hash 防过期覆盖、operator API 合同；未接入远程补丁/提交 |
 | 多工具 Agent | 已完成 | Agent grounding、tool accuracy、LangGraph smoke |
 | Git/Issue 故障排查 | 已完成（本地/脱敏） | Git 工具、脱敏 Issue、结构化报告和 MCP smoke |
