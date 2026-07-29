@@ -113,9 +113,9 @@
 
 ### 阶段 6：MCP 与项目展示
 
-- [ ] 封装 MCP Server；
-- [ ] 暴露 `search_documents`、`search_code`、`read_file`；
-- [ ] 暴露 `get_git_history` 和 `generate_troubleshooting_report`；
+- [x] 封装无第三方依赖的 MCP-compatible stdio Server；
+- [x] 暴露 `search_documents`、`search_code`、`read_file`；
+- [x] 暴露 `get_git_history` 和 `generate_troubleshooting_report`；
 - [ ] 完善架构图、Agent 流程图和 API 文档；
 - [ ] 准备脱敏演示数据；
 - [ ] 录制 3～5 分钟演示视频；

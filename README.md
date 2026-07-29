@@ -44,7 +44,17 @@ npm run dev --prefix frontend
 
 ## 当前正在做
 
-当前 API 已支持索引 `sample-data`、关键词/混合证据查询、证据约束回答、SSE 流式输出、有限图多工具 Agent、脱敏 Issue 查询、本地 Git 历史和 Commit Diff 只读查询、结构化故障排查报告、来源行号、索引变化统计，以及知识笔记预览和审批写入项目暂存目录。Agent 状态可生成 JSON 快照，工具调用和图步骤有硬上限。Embedding 默认使用离线 Hash；显式配置远程 Provider 后才会发起请求。
+当前 API 已支持索引 `sample-data`、关键词/混合证据查询、证据约束回答、SSE 流式输出、有限图多工具 Agent、脱敏 Issue 查询、本地 Git 历史和 Commit Diff 只读查询、结构化故障排查报告、来源行号、索引变化统计，以及知识笔记预览和审批写入项目暂存目录。Agent 状态可生成 JSON 快照，工具调用、图步骤和总运行时有硬上限。Embedding 默认使用离线 Hash；显式配置远程 Provider 后才会发起请求。另提供无第三方依赖的 MCP-compatible stdio Server。
+
+## MCP 演示
+
+从项目根目录运行：
+
+```powershell
+python -m backend.app.mcp.server
+```
+
+服务按标准输入逐行读取 JSON-RPC 请求、按标准输出逐行返回响应，暴露 `search_documents`、`search_code`、`read_file`、`get_git_history` 和 `generate_troubleshooting_report`。默认不会启动网络端口，也不会修改 Git 仓库。
 
 ## 下一步
 
