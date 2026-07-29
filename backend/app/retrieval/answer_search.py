@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 from ..agents.classifier import classify_question
 from ..ingestion.models import ChunkRecord
@@ -13,11 +13,15 @@ from .models import SearchResult
 from .rrf import reciprocal_rank_fusion, select_source_diverse
 
 
+HybridSearchFn = Callable[[str, int], list[SearchResult]]
+
+
 def search_answer_chunks(
     chunks: Iterable[ChunkRecord],
     query: str,
     top_k: int = 5,
     provider: EmbeddingProvider | None = None,
+    hybrid_search_fn: HybridSearchFn | None = None,
 ) -> tuple[str, list[SearchResult]]:
     """Route answer retrieval by question type using the Agent's evidence rules.
 
@@ -33,14 +37,23 @@ def search_answer_chunks(
     chunk_list = list(chunks)
     category = classify_question(query)
     if category == "code_location":
-        return category, _search_code_location(chunk_list, query, top_k, provider)
+        return category, _search_code_location(
+            chunk_list, query, top_k, provider, hybrid_search_fn
+        )
     if category == "project_summary":
-        return category, _search_project_summary(chunk_list, query, max(top_k, 8), provider)
-    return category, search_hybrid(
+        return category, _search_project_summary(
+            chunk_list,
+            query,
+            max(top_k, 8),
+            provider,
+            hybrid_search_fn,
+        )
+    return category, _run_hybrid(
         chunk_list,
         _expand_code_query(query),
-        top_k=top_k,
-        provider=provider,
+        top_k,
+        provider,
+        hybrid_search_fn,
     )
 
 
@@ -49,6 +62,7 @@ def _search_code_location(
     query: str,
     top_k: int,
     provider: EmbeddingProvider | None,
+    hybrid_search_fn: HybridSearchFn | None,
 ) -> list[SearchResult]:
     code_chunks = [
         chunk
@@ -70,11 +84,12 @@ def _search_code_location(
         document_chunks = [chunk for chunk in chunks if _is_document_chunk(chunk, query)]
         document_results = [
             result
-            for result in search_hybrid(
+            for result in _run_hybrid(
                 document_chunks,
                 _expand_supporting_document_query(query),
-                top_k=top_k * 2,
-                provider=provider,
+                top_k * 2,
+                provider,
+                hybrid_search_fn,
             )
             if _is_document_chunk(result.chunk, query)
         ][:top_k]
@@ -92,14 +107,20 @@ def _search_project_summary(
     query: str,
     top_k: int,
     provider: EmbeddingProvider | None,
+    hybrid_search_fn: HybridSearchFn | None,
 ) -> list[SearchResult]:
     document_chunks = [chunk for chunk in chunks if _is_document_chunk(chunk, query)]
-    document_results = search_hybrid(
-        document_chunks,
-        query,
-        top_k=top_k * 2,
-        provider=provider,
-    )
+    document_results = [
+        result
+        for result in _run_hybrid(
+            document_chunks,
+            query,
+            top_k * 2,
+            provider,
+            hybrid_search_fn,
+        )
+        if _is_document_chunk(result.chunk, query)
+    ]
     code_chunks = [
         chunk
         for chunk in chunks
@@ -115,6 +136,20 @@ def _search_project_summary(
         top_k=top_k * 4,
     )
     return select_source_diverse(fused, top_k=top_k, max_per_source=1)
+
+
+def _run_hybrid(
+    chunks: Iterable[ChunkRecord],
+    query: str,
+    top_k: int,
+    provider: EmbeddingProvider | None,
+    hybrid_search_fn: HybridSearchFn | None,
+) -> list[SearchResult]:
+    """Use persisted hybrid search when supplied, otherwise the local baseline."""
+
+    if hybrid_search_fn is not None:
+        return hybrid_search_fn(query, top_k)
+    return search_hybrid(chunks, query, top_k=top_k, provider=provider)
 
 
 def _is_document_chunk(chunk: ChunkRecord, query: str = "") -> bool:

@@ -113,6 +113,11 @@ class PostgresIndexRepository:
         finally:
             connection.close()
 
+    def load_chunks(self, project_name: str) -> list[ChunkRecord]:
+        """Load persisted chunks for category-aware answer routing."""
+
+        return self._fetch_chunks(project_name)
+
     def search_keyword(
         self,
         project_name: str,

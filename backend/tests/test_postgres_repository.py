@@ -257,6 +257,46 @@ class PostgresRepositoryContractTests(unittest.TestCase):
         self.assertEqual(2, connection.commit_count)
         self.assertEqual(0, connection.rollback_count)
 
+    def test_answer_search_reads_persisted_chunks_and_hybrid_results(self) -> None:
+        connection = FakePostgresConnection()
+        repository = PostgresIndexRepository(connection_factory=lambda: connection)
+        service = IndexService(
+            embedding_provider=HashEmbeddingProvider(),
+            persistence=repository,
+            snapshot_store=None,
+        )
+
+        service.build("sample-data")
+        _, results = service.search_for_answer(
+            "sample-data",
+            "示例 Spring Boot 项目的用户接口入口在哪个类？",
+            top_k=5,
+        )
+
+        self.assertTrue(results)
+        self.assertTrue(
+            any("UserController.java" in result.chunk.source_path for result in results)
+        )
+        self.assertGreaterEqual(
+            sum("FROM chunks AS c" in statement for statement in connection.statements),
+            1,
+        )
+
+        _, troubleshooting_results = service.search_for_answer(
+            "sample-data",
+            "8080 端口被占用怎么排查？",
+            top_k=5,
+        )
+        self.assertTrue(
+            any(
+                "springboot-errors.md" in result.chunk.source_path
+                for result in troubleshooting_results
+            )
+        )
+        self.assertTrue(
+            any("c.embedding <=>" in statement for statement in connection.statements)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

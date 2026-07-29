@@ -127,6 +127,8 @@ python -m unittest backend.tests.test_postgres_repository
 
 该测试使用内存 fake connection 验证迁移 SQL、事务提交、项目快照写入、关键词查询、向量查询和混合检索返回结构；它不代表真实 PostgreSQL 已启动，也不会拉取 Docker 镜像。
 
+启用 PostgreSQL 存储后，答案路由会读取已持久化 Chunk；普通问答的混合检索通过仓储适配器进入 pgvector，代码定位和项目总结会在数据库候选上继续执行来源类型过滤。该应用层合同仍需通过真实 Docker smoke 验证网络、扩展、索引和卷恢复。
+
 ## 5. Docker / PostgreSQL smoke 边界
 
 在不启动 Docker 的情况下，可以先用真实本地 HTTP 服务验证项目发现、索引、Agent 和知识写回审批链路：

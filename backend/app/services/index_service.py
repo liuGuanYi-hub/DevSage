@@ -7,6 +7,7 @@ from pathlib import Path
 from threading import RLock
 
 from ..ingestion.indexer import IndexSnapshot, build_index
+from ..ingestion.models import ChunkRecord
 from ..retrieval.answer_search import (
     _expand_code_query,
     _is_code_chunk,
@@ -155,19 +156,33 @@ class IndexService:
         """Retrieve answer evidence using category-aware production routing."""
 
         relative_root, snapshot = self.get_or_build(source_root)
+        chunks = self._retrieval_chunks(relative_root, snapshot)
+        hybrid_search_fn = None
+        if self.persistence is not None and chunks is not snapshot.chunks:
+
+            def hybrid_search_fn(query_text: str, limit: int) -> list[SearchResult]:
+                return self.persistence.search_hybrid(
+                    relative_root,
+                    query_text,
+                    limit,
+                    self.embedding_provider,
+                )
+
         _, results = search_answer_chunks(
-            snapshot.chunks,
+            chunks,
             query,
             top_k=top_k,
             provider=self.embedding_provider,
+            hybrid_search_fn=hybrid_search_fn,
         )
         return relative_root, results
 
     def search_code(self, source_root: str, query: str, top_k: int) -> list[SearchResult]:
-        _, snapshot = self.get_or_build(source_root)
+        relative_root, snapshot = self.get_or_build(source_root)
+        chunks = self._retrieval_chunks(relative_root, snapshot)
         code_chunks = [
             chunk
-            for chunk in snapshot.chunks
+            for chunk in chunks
             if _is_code_chunk(chunk, query)
         ]
         expanded_query = _expand_code_query(query)
@@ -179,16 +194,17 @@ class IndexService:
         return select_source_diverse(candidates, top_k=top_k, max_per_source=1)
 
     def search_project(self, source_root: str, query: str, top_k: int) -> list[SearchResult]:
-        _, snapshot = self.get_or_build(source_root)
+        relative_root, snapshot = self.get_or_build(source_root)
+        chunks = self._retrieval_chunks(relative_root, snapshot)
         document_chunks = [
             chunk
-            for chunk in snapshot.chunks
+            for chunk in chunks
             if _is_document_chunk(chunk, query)
         ]
         document_results = search_hybrid(document_chunks, query, top_k=top_k * 2)
         code_chunks = [
             chunk
-            for chunk in snapshot.chunks
+            for chunk in chunks
             if _is_code_chunk(chunk, query)
         ]
         code_results = search_keyword(
@@ -201,6 +217,18 @@ class IndexService:
             top_k=top_k * 4,
         )
         return select_source_diverse(fused, top_k=top_k, max_per_source=1)
+
+    def _retrieval_chunks(
+        self,
+        relative_root: str,
+        snapshot: IndexSnapshot,
+    ) -> tuple[ChunkRecord, ...]:
+        """Prefer persisted chunks when the configured repository exposes them."""
+
+        load_chunks = getattr(self.persistence, "load_chunks", None)
+        if self.persistence is not None and callable(load_chunks):
+            return tuple(load_chunks(relative_root))
+        return snapshot.chunks
 
     def read_file(
         self,
