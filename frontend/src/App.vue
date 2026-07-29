@@ -2,12 +2,15 @@
 import { onMounted, ref } from "vue";
 
 import {
+  approveCodeChange,
   approveKnowledgeNote,
   indexSource,
   listProjects,
+  previewCodeChange,
   previewKnowledgeNote,
   runAgent,
   type AgentResponse,
+  type CodeChangePreview,
   type IndexResponse,
   type KnowledgeNotePreview,
   type Project,
@@ -27,6 +30,10 @@ const noteContent = ref("");
 const noteTargetPath = ref("DevMind/answer.md");
 const pendingPreview = ref<KnowledgeNotePreview | null>(null);
 const writebackStatus = ref("");
+const codeTargetPath = ref("repositories/springboot-demo/README.md");
+const codeContent = ref("");
+const pendingCodePreview = ref<CodeChangePreview | null>(null);
+const codeWritebackStatus = ref("");
 
 function categoryLabel(category: string): string {
   const labels: Record<string, string> = {
@@ -102,6 +109,34 @@ async function approveNote() {
     writebackStatus.value = "Approved and written to the staging directory.";
   } catch (error) {
     writebackStatus.value = `Approval failed: ${error instanceof Error ? error.message : "unknown error"}`;
+  }
+}
+
+async function createCodePreview() {
+  if (!codeContent.value.trim()) return;
+  codeWritebackStatus.value = "Generating a code change preview...";
+  try {
+    pendingCodePreview.value = await previewCodeChange(
+      codeTargetPath.value.trim(),
+      codeContent.value,
+      answer.value?.citations ?? [],
+      "sample-data",
+      selectedProjectId.value || undefined,
+    );
+    codeWritebackStatus.value = "Code preview created. Review the Diff before approval.";
+  } catch (error) {
+    codeWritebackStatus.value = `Code preview failed: ${error instanceof Error ? error.message : "unknown error"}`;
+  }
+}
+
+async function approveCode() {
+  if (!pendingCodePreview.value) return;
+  codeWritebackStatus.value = "Approving code change...";
+  try {
+    pendingCodePreview.value = await approveCodeChange(pendingCodePreview.value.preview_id);
+    codeWritebackStatus.value = "Code change approved and written.";
+  } catch (error) {
+    codeWritebackStatus.value = `Code approval failed: ${error instanceof Error ? error.message : "unknown error"}`;
   }
 }
 
@@ -238,6 +273,43 @@ onMounted(async () => {
           </div>
         </article>
 
+        <article class="code-writeback-card">
+          <div class="result-meta">
+            <strong>Code change preview and approval</strong>
+            <span v-if="pendingCodePreview">{{ pendingCodePreview.status }}</span>
+          </div>
+          <p class="approval-hint">
+            只允许修改当前项目内已有文件；预览不会写盘，批准前会再次校验文件 Hash。
+          </p>
+          <label class="field-label">
+            Target file
+            <input v-model="codeTargetPath" aria-label="Code change target file" />
+          </label>
+          <label class="field-label">
+            Complete proposed file content
+            <textarea v-model="codeContent" rows="10" aria-label="Proposed code content"></textarea>
+          </label>
+          <div class="writeback-actions">
+            <button type="button" @click="createCodePreview" :disabled="!codeContent.trim()">
+              Generate code preview
+            </button>
+            <button
+              v-if="pendingCodePreview && pendingCodePreview.status === 'pending'"
+              type="button"
+              @click="approveCode"
+            >
+              Approve code change
+            </button>
+          </div>
+          <small v-if="codeWritebackStatus" class="writeback-status">{{ codeWritebackStatus }}</small>
+          <div v-if="pendingCodePreview" class="diff-summary">
+            <small>
+              {{ pendingCodePreview.diff.operation }} · +{{ pendingCodePreview.diff.additions }} / -{{ pendingCodePreview.diff.deletions }} · {{ pendingCodePreview.target_path }}
+            </small>
+            <pre>{{ pendingCodePreview.diff.unified_diff.join("\n") }}</pre>
+          </div>
+        </article>
+
         <article v-for="result in results" :key="result.citation" class="result-card">
           <div class="result-meta">
             <strong>{{ result.source_path }}</strong>
@@ -303,6 +375,7 @@ input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; p
 .answer-card { border: 1px solid #8bb5d8; background: #eef7ff; }
 .report-card { border: 1px solid #b9d8c5; background: #f3fbf5; }
 .writeback-card { border: 1px solid #d6c38e; background: #fffaf0; }
+.code-writeback-card { border: 1px solid #c5b6dd; background: #faf7ff; }
 .result-meta { justify-content: space-between; flex-wrap: wrap; color: #416b98; font-size: 0.85rem; }
 .result-card p, .report-card p { white-space: pre-wrap; line-height: 1.6; }
 .answer-text { white-space: pre-wrap; line-height: 1.7; font-size: 1.05rem; }
@@ -311,6 +384,7 @@ input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; p
 .finding { margin-top: 14px; padding-top: 10px; border-top: 1px solid #d6eadb; }
 .finding ul, .next-steps ol { margin-bottom: 0; padding-left: 20px; line-height: 1.6; }
 .next-steps { margin-top: 16px; }
+.approval-hint { color: #665b7d; line-height: 1.5; }
 .field-label { display: grid; gap: 6px; margin-top: 12px; color: #526176; font-size: 0.88rem; font-weight: 600; }
 .field-label textarea { resize: vertical; border: 1px solid #cbd6e2; border-radius: 10px; padding: 12px 14px; font: inherit; line-height: 1.5; }
 .writeback-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }

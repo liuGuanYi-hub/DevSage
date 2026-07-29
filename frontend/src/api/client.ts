@@ -114,6 +114,25 @@ export interface KnowledgeNotePreview {
   status: string;
 }
 
+export interface CodeChangeDiff {
+  operation: string;
+  current_content_hash: string;
+  proposed_content_hash: string;
+  additions: number;
+  deletions: number;
+  unified_diff: string[];
+}
+
+export interface CodeChangePreview {
+  preview_id: string;
+  source_root: string;
+  target_path: string;
+  proposed_content: string;
+  source_citations: string[];
+  diff: CodeChangeDiff;
+  status: string;
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 async function request<T>(path: string, options: RequestInit): Promise<T> {
@@ -200,6 +219,31 @@ export function previewKnowledgeNote(
 
 export function approveKnowledgeNote(previewId: string): Promise<KnowledgeNotePreview> {
   return request<KnowledgeNotePreview>(`/api/knowledge-notes/${previewId}/approve`, {
+    method: "POST",
+  });
+}
+
+export function previewCodeChange(
+  targetPath: string,
+  proposedContent: string,
+  sourceCitations: string[],
+  sourceRoot = "sample-data",
+  projectId?: string,
+): Promise<CodeChangePreview> {
+  return request<CodeChangePreview>("/api/code-changes/preview", {
+    method: "POST",
+    body: JSON.stringify({
+      target_path: targetPath,
+      proposed_content: proposedContent,
+      source_citations: sourceCitations,
+      source_root: sourceRoot,
+      project_id: projectId,
+    }),
+  });
+}
+
+export function approveCodeChange(previewId: string): Promise<CodeChangePreview> {
+  return request<CodeChangePreview>(`/api/code-changes/${previewId}/approve`, {
     method: "POST",
   });
 }
