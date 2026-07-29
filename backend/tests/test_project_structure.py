@@ -54,6 +54,7 @@ class ProjectStructureTests(unittest.TestCase):
             "scripts/verify-offline.ps1",
             "scripts/smoke-docker.ps1",
             "docs/DevSage演示与API手册.md",
+            "docs/DevSage交付就绪审计.md",
             "docs/diagrams/devsage-architecture.html",
             "docs/diagrams/devsage-agent.html",
             "sample-data/docs/springboot-errors.md",
