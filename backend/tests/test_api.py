@@ -131,6 +131,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual("code_location", payload["category"])
         self.assertIn("search_code", payload["tool_calls"])
         self.assertIn("read_file", payload["tool_calls"])
+        self.assertEqual(0, payload["tool_retry_count"])
         self.assertTrue(payload["steps"])
         self.assertTrue(payload["citations"])
 

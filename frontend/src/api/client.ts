@@ -60,6 +60,7 @@ export interface AgentResponse extends AnswerResponse {
   category: string;
   status: string;
   tool_calls: string[];
+  tool_retry_count: number;
   steps: AgentStep[];
   report: TroubleshootingReport | null;
 }

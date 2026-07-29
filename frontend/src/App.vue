@@ -96,6 +96,7 @@ onMounted(refreshIndex);
           <p class="answer-text">{{ answer.answer }}</p>
           <small v-if="answer.warning" class="warning">{{ answer.warning }}</small>
           <small>工具链：{{ answer.tool_calls.join(" · ") || "未调用工具" }}</small>
+          <small>工具重试：{{ answer.tool_retry_count }} 次</small>
           <ol class="agent-steps">
             <li v-for="step in answer.steps" :key="`${step.name}-${step.status}`">
               <strong>{{ step.name }}</strong> · {{ step.status }} · {{ step.detail }}

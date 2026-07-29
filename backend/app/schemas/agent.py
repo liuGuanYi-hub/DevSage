@@ -50,6 +50,7 @@ class AgentResponse(BaseModel):
     evidence_sufficient: bool
     warning: str | None = None
     tool_calls: list[str]
+    tool_retry_count: int = 0
     steps: list[AgentStepResponse]
     evidence: list[SearchHit]
     report: TroubleshootingReportResponse | None = None

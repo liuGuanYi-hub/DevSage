@@ -43,6 +43,7 @@ Invoke-RestMethod http://127.0.0.1:8000/api/agent/run `
 
 - `category`：问题分类；
 - `tool_calls`：实际调用的工具及有界重试尝试；
+- `tool_retry_count`：工具失败后的实际重试次数；
 - `steps`：分类、检索、证据判断和答案组织过程；
 - `citations` / `evidence`：来源路径、起止行号和匹配词；
 - `warning`：证据不足或来源较少时的边界提示。

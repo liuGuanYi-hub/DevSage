@@ -259,6 +259,7 @@ def _agent_response(state) -> AgentResponse:
         evidence_sufficient=draft.evidence_sufficient,
         warning=draft.warning,
         tool_calls=state.tool_calls,
+        tool_retry_count=state.tool_retry_count,
         steps=[
             AgentStepResponse(name=step.name, status=step.status, detail=step.detail)
             for step in state.steps
