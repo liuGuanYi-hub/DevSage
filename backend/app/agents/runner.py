@@ -45,6 +45,8 @@ class AgentRunner:
             state.status = "failed"
             state.steps.append(AgentStep("retrieve_evidence", "failed", "invalid source root or tool input"))
             raise
+        if state.answer is None and state.status in {"tool_limit_reached", "step_limit_reached"}:
+            state.answer = compose_evidence_answer(state.query, state.evidence)
         return state
 
     def _classify_node(self, state: AgentState, _context: dict[str, object]) -> str:

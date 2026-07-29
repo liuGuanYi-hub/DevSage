@@ -71,7 +71,7 @@ class AgentTests(unittest.TestCase):
         runner = AgentRunner(IndexService(), max_tool_calls=1)
         state = runner.run("用户接口入口在哪里", "sample-data")
         self.assertEqual("tool_limit_reached", state.status)
-        self.assertIsNone(state.answer)
+        self.assertIsNotNone(state.answer)
 
 
 if __name__ == "__main__":
