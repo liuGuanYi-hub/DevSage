@@ -12,6 +12,7 @@ from .classifier import classify_question
 from .git_tools import GitToolError, get_commit_diff, get_git_history
 from .graph import AgentGraph, AgentLimits
 from .issue_tools import IssueToolError, search_issues
+from .query_rewrite import rewrite_query
 from .state import AgentState, AgentStep
 from ..services.task_store import TaskNotResumableError
 
@@ -24,10 +25,12 @@ class AgentRunner:
         index_service: IndexService,
         max_tool_calls: int = 4,
         max_steps: int = 12,
+        max_retries: int = 1,
     ) -> None:
         self.index_service = index_service
         self.max_tool_calls = max_tool_calls
         self.max_steps = max_steps
+        self.max_retries = max_retries
         self.graph = AgentGraph(
             nodes={
                 "classify_question": self._classify_node,
@@ -81,17 +84,32 @@ class AgentRunner:
 
     def _retrieve_node(self, state: AgentState, context: dict[str, object]) -> str:
         top_k = int(context.get("top_k", 5))
-        state.evidence = self._retrieve(state, top_k)
+        query = state.rewritten_query or state.query
+        state.evidence = self._retrieve(state, top_k, query)
         return "evidence_check"
 
     def _evidence_node(self, state: AgentState, _context: dict[str, object]) -> str:
+        has_direct_evidence = any(result.matched_terms for result in state.evidence)
         state.steps.append(
             AgentStep(
                 "evidence_check",
-                "completed" if any(result.matched_terms for result in state.evidence) else "insufficient",
+                "completed" if has_direct_evidence else "insufficient",
                 f"candidates={len(state.evidence)}",
             )
         )
+        if not has_direct_evidence and state.retry_count < self.max_retries:
+            rewrite = rewrite_query(state.query, state.category)
+            if rewrite.changed:
+                state.retry_count += 1
+                state.rewritten_query = rewrite.rewritten_query
+                state.steps.append(
+                    AgentStep(
+                        "query_rewrite",
+                        "completed",
+                        f"added={','.join(rewrite.added_terms)}",
+                    )
+                )
+                return "retrieve_evidence"
         return "compose_answer"
 
     def _compose_node(self, state: AgentState, _context: dict[str, object]) -> None:
@@ -112,11 +130,12 @@ class AgentRunner:
         state.steps.append(AgentStep(name, "completed", detail))
         return True
 
-    def _retrieve(self, state: AgentState, top_k: int):
+    def _retrieve(self, state: AgentState, top_k: int, query: str | None = None):
+        search_query = query or state.query
         if state.category == "code_location":
             if not self._record_tool(state, "search_code", "code chunks"):
                 return []
-            results = self.index_service.search_code(state.source_root, state.query, top_k)
+            results = self.index_service.search_code(state.source_root, search_query, top_k)
             if results and self._record_tool(state, "read_file", results[0].citation):
                 result = results[0]
                 self.index_service.read_file(
@@ -132,15 +151,15 @@ class AgentRunner:
                 return []
             if not self._record_tool(state, "search_code", "project code"):
                 return []
-            return self.index_service.search_project(state.source_root, state.query, top_k)
+            return self.index_service.search_project(state.source_root, search_query, top_k)
 
         if state.category == "git_history":
             if not self._record_tool(state, "get_git_history", "local repository"):
                 return []
-            return get_git_history(state.query, limit=top_k)
+            return get_git_history(search_query, limit=top_k)
 
         if state.category == "git_diff":
-            commit_hash = _extract_commit_hash(state.query)
+            commit_hash = _extract_commit_hash(search_query)
             if commit_hash is None:
                 if not self._record_tool(state, "get_git_history", "select latest local commit"):
                     return []
@@ -155,7 +174,7 @@ class AgentRunner:
         if state.category == "issue_search":
             if not self._record_tool(state, "search_issues", "exported Issue records"):
                 return []
-            return search_issues(state.query, limit=top_k)
+            return search_issues(search_query, limit=top_k)
 
         if state.category == "troubleshooting":
             if not self._record_tool(state, "search_documents", "hybrid evidence"):
@@ -180,7 +199,7 @@ class AgentRunner:
 
         if not self._record_tool(state, "search_documents", "hybrid evidence"):
             return []
-        return self.index_service.search_hybrid(state.source_root, state.query, top_k)[1]
+        return self.index_service.search_hybrid(state.source_root, search_query, top_k)[1]
 
 
 def _extract_commit_hash(query: str) -> str | None:

@@ -5,6 +5,8 @@ from pathlib import Path
 from backend.app.agents.classifier import classify_question
 from backend.app.agents.runner import AgentRunner
 from backend.app.agents.state import AgentState
+from backend.app.ingestion.models import ChunkRecord
+from backend.app.retrieval.models import SearchResult
 from backend.app.services.index_service import IndexService
 
 
@@ -89,6 +91,32 @@ class AgentTests(unittest.TestCase):
         resumed = runner.resume(state)
         self.assertEqual("completed", resumed.status)
         self.assertIn("resume", [step.name for step in resumed.steps])
+
+    def test_query_rewrite_retries_once_with_transparent_terms(self) -> None:
+        class RewriteIndexService:
+            def search_hybrid(self, _source_root: str, query: str, _top_k: int):
+                if "login" not in query:
+                    return "sample-data", []
+                result = SearchResult(
+                    chunk=ChunkRecord(
+                        chunk_id="rewrite-1",
+                        source_path="docs/auth.md",
+                        file_type="markdown",
+                        content="login requires auth middleware.",
+                        start_line=1,
+                        end_line=1,
+                    ),
+                    score=1.0,
+                    matched_terms=("login", "auth"),
+                )
+                return "sample-data", [result]
+
+        runner = AgentRunner(RewriteIndexService())
+        state = runner.run("登录流程", "sample-data")
+        self.assertEqual("completed", state.status)
+        self.assertEqual(1, state.retry_count)
+        self.assertIn("login", state.rewritten_query)
+        self.assertIn("query_rewrite", [step.name for step in state.steps])
 
 
 if __name__ == "__main__":

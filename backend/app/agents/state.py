@@ -33,6 +33,8 @@ class AgentState:
     tool_calls: list[str] = field(default_factory=list)
     evidence: list[SearchResult] = field(default_factory=list)
     answer: object | None = None
+    rewritten_query: str | None = None
+    retry_count: int = 0
 
     def set_category(self, category: str) -> None:
         if category not in QUESTION_CATEGORIES:
@@ -63,6 +65,8 @@ class AgentState:
             "tool_calls": list(self.tool_calls),
             "evidence": [_serialize_search_result(result) for result in self.evidence],
             "answer": _serialize_answer(self.answer),
+            "rewritten_query": self.rewritten_query,
+            "retry_count": self.retry_count,
         }
 
     @classmethod
@@ -88,6 +92,8 @@ class AgentState:
         )
         state.set_category(state.category)
         state.answer = _deserialize_answer(payload.get("answer"))
+        state.rewritten_query = payload.get("rewritten_query")
+        state.retry_count = int(payload.get("retry_count", 0))
         return state
 
 
