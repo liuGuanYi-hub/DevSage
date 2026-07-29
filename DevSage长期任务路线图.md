@@ -99,6 +99,7 @@
 - [x] 用独立 HTTP smoke 验证 viewer/editor/operator 能力边界和 preview 不写盘；
 - [x] 让索引、搜索、问答和 Agent API 支持通过 `project_id` 进入注册项目边界；
 - [x] 实现任务状态持久化；
+- [x] 将持久化 Agent 任务的 `project_id` 纳入读取/恢复能力检查，并由独立 HTTP smoke 验证成功与拒绝路径；
 - [x] 实现受限任务暂停与恢复；
 - [x] 实现文件内容 Hash 的增量索引（进程内复用、默认文件快照跨进程恢复、变化统计和 API 回归测试）；
 - [x] 实现知识笔记写操作 Diff 预览，并在审批时阻止目标文件的过期覆盖；
