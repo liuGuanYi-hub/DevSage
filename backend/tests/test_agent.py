@@ -42,6 +42,12 @@ class AgentTests(unittest.TestCase):
         self.assertIn("项目总结", state.answer.answer)
         self.assertTrue(state.answer.citations)
 
+    def test_knowledge_write_uses_preview_tool_without_approval(self) -> None:
+        state = self.runner.run("整理成一篇端口排查笔记", "sample-data")
+        self.assertEqual("knowledge_write", state.category)
+        self.assertIn("create_knowledge_note_preview", state.tool_calls)
+        self.assertNotIn("approve_knowledge_note", state.tool_calls)
+
     def test_unknown_question_stops_with_insufficient_evidence(self) -> None:
         state = self.runner.run("frobulate_qzxv_731942_unindexed", "sample-data")
         self.assertEqual("insufficient_evidence", state.status)
@@ -110,6 +116,9 @@ class AgentTests(unittest.TestCase):
                     matched_terms=("login", "auth"),
                 )
                 return "sample-data", [result]
+
+            def read_file(self, *_args, **_kwargs):
+                return "login requires auth middleware."
 
         runner = AgentRunner(RewriteIndexService())
         state = runner.run("登录流程", "sample-data")

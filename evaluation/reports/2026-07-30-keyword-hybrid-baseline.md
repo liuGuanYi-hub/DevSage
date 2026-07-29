@@ -32,3 +32,33 @@
 - 当前没有评估生成回答的 Faithfulness；
 - 当前没有评估工具调用顺序和任务完成率；
 - 未使用真实 Embedding、Reranker 或 PostgreSQL pgvector。
+
+## 更新测试：2026-07-30 01:51
+
+本次将评估集从 20 条扩展到 50 条，新增问题覆盖 Spring Boot 端口与代码调用链、Laravel 认证与路由、知识写回、安全边界、来源引用和项目比较。所有新增问题均通过字段、唯一 ID 和来源文件存在性校验。
+
+| 策略 | Case Recall@5 | Source Recall@5 | MRR |
+|---|---:|---:|---:|
+| 关键词基线 | 0.6800 | 0.5217 | 0.4080 |
+| Hash 向量 + RRF | 0.7000 | 0.5483 | 0.5833 |
+
+### 新一轮解读
+
+在 50 条问题上，Hash+RRF 的 Case Recall@5 比关键词基线高 0.0200，Source Recall@5 高 0.0266，MRR 高 0.1753。与旧 20 条报告的数值不应直接当作回归差异，因为测试集规模和问题分布已经改变；后续应固定数据集版本后再比较策略迭代。
+
+### 新一轮限制
+
+- 当前仍只评估检索来源，不评估生成回答的 Faithfulness、Context Precision 和 Context Recall；
+- `expected_tools` 已完成标注，但尚未实现 Tool Call Accuracy 统计；
+- Hash Provider 仍是离线接口替身，不代表真实 Embedding 服务效果。
+
+## 更新工具调用评估：2026-07-30 01:54
+
+新增 `evaluation/scripts/evaluate_tool_call_accuracy.py`，将每条问题的 `expected_tools` 与实际 Agent `tool_calls` 做集合覆盖比较。当前 50 条问题结果：
+
+| 指标 | 改进前 | 当前 |
+|---|---:|---:|
+| Expected Tool Coverage | 0.4233 | 0.7033 |
+| Fully Covered Case Rate | 0.0800 | 0.4400 |
+
+本轮通过为知识写回问题调用预览工具、为普通知识问答补充首条来源读取、为故障排查补充主要文档读取，使工具覆盖率得到提升。该指标只判断预期工具是否至少调用一次，不判断调用顺序、参数质量、工具结果正确性或是否存在多余工具调用，因此不能等同于完整 Tool Call Accuracy。

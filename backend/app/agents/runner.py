@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from uuid import uuid4
 
 from ..services.answer_service import compose_evidence_answer
 from ..services.index_service import IndexService, SourceRootError
 from ..services.project_summary import compose_project_summary
+from ..services.knowledge_writeback import KnowledgeWritebackService
 from .classifier import classify_question
 from .git_tools import GitToolError, get_commit_diff, get_git_history
 from .graph import AgentGraph, AgentLimits
@@ -27,12 +29,16 @@ class AgentRunner:
         max_steps: int = 12,
         max_retries: int = 1,
         max_runtime_seconds: float | None = 30.0,
+        writeback_service: KnowledgeWritebackService | None = None,
     ) -> None:
         self.index_service = index_service
         self.max_tool_calls = max_tool_calls
         self.max_steps = max_steps
         self.max_retries = max_retries
         self.max_runtime_seconds = max_runtime_seconds
+        self.writeback_service = writeback_service or KnowledgeWritebackService(
+            Path(__file__).resolve().parents[3] / "data" / "approved-notes"
+        )
         self.graph = AgentGraph(
             nodes={
                 "classify_question": self._classify_node,
@@ -167,6 +173,24 @@ class AgentRunner:
                 return []
             return self.index_service.search_project(state.source_root, search_query, top_k)
 
+        if state.category == "knowledge_write":
+            if not self._record_tool(state, "search_documents", "writeback source evidence"):
+                return []
+            results = self.index_service.search_hybrid(state.source_root, search_query, top_k)[1]
+            self._read_first_evidence(state, results)
+            if results and any(result.matched_terms for result in results):
+                preview_draft = compose_evidence_answer(search_query, results)
+                if self._record_tool(state, "create_knowledge_note_preview", "pending preview"):
+                    self.writeback_service.create_preview(
+                        title=search_query[:80],
+                        content=preview_draft.answer,
+                        target_path=f"DevMind/{state.task_id}.md",
+                        source_citations=[
+                            result.citation for result in results if result.matched_terms
+                        ],
+                    )
+            return results
+
         if state.category == "git_history":
             if not self._record_tool(state, "get_git_history", "local repository"):
                 return []
@@ -202,6 +226,7 @@ class AgentRunner:
                 state.query,
                 top_k=top_k,
             )[1]
+            self._read_first_evidence(state, document_results)
             issue_results = search_issues(state.query, limit=top_k)
             git_results = get_git_history(state.query, limit=top_k)
             from ..retrieval.rrf import reciprocal_rank_fusion
@@ -213,7 +238,24 @@ class AgentRunner:
 
         if not self._record_tool(state, "search_documents", "hybrid evidence"):
             return []
-        return self.index_service.search_hybrid(state.source_root, search_query, top_k)[1]
+        results = self.index_service.search_hybrid(state.source_root, search_query, top_k)[1]
+        self._read_first_evidence(state, results)
+        return results
+
+    def _read_first_evidence(self, state: AgentState, results) -> None:
+        if not results:
+            return
+        result = results[0]
+        if result.chunk.file_type not in {"markdown", "config", "code"}:
+            return
+        if not self._record_tool(state, "read_file", result.citation):
+            return
+        self.index_service.read_file(
+            state.source_root,
+            result.chunk.source_path,
+            result.chunk.start_line,
+            result.chunk.end_line,
+        )
 
 
 def _extract_commit_hash(query: str) -> str | None:

@@ -14,7 +14,7 @@ DevSage 是基于 Agentic RAG 的研发知识库与故障排查系统。当前�
 DevSage/
 ├── backend/                 # FastAPI 后端和未来的核心服务
 ├── frontend/                # Vue 3 前端骨架
-├── evaluation/              # 测试问题、评估脚本和报告
+├── evaluation/              # 50 条测试问题、评估脚本和报告
 ├── sample-data/             # 脱敏文档、代码和配置样例
 ├── docs/                    # 项目设计文档
 ├── DevSage长期任务路线图.md  # 持续推进的阶段任务

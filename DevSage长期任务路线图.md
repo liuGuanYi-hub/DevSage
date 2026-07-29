@@ -102,12 +102,14 @@
 
 ### 阶段 5：量化评估
 
-- [ ] 将测试集扩充到 50～100 条；
-- [ ] 标注正确来源、参考答案和预期工具；
+- [x] 将测试集扩充到 50 条，继续向 50～100 条范围扩展；
+- [x] 为 50 条问题标注正确来源、参考答案和预期工具；
 - [ ] 对比纯关键词、纯向量和混合检索；
 - [ ] 对比加入 Reranker 前后的效果；
-- [ ] 统计 Recall@5、MRR、Context Precision、Context Recall；
-- [ ] 统计 Faithfulness、Answer Relevance 和 Tool Call Accuracy；
+- [x] 统计 Recall@5、MRR；
+- [ ] 统计 Context Precision、Context Recall；
+- [ ] 统计 Faithfulness、Answer Relevance；
+- [x] 统计 Tool Call Accuracy 的预期工具覆盖率；
 - [ ] 记录失败案例和每次优化结果；
 - [ ] 只使用实测数据更新 README 和简历。
 

@@ -297,6 +297,275 @@
       "search_documents",
       "read_file"
     ]
+  },
+  {
+    "id": "mvp-021",
+    "category": "故障排查",
+    "difficulty": "easy",
+    "question": "Spring Boot 默认可能使用哪个端口？",
+    "expected_sources": ["sample-data/docs/springboot-errors.md"],
+    "reference_answer": "Spring Boot 默认可能使用 8080 端口。",
+    "expected_tools": ["search_documents", "read_file"]
+  },
+  {
+    "id": "mvp-022",
+    "category": "故障排查",
+    "difficulty": "easy",
+    "question": "排查 8080 端口占用时可以使用什么命令？",
+    "expected_sources": ["sample-data/docs/springboot-errors.md"],
+    "reference_answer": "可以使用 netstat -ano 查询端口对应的 PID，再用 tasklist 查看进程。",
+    "expected_tools": ["search_documents", "read_file"]
+  },
+  {
+    "id": "mvp-023",
+    "category": "配置定位",
+    "difficulty": "easy",
+    "question": "Spring Boot 修改服务端口前需要确认哪些下游配置？",
+    "expected_sources": ["sample-data/docs/springboot-errors.md", "sample-data/repositories/springboot-demo/src/main/resources/application.yml"],
+    "reference_answer": "需要确认客户端、反向代理和部署配置是否仍指向旧端口。",
+    "expected_tools": ["search_documents", "search_code"]
+  },
+  {
+    "id": "mvp-024",
+    "category": "证据判断",
+    "difficulty": "medium",
+    "question": "为什么不能只根据 Spring Boot 错误文本判断端口故障原因？",
+    "expected_sources": ["sample-data/docs/springboot-errors.md"],
+    "reference_answer": "还要结合启动日志、端口配置和操作系统进程等证据。",
+    "expected_tools": ["search_documents", "read_file"]
+  },
+  {
+    "id": "mvp-025",
+    "category": "配置定位",
+    "difficulty": "easy",
+    "question": "Spring Boot 示例配置中的 server.port 是多少？",
+    "expected_sources": ["sample-data/repositories/springboot-demo/src/main/resources/application.yml"],
+    "reference_answer": "server.port 配置为 8081。",
+    "expected_tools": ["search_code", "read_file"]
+  },
+  {
+    "id": "mvp-026",
+    "category": "配置定位",
+    "difficulty": "easy",
+    "question": "Spring Boot 示例 application.yml 中的应用名称是什么？",
+    "expected_sources": ["sample-data/repositories/springboot-demo/src/main/resources/application.yml"],
+    "reference_answer": "应用名称是 devsage-springboot-demo。",
+    "expected_tools": ["search_code", "read_file"]
+  },
+  {
+    "id": "mvp-027",
+    "category": "代码定位",
+    "difficulty": "easy",
+    "question": "UserController 的 getUser 方法返回什么类型？",
+    "expected_sources": ["sample-data/repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java"],
+    "reference_answer": "getUser 返回 UserDto。",
+    "expected_tools": ["search_code", "read_file"]
+  },
+  {
+    "id": "mvp-028",
+    "category": "代码调用链",
+    "difficulty": "easy",
+    "question": "UserService 的 findUser 方法创建了什么对象？",
+    "expected_sources": ["sample-data/repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java"],
+    "reference_answer": "findUser 创建并返回 UserController.UserDto。",
+    "expected_tools": ["search_code", "read_file"]
+  },
+  {
+    "id": "mvp-029",
+    "category": "路由定位",
+    "difficulty": "easy",
+    "question": "Spring Boot 示例获取用户的接口路径是什么？",
+    "expected_sources": ["sample-data/repositories/springboot-demo/README.md"],
+    "reference_answer": "示例接口是 GET /api/users/{id}。",
+    "expected_tools": ["search_documents", "read_file"]
+  },
+  {
+    "id": "mvp-030",
+    "category": "项目总结",
+    "difficulty": "easy",
+    "question": "Spring Boot 示例项目的三个关键文件分别负责什么？",
+    "expected_sources": ["sample-data/repositories/springboot-demo/README.md"],
+    "reference_answer": "UserController 负责用户接口入口，UserService 负责查询业务，application.yml 负责端口和应用配置。",
+    "expected_tools": ["search_documents", "search_code"]
+  },
+  {
+    "id": "mvp-031",
+    "category": "认证知识",
+    "difficulty": "easy",
+    "question": "Laravel 示例项目使用什么方式管理 API Token？",
+    "expected_sources": ["sample-data/docs/laravel-auth.md"],
+    "reference_answer": "项目使用 Laravel Sanctum 管理 API Token。",
+    "expected_tools": ["search_documents", "read_file"]
+  },
+  {
+    "id": "mvp-032",
+    "category": "认证流程",
+    "difficulty": "easy",
+    "question": "访问 Laravel 受保护接口时 Authorization 请求头应如何填写？",
+    "expected_sources": ["sample-data/docs/laravel-auth.md", "sample-data/repositories/laravel-task-api/app/Http/Middleware/Authenticate.php"],
+    "reference_answer": "应使用 Authorization: Bearer <token>。",
+    "expected_tools": ["search_documents", "search_code"]
+  },
+  {
+    "id": "mvp-033",
+    "category": "路由定位",
+    "difficulty": "easy",
+    "question": "Laravel API 的登录路由由哪个控制器方法处理？",
+    "expected_sources": ["sample-data/repositories/laravel-task-api/routes/api.php", "sample-data/repositories/laravel-task-api/app/Http/Controllers/AuthController.php"],
+    "reference_answer": "POST /login 路由由 AuthController 的 login 方法处理。",
+    "expected_tools": ["search_code", "read_file"]
+  },
+  {
+    "id": "mvp-034",
+    "category": "路由与中间件",
+    "difficulty": "easy",
+    "question": "Laravel 任务列表路由要求经过哪个认证中间件？",
+    "expected_sources": ["sample-data/repositories/laravel-task-api/routes/api.php"],
+    "reference_answer": "任务列表路由位于 auth:sanctum 中间件组中。",
+    "expected_tools": ["search_code", "read_file"]
+  },
+  {
+    "id": "mvp-035",
+    "category": "认证代码定位",
+    "difficulty": "easy",
+    "question": "AuthController 的 login 方法首先校验哪个凭据字段？",
+    "expected_sources": ["sample-data/repositories/laravel-task-api/app/Http/Controllers/AuthController.php"],
+    "reference_answer": "login 方法会校验 credentials 中的 email 字段。",
+    "expected_tools": ["search_code", "read_file"]
+  },
+  {
+    "id": "mvp-036",
+    "category": "认证流程",
+    "difficulty": "easy",
+    "question": "Laravel 登录成功后 token_type 的值是什么？",
+    "expected_sources": ["sample-data/repositories/laravel-task-api/app/Http/Controllers/AuthController.php", "sample-data/docs/laravel-auth.md"],
+    "reference_answer": "token_type 的值是 Bearer。",
+    "expected_tools": ["search_code", "search_documents"]
+  },
+  {
+    "id": "mvp-037",
+    "category": "认证代码定位",
+    "difficulty": "medium",
+    "question": "Authenticate 中间件从哪个请求头读取认证信息？",
+    "expected_sources": ["sample-data/repositories/laravel-task-api/app/Http/Middleware/Authenticate.php"],
+    "reference_answer": "它从 Authorization 请求头读取认证信息。",
+    "expected_tools": ["search_code", "read_file"]
+  },
+  {
+    "id": "mvp-038",
+    "category": "安全边界",
+    "difficulty": "medium",
+    "question": "Laravel Authenticate 中间件如何判断 Bearer Token 不是空值？",
+    "expected_sources": ["sample-data/repositories/laravel-task-api/app/Http/Middleware/Authenticate.php"],
+    "reference_answer": "它检查 Authorization 是否以 Bearer 开头，并检查去掉前缀后的内容非空。",
+    "expected_tools": ["search_code", "read_file"]
+  },
+  {
+    "id": "mvp-039",
+    "category": "项目范围",
+    "difficulty": "easy",
+    "question": "样例数据的 docs 目录主要覆盖哪些主题？",
+    "expected_sources": ["sample-data/README.md"],
+    "reference_answer": "主要覆盖技术故障、认证方式和知识写回规则。",
+    "expected_tools": ["search_documents", "read_file"]
+  },
+  {
+    "id": "mvp-040",
+    "category": "来源引用",
+    "difficulty": "easy",
+    "question": "评估问题中的 expected_sources 使用什么路径约定？",
+    "expected_sources": ["sample-data/README.md"],
+    "reference_answer": "expected_sources 使用相对于 DevSage 根目录的路径。",
+    "expected_tools": ["search_documents", "read_file"]
+  },
+  {
+    "id": "mvp-041",
+    "category": "知识写回",
+    "difficulty": "easy",
+    "question": "搜索文档和读取文件属于读操作吗？",
+    "expected_sources": ["sample-data/docs/knowledge-writing-policy.md"],
+    "reference_answer": "搜索文档、搜索代码和读取文件属于只读操作。",
+    "expected_tools": ["search_documents", "read_file"]
+  },
+  {
+    "id": "mvp-042",
+    "category": "知识写回",
+    "difficulty": "easy",
+    "question": "创建知识笔记前 Agent 必须先生成哪些预览信息？",
+    "expected_sources": ["sample-data/docs/knowledge-writing-policy.md"],
+    "reference_answer": "必须先生成标题、正文、目标路径和变更预览。",
+    "expected_tools": ["search_documents", "create_knowledge_note_preview"]
+  },
+  {
+    "id": "mvp-043",
+    "category": "知识写回",
+    "difficulty": "medium",
+    "question": "知识笔记写回确认前是否需要展示关联来源？",
+    "expected_sources": ["sample-data/docs/knowledge-writing-policy.md"],
+    "reference_answer": "需要展示关联来源。",
+    "expected_tools": ["search_documents", "read_file"]
+  },
+  {
+    "id": "mvp-044",
+    "category": "安全边界",
+    "difficulty": "easy",
+    "question": "Agent 能否在用户确认前直接修改 Obsidian 笔记？",
+    "expected_sources": ["sample-data/docs/knowledge-writing-policy.md"],
+    "reference_answer": "不能，必须先展示预览并等待用户确认。",
+    "expected_tools": ["search_documents", "create_knowledge_note_preview"]
+  },
+  {
+    "id": "mvp-045",
+    "category": "代码调用链",
+    "difficulty": "medium",
+    "question": "Spring Boot 用户查询从控制器到服务层的调用链是什么？",
+    "expected_sources": ["sample-data/repositories/springboot-demo/README.md", "sample-data/repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java", "sample-data/repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java"],
+    "reference_answer": "请求进入 UserController.getUser，再调用 UserService.findUser。",
+    "expected_tools": ["search_documents", "search_code", "read_file"]
+  },
+  {
+    "id": "mvp-046",
+    "category": "跨文档总结",
+    "difficulty": "medium",
+    "question": "请总结 Laravel 从登录到访问任务列表的关键步骤。",
+    "expected_sources": ["sample-data/docs/laravel-auth.md", "sample-data/repositories/laravel-task-api/app/Http/Controllers/AuthController.php", "sample-data/repositories/laravel-task-api/app/Http/Middleware/Authenticate.php", "sample-data/repositories/laravel-task-api/routes/api.php"],
+    "reference_answer": "客户端调用登录接口获取 Bearer Token，访问任务列表时携带 Authorization 头并经过 auth:sanctum 中间件。",
+    "expected_tools": ["search_documents", "search_code", "read_file"]
+  },
+  {
+    "id": "mvp-047",
+    "category": "安全边界",
+    "difficulty": "medium",
+    "question": "样例项目为什么不能把真实数据库密码写入配置模板？",
+    "expected_sources": ["sample-data/README.md", ".env.example"],
+    "reference_answer": "样例数据和配置模板不应包含真实密码、Token 或第三方密钥，只能保留非敏感占位符。",
+    "expected_tools": ["search_documents", "read_file"]
+  },
+  {
+    "id": "mvp-048",
+    "category": "配置定位",
+    "difficulty": "easy",
+    "question": "Spring Boot 示例的端口配置位于哪个文件？",
+    "expected_sources": ["sample-data/repositories/springboot-demo/README.md", "sample-data/repositories/springboot-demo/src/main/resources/application.yml"],
+    "reference_answer": "端口配置位于 src/main/resources/application.yml。",
+    "expected_tools": ["search_documents", "search_code"]
+  },
+  {
+    "id": "mvp-049",
+    "category": "来源引用",
+    "difficulty": "medium",
+    "question": "代码定位回答为什么需要返回文件路径和行号？",
+    "expected_sources": ["sample-data/README.md", "sample-data/docs/knowledge-writing-policy.md"],
+    "reference_answer": "文件路径和行号让用户能够回到原始代码或文档核对证据。",
+    "expected_tools": ["search_documents", "read_file"]
+  },
+  {
+    "id": "mvp-050",
+    "category": "项目总结",
+    "difficulty": "medium",
+    "question": "请比较样例中的 Spring Boot Demo 和 Laravel Task API 的主要职责。",
+    "expected_sources": ["sample-data/README.md", "sample-data/repositories/springboot-demo/README.md", "sample-data/repositories/laravel-task-api/README.md"],
+    "reference_answer": "Spring Boot Demo 侧重用户查询接口和服务端口配置，Laravel Task API 侧重登录、Bearer Token 认证和任务路由。",
+    "expected_tools": ["search_documents", "search_code"]
   }
 ]
-
