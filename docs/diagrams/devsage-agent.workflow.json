@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "DevSage Agent Evidence Workflow",
+    "subtitle": "bounded classification, retrieval, evidence checks, and cited output",
+    "output": "devsage-agent.html",
+    "viewBox": [720, 820]
+  },
+  "lanes": [
+    { "id": "ui", "label": "User Interface" },
+    { "id": "agent", "label": "Agent Runtime" },
+    { "id": "evidence", "label": "Evidence Gate" },
+    { "id": "tools", "label": "Read-only Tools" },
+    { "id": "storage", "label": "State and Writeback" }
+  ],
+  "nodes": [
+    { "id": "question", "lane": "ui", "col": 0, "type": "external", "label": "Question", "sublabel": "user query" },
+    { "id": "api", "lane": "ui", "col": 1, "type": "frontend", "label": "API / Vue", "sublabel": "JSON request" },
+    { "id": "answer", "lane": "ui", "col": 5, "type": "backend", "label": "Cited Answer", "sublabel": "steps + evidence", "tag": "demo output" },
+    { "id": "classify", "lane": "agent", "col": 0, "type": "backend", "label": "Classify", "sublabel": "question category" },
+    { "id": "retrieve", "lane": "agent", "col": 2, "type": "backend", "label": "Retrieve", "sublabel": "bounded tool plan", "tag": "max calls" },
+    { "id": "compose", "lane": "agent", "col": 4, "type": "backend", "label": "Compose", "sublabel": "evidence-grounded draft" },
+    { "id": "check", "lane": "evidence", "col": 3, "type": "security", "label": "Evidence Check", "sublabel": "direct matches?" },
+    { "id": "retry", "lane": "evidence", "col": 5, "type": "security", "label": "Rewrite Once", "sublabel": "transparent retry" },
+    { "id": "documents", "lane": "tools", "col": 2, "type": "cloud", "label": "Docs / Code", "sublabel": "hybrid search" },
+    { "id": "gitissue", "lane": "tools", "col": 4, "type": "messagebus", "label": "Git / Issue", "sublabel": "read-only evidence" },
+    { "id": "read", "lane": "tools", "col": 5, "type": "cloud", "label": "Read File", "sublabel": "bounded lines" },
+    { "id": "taskstate", "lane": "storage", "col": 1, "type": "database", "label": "Task Snapshot", "sublabel": "JSON-safe state" },
+    { "id": "writeback", "lane": "storage", "col": 4, "type": "security", "label": "Preview Gate", "sublabel": "approval before write" }
+  ],
+  "edges": [
+    { "from": "question", "to": "api" },
+    { "from": "api", "to": "classify", "label": "run", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop", "labelSegment": 1 },
+    { "from": "classify", "to": "retrieve", "variant": "emphasis" },
+    { "from": "retrieve", "to": "documents", "label": "search", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop" },
+    { "from": "retrieve", "to": "gitissue", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "drop" },
+    { "from": "documents", "to": "read", "variant": "dashed", "route": "straight" },
+    { "from": "gitissue", "to": "read", "variant": "dashed", "route": "straight" },
+    { "from": "documents", "to": "check", "variant": "emphasis", "fromSide": "top", "toSide": "bottom", "route": "drop" },
+    { "from": "read", "to": "check", "variant": "emphasis", "fromSide": "top", "toSide": "bottom", "route": "drop" },
+    { "from": "check", "to": "compose", "label": "sufficient", "variant": "emphasis", "fromSide": "top", "toSide": "bottom", "route": "drop" },
+    { "from": "check", "to": "retry", "variant": "security", "route": "straight" },
+    { "from": "retry", "to": "retrieve", "variant": "security", "fromSide": "top", "toSide": "bottom", "route": "drop" },
+    { "from": "compose", "to": "answer", "label": "cite", "variant": "emphasis", "fromSide": "top", "toSide": "bottom", "route": "drop" },
+    { "from": "retrieve", "to": "taskstate", "label": "snapshot", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "drop" },
+    { "from": "compose", "to": "writeback", "label": "preview", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Bounded execution", "items": ["Max steps, tool calls, and runtime are enforced", "Git / Issue failures retry at most once", "Path and input errors fail without retry"] },
+    { "dot": "emerald", "title": "Evidence contract", "items": ["Search results retain path and line citations", "Project summaries reserve more sources", "Insufficient evidence remains visible to the user"] },
+    { "dot": "rose", "title": "Approval boundary", "items": ["Knowledge writeback creates a preview", "No approval means no final note write", "Task snapshots support later resume"] }
+  ]
+}

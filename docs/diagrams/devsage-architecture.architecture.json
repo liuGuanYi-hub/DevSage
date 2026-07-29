@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "DevSage / DevMind Architecture",
+    "subtitle": "Offline-first Agentic RAG with optional PostgreSQL + pgvector persistence",
+    "output": "devsage-architecture.html",
+    "viewBox": [1200, 720]
+  },
+  "components": [
+    { "id": "user", "type": "external", "label": "Developer", "sublabel": "browser", "pos": [20, 300], "size": [130, 64] },
+    { "id": "frontend", "type": "frontend", "label": "Vue UI", "sublabel": "Vite / Agent view", "pos": [210, 300], "size": [150, 64] },
+    { "id": "api", "type": "backend", "label": "FastAPI", "sublabel": "HTTP + SSE :8000", "pos": [420, 300], "size": [150, 64] },
+    { "id": "agent", "type": "backend", "label": "Agent Graph", "sublabel": "classify / retrieve / compose", "pos": [650, 160], "size": [170, 64], "tag": "bounded" },
+    { "id": "retrieval", "type": "backend", "label": "Hybrid Retrieval", "sublabel": "keyword + Hash vector + RRF", "pos": [650, 330], "size": [170, 64] },
+    { "id": "sources", "type": "cloud", "label": "Sample Sources", "sublabel": "Markdown / code / config", "pos": [420, 500], "size": [180, 64] },
+    { "id": "tools", "type": "messagebus", "label": "Read-only Tools", "sublabel": "Git history + Issue data", "pos": [650, 500], "size": [170, 64] },
+    { "id": "writeback", "type": "security", "label": "Writeback Gate", "sublabel": "preview + approval", "pos": [930, 160], "size": [170, 64] },
+    { "id": "postgres", "type": "database", "label": "PostgreSQL", "sublabel": "pgvector + JSONB state", "pos": [930, 330], "size": [170, 64], "tag": "optional" },
+    { "id": "mcp", "type": "cloud", "label": "MCP stdio", "sublabel": "JSON-RPC tool surface", "pos": [930, 500], "size": [170, 64] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "DevSage local workspace", "wraps": ["frontend", "api", "agent", "retrieval", "sources", "tools", "writeback", "postgres", "mcp"] },
+    { "kind": "security-group", "label": "Approval and persistence boundary", "wraps": ["writeback", "postgres"] }
+  ],
+  "connections": [
+    { "from": "user", "to": "frontend", "label": "browser", "variant": "emphasis" },
+    { "from": "frontend", "to": "api", "label": "JSON / SSE", "variant": "emphasis" },
+    { "from": "api", "to": "agent", "label": "run task", "variant": "emphasis", "fromSide": "top", "toSide": "left", "route": "orthogonal-v" },
+    { "from": "api", "to": "retrieval", "label": "search / answer", "fromSide": "right", "toSide": "left" },
+    { "from": "agent", "to": "retrieval", "label": "evidence", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "orthogonal-v", "labelDy": 18 },
+    { "from": "retrieval", "to": "sources", "label": "index + read", "fromSide": "left", "toSide": "right" },
+    { "from": "retrieval", "to": "postgres", "label": "optional SQL / vector", "variant": "dashed", "fromSide": "right", "toSide": "left" },
+    { "from": "agent", "to": "tools", "label": "Git / Issue", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "orthogonal-v", "labelDy": -90 },
+    { "from": "agent", "to": "writeback", "label": "preview only", "variant": "security", "fromSide": "right", "toSide": "left" },
+    { "from": "mcp", "to": "agent", "label": "stdio tools", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "route": "orthogonal-v" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Offline-first", "items": ["Local Hash embeddings are the default", "Sample data stays inside a bounded source root", "FastAPI and Vue paths are independently testable"] },
+    { "dot": "emerald", "title": "Evidence contract", "items": ["Every result keeps source path and line range", "Agent steps and tool calls are observable", "Project summaries reserve a wider evidence budget"] },
+    { "dot": "rose", "title": "Safety boundary", "items": ["Writeback creates a preview before approval", "Git / Issue tools are read-only", "PostgreSQL persistence is explicit and optional"] }
+  ]
+}

@@ -45,7 +45,11 @@ class ProjectStructureTests(unittest.TestCase):
             "evaluation/datasets/devmind_mvp_questions.json",
             "evaluation/scripts/validate_mvp_dataset.py",
             "evaluation/scripts/evaluate_agent_grounding.py",
+            "evaluation/scripts/smoke_mcp.py",
             "scripts/smoke-docker.ps1",
+            "docs/DevSage演示与API手册.md",
+            "docs/diagrams/devsage-architecture.html",
+            "docs/diagrams/devsage-agent.html",
             "sample-data/docs/springboot-errors.md",
             "sample-data/docs/laravel-auth.md",
         ]

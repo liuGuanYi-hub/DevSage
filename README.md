@@ -25,6 +25,8 @@ DevSage/
 └── .env.example             # 非敏感配置模板
 ```
 
+项目展示入口：[演示与 API 手册](docs/DevSage演示与API手册.md)、[系统架构图](docs/diagrams/devsage-architecture.html)、[Agent 流程图](docs/diagrams/devsage-agent.html)。
+
 ## 当前验证命令
 
 离线校验无需新增依赖即可运行：
@@ -34,6 +36,7 @@ python evaluation/scripts/validate_mvp_dataset.py
 python evaluation/scripts/evaluate_agent_grounding.py
 python evaluation/scripts/evaluate_tool_call_accuracy.py
 python evaluation/scripts/evaluate_context_quality.py
+python evaluation/scripts/smoke_mcp.py
 python -m unittest discover -s backend/tests -p "test_*.py"
 python -m compileall -q backend evaluation/scripts
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-docker.ps1
