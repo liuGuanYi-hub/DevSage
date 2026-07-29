@@ -891,7 +891,7 @@ MVP 可以先只创建 `backend`、`frontend`、`evaluation` 和 `docs`，不要
 ### 18.2 DevSage 完整展示标准
 
 - [x] 支持文档、代码、Git 和 Issue 数据检索；
-- [ ] 实现混合检索、RRF 和可选 Reranker；
+- [x] 实现混合检索、RRF 和可选 Reranker（当前为可解释的来源多样性重排，神经 Cross-Encoder 待后续）；
 - [x] Agent 至少拥有 5 个可用工具；
 - [x] Agent 能完成多步代码定位或故障排查；
 - [x] 支持证据判断、查询改写、重试和终止；
