@@ -116,6 +116,14 @@ MCP 的文档检索、代码检索、文件读取和故障报告工具也支持�
 
 LangGraph 适配是可选运行时，离线默认环境不安装也不影响本地 Agent。若使用项目自带虚拟环境，可运行 `.\\backend\\.venv\\Scripts\\python.exe evaluation/scripts/smoke_langgraph.py`；该 smoke 会验证四节点图完成、返回来源引用，并通过 `MemorySaver + thread_id` 读取已保存状态。未安装时脚本只报告 skipped，不会自动下载依赖。
 
+在启动真实数据库前，可以运行无外部服务的 PostgreSQL/pgvector 合同测试：
+
+```powershell
+python -m unittest backend.tests.test_postgres_repository
+```
+
+该测试使用内存 fake connection 验证迁移 SQL、事务提交、项目快照写入、关键词查询、向量查询和混合检索返回结构；它不代表真实 PostgreSQL 已启动，也不会拉取 Docker 镜像。
+
 ## 5. Docker / PostgreSQL smoke 边界
 
 默认只校验 Compose 配置，不会创建镜像、容器或卷：

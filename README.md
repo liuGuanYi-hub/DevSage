@@ -39,6 +39,7 @@ python evaluation/scripts/evaluate_tool_call_accuracy.py
 python evaluation/scripts/evaluate_context_quality.py
 python evaluation/scripts/evaluate_retrieval_strategies.py
 python evaluation/scripts/smoke_mcp.py
+python -m unittest backend.tests.test_postgres_repository
 python -m unittest discover -s backend/tests -p "test_*.py"
 python -m compileall -q backend evaluation/scripts
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-docker.ps1
