@@ -1,0 +1,55 @@
+import unittest
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+class ProjectStructureTests(unittest.TestCase):
+    def test_required_stage_zero_files_exist(self) -> None:
+        required_files = [
+            "README.md",
+            "DevSage长期任务路线图.md",
+            "backend/app/main.py",
+            "backend/app/ingestion/loaders.py",
+            "backend/app/ingestion/chunkers.py",
+            "backend/app/retrieval/keyword_search.py",
+            "backend/app/retrieval/rrf.py",
+            "backend/app/retrieval/embeddings.py",
+            "backend/app/retrieval/vector_search.py",
+            "backend/app/retrieval/hybrid_search.py",
+            "backend/app/services/index_service.py",
+            "backend/app/services/knowledge_writeback.py",
+            "backend/app/schemas/search.py",
+            "backend/tests/test_api.py",
+            "backend/tests/test_writeback.py",
+            "backend/migrations/001_initial_schema.sql",
+            "frontend/src/api/client.ts",
+            "evaluation/reports/2026-07-30-keyword-hybrid-baseline.md",
+            "evaluation/scripts/evaluate_keyword_baseline.py",
+            "evaluation/scripts/evaluate_hybrid_baseline.py",
+            "backend/requirements.txt",
+            "frontend/package.json",
+            "evaluation/datasets/devmind_mvp_questions.json",
+            "evaluation/scripts/validate_mvp_dataset.py",
+            "sample-data/docs/springboot-errors.md",
+            "sample-data/docs/laravel-auth.md",
+        ]
+
+        missing = [
+            path
+            for path in required_files
+            if not (PROJECT_ROOT / path).is_file()
+        ]
+        self.assertEqual([], missing, f"Missing scaffold files: {missing}")
+
+    def test_api_entrypoint_contains_health_route(self) -> None:
+        main_source = (PROJECT_ROOT / "backend/app/main.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('app = FastAPI(', main_source)
+        self.assertIn('@app.get("/health"', main_source)
+
+
+if __name__ == "__main__":
+    unittest.main()

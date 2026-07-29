@@ -1,0 +1,302 @@
+[
+  {
+    "id": "mvp-001",
+    "category": "故障排查",
+    "difficulty": "easy",
+    "question": "Spring Boot 启动时 8080 端口被占用，应该先怎么排查？",
+    "expected_sources": [
+      "sample-data/docs/springboot-errors.md"
+    ],
+    "reference_answer": "先使用 netstat 查询 8080 端口对应的 PID，再确认进程用途；根据结果结束占用进程或修改服务端口。",
+    "expected_tools": [
+      "search_documents",
+      "read_file"
+    ]
+  },
+  {
+    "id": "mvp-002",
+    "category": "配置定位",
+    "difficulty": "easy",
+    "question": "示例 Spring Boot 项目当前配置的服务端口是多少？",
+    "expected_sources": [
+      "sample-data/repositories/springboot-demo/src/main/resources/application.yml"
+    ],
+    "reference_answer": "示例项目在 application.yml 中将 server.port 配置为 8081。",
+    "expected_tools": [
+      "search_code",
+      "read_file"
+    ]
+  },
+  {
+    "id": "mvp-003",
+    "category": "代码定位",
+    "difficulty": "easy",
+    "question": "示例 Spring Boot 项目的用户接口入口在哪个类？",
+    "expected_sources": [
+      "sample-data/repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java"
+    ],
+    "reference_answer": "用户接口入口位于 UserController 类。",
+    "expected_tools": [
+      "search_code",
+      "read_file"
+    ]
+  },
+  {
+    "id": "mvp-004",
+    "category": "代码调用链",
+    "difficulty": "medium",
+    "question": "UserController 获取用户时调用了哪个业务方法？",
+    "expected_sources": [
+      "sample-data/repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+      "sample-data/repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java"
+    ],
+    "reference_answer": "UserController 的 getUser 方法调用 UserService.findUser。",
+    "expected_tools": [
+      "search_code",
+      "read_file"
+    ]
+  },
+  {
+    "id": "mvp-005",
+    "category": "项目总结",
+    "difficulty": "easy",
+    "question": "示例 Spring Boot 项目包含哪些与用户查询相关的文件？",
+    "expected_sources": [
+      "sample-data/repositories/springboot-demo/README.md",
+      "sample-data/repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+      "sample-data/repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java"
+    ],
+    "reference_answer": "主要包括 UserController 入口类和 UserService 业务类，README 对这两个文件的职责进行了说明。",
+    "expected_tools": [
+      "search_documents",
+      "search_code"
+    ]
+  },
+  {
+    "id": "mvp-006",
+    "category": "认证知识",
+    "difficulty": "easy",
+    "question": "示例 Laravel API 使用什么认证方式？",
+    "expected_sources": [
+      "sample-data/docs/laravel-auth.md",
+      "sample-data/repositories/laravel-task-api/README.md"
+    ],
+    "reference_answer": "示例项目使用 Laravel Sanctum 风格的 Bearer Token 认证。",
+    "expected_tools": [
+      "search_documents",
+      "read_file"
+    ]
+  },
+  {
+    "id": "mvp-007",
+    "category": "认证代码定位",
+    "difficulty": "medium",
+    "question": "Laravel 示例项目的登录逻辑在哪个控制器方法中？",
+    "expected_sources": [
+      "sample-data/repositories/laravel-task-api/app/Http/Controllers/AuthController.php"
+    ],
+    "reference_answer": "登录逻辑位于 AuthController@login 方法。",
+    "expected_tools": [
+      "search_code",
+      "read_file"
+    ]
+  },
+  {
+    "id": "mvp-008",
+    "category": "认证代码定位",
+    "difficulty": "medium",
+    "question": "Laravel 示例项目在哪里检查 Authorization Bearer Token？",
+    "expected_sources": [
+      "sample-data/repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+      "sample-data/docs/laravel-auth.md"
+    ],
+    "reference_answer": "Authenticate 中间件从 Authorization 请求头读取 Bearer Token 并检查其内容。",
+    "expected_tools": [
+      "search_code",
+      "search_documents"
+    ]
+  },
+  {
+    "id": "mvp-009",
+    "category": "路由定位",
+    "difficulty": "easy",
+    "question": "Laravel 示例项目的登录接口路径是什么？",
+    "expected_sources": [
+      "sample-data/repositories/laravel-task-api/routes/api.php"
+    ],
+    "reference_answer": "登录接口路径是 POST /login；如果挂载在 api 前缀下，则完整 API 路径为 POST /api/login。",
+    "expected_tools": [
+      "search_code",
+      "read_file"
+    ]
+  },
+  {
+    "id": "mvp-010",
+    "category": "路由与中间件",
+    "difficulty": "medium",
+    "question": "Laravel 示例项目的任务列表接口使用了什么中间件？",
+    "expected_sources": [
+      "sample-data/repositories/laravel-task-api/routes/api.php",
+      "sample-data/docs/laravel-auth.md"
+    ],
+    "reference_answer": "任务列表接口位于 auth:sanctum 中间件组中，需要经过 Sanctum 认证。",
+    "expected_tools": [
+      "search_code",
+      "search_documents"
+    ]
+  },
+  {
+    "id": "mvp-011",
+    "category": "认证流程",
+    "difficulty": "medium",
+    "question": "Laravel 示例项目登录成功后返回的 Token 类型是什么？",
+    "expected_sources": [
+      "sample-data/repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+      "sample-data/docs/laravel-auth.md"
+    ],
+    "reference_answer": "登录成功后返回的 token_type 是 Bearer。",
+    "expected_tools": [
+      "search_code",
+      "search_documents"
+    ]
+  },
+  {
+    "id": "mvp-012",
+    "category": "混合检索",
+    "difficulty": "medium",
+    "question": "为什么端口号和类名适合使用关键词检索，而故障描述适合使用向量检索？",
+    "expected_sources": [
+      "sample-data/docs/springboot-errors.md"
+    ],
+    "reference_answer": "端口号、类名等标识需要精确匹配，关键词检索更稳定；自然语言故障描述可能有多种表述，向量检索更适合做语义召回。",
+    "expected_tools": [
+      "search_documents",
+      "read_file"
+    ]
+  },
+  {
+    "id": "mvp-013",
+    "category": "证据判断",
+    "difficulty": "medium",
+    "question": "回答 Spring Boot 端口问题时，为什么不能只根据错误文本下结论？",
+    "expected_sources": [
+      "sample-data/docs/springboot-errors.md"
+    ],
+    "reference_answer": "还应检查启动日志、端口配置文件和操作系统中的占用进程，多个证据相互支持后再给出结论。",
+    "expected_tools": [
+      "search_documents",
+      "read_file"
+    ]
+  },
+  {
+    "id": "mvp-014",
+    "category": "知识写回",
+    "difficulty": "easy",
+    "question": "把故障排查结果整理成 Obsidian 笔记时，Agent 可以直接写文件吗？",
+    "expected_sources": [
+      "sample-data/docs/knowledge-writing-policy.md"
+    ],
+    "reference_answer": "不能直接写入。Agent 应先生成标题、正文、目标路径和预览，等待用户确认后再执行写操作。",
+    "expected_tools": [
+      "search_documents",
+      "create_knowledge_note_preview"
+    ]
+  },
+  {
+    "id": "mvp-015",
+    "category": "知识写回",
+    "difficulty": "easy",
+    "question": "知识库写回确认前至少应该展示哪些内容？",
+    "expected_sources": [
+      "sample-data/docs/knowledge-writing-policy.md"
+    ],
+    "reference_answer": "至少展示目标路径、创建或覆盖操作、Markdown 正文、关联来源，以及更新操作的前后差异。",
+    "expected_tools": [
+      "search_documents",
+      "read_file"
+    ]
+  },
+  {
+    "id": "mvp-016",
+    "category": "跨文档总结",
+    "difficulty": "medium",
+    "question": "请总结 Laravel 示例项目从登录到访问任务列表的认证流程。",
+    "expected_sources": [
+      "sample-data/docs/laravel-auth.md",
+      "sample-data/repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+      "sample-data/repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+      "sample-data/repositories/laravel-task-api/routes/api.php"
+    ],
+    "reference_answer": "客户端调用登录接口，AuthController 校验凭据并返回 Bearer Token；访问任务列表时携带 Authorization 头，并经过 auth:sanctum 中间件检查。",
+    "expected_tools": [
+      "search_documents",
+      "search_code",
+      "read_file"
+    ]
+  },
+  {
+    "id": "mvp-017",
+    "category": "跨文档总结",
+    "difficulty": "medium",
+    "question": "请总结 Spring Boot 示例项目的用户查询调用链和端口配置。",
+    "expected_sources": [
+      "sample-data/repositories/springboot-demo/README.md",
+      "sample-data/repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+      "sample-data/repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java",
+      "sample-data/repositories/springboot-demo/src/main/resources/application.yml"
+    ],
+    "reference_answer": "请求从 UserController 进入，getUser 调用 UserService.findUser，服务端口配置为 8081。",
+    "expected_tools": [
+      "search_documents",
+      "search_code",
+      "read_file"
+    ]
+  },
+  {
+    "id": "mvp-018",
+    "category": "来源引用",
+    "difficulty": "easy",
+    "question": "回答代码定位问题时，来源信息至少应该包含什么？",
+    "expected_sources": [
+      "sample-data/repositories/springboot-demo/README.md",
+      "sample-data/docs/laravel-auth.md"
+    ],
+    "reference_answer": "至少应包含文件路径；代码定位还应尽量包含类名、方法名和起止行号，文档则应包含标题或行号范围。",
+    "expected_tools": [
+      "search_documents",
+      "read_file"
+    ]
+  },
+  {
+    "id": "mvp-019",
+    "category": "项目范围",
+    "difficulty": "easy",
+    "question": "当前 DevMind MVP 样例数据包含哪些项目？",
+    "expected_sources": [
+      "sample-data/README.md",
+      "sample-data/repositories/springboot-demo/README.md",
+      "sample-data/repositories/laravel-task-api/README.md"
+    ],
+    "reference_answer": "包含一个脱敏的 Spring Boot Demo 和一个脱敏的 Laravel Task API。",
+    "expected_tools": [
+      "search_documents",
+      "read_file"
+    ]
+  },
+  {
+    "id": "mvp-020",
+    "category": "安全边界",
+    "difficulty": "medium",
+    "question": "样例数据和本地配置中，哪些内容不应该提交到仓库？",
+    "expected_sources": [
+      "sample-data/README.md",
+      ".env.example"
+    ],
+    "reference_answer": "真实密码、Token、第三方密钥和 .env 文件不应提交；.env.example 只能保留非敏感的配置占位符。",
+    "expected_tools": [
+      "search_documents",
+      "read_file"
+    ]
+  }
+]
+
