@@ -78,7 +78,7 @@ MCP 的 `search_documents`、`search_code`、`read_file` 和 `generate_troublesh
 
 ## 下一步
 
-1. 在 LangGraph 适配之上接入 checkpoint 和 Agent API；
+1. 在已通过 smoke 的 LangGraph 适配之上接入 checkpoint 和正式 Agent API；
 2. 启动 PostgreSQL/pgvector，完成迁移、索引写入和数据库检索端到端 smoke；
 3. 选择真实 Embedding Provider 并替换 Hash 测试替身；
 4. 在配置测试仓库后完成外部 Issue 真实平台 smoke，并接入正式 MCP 宿主；
