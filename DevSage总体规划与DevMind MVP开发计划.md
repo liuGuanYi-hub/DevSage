@@ -877,7 +877,7 @@ MVP 可以先只创建 `backend`、`frontend`、`evaluation` 和 `docs`，不要
 ### 18.1 DevMind MVP 完成标准
 
 - [ ] 能索引 Obsidian Markdown 和至少一个真实项目；
-- [ ] 支持至少三种编程语言代码；
+- [x] 支持至少三种编程语言代码（Java、PHP、TypeScript 已有加载与切分回归测试）；
 - [ ] Markdown 与代码使用不同切分策略；
 - [ ] 支持关键词和向量检索；
 - [ ] 回答显示文件路径和代码行号；
@@ -954,4 +954,3 @@ MVP 可以先只创建 `backend`、`frontend`、`evaluation` 和 `docs`，不要
 最终项目不应被描述为“普通 AI 聊天机器人”，而应统一定位为：
 
 > **DevSage——基于 Agentic RAG 的研发知识库与故障排查系统；DevMind 是其面向个人开发者的知识沉淀模式。**
-

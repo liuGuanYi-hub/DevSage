@@ -2,6 +2,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from backend.app.ingestion.chunkers import split_document
 from backend.app.ingestion.indexer import build_index
 from backend.app.ingestion.loaders import load_document
 from backend.app.retrieval.keyword_search import search_keyword
@@ -61,6 +62,26 @@ class IngestionTests(unittest.TestCase):
     def test_example_config_is_supported(self) -> None:
         env_template = load_document(PROJECT_ROOT / ".env.example", PROJECT_ROOT)
         self.assertEqual("config", env_template.file_type)
+
+    def test_three_code_language_extensions_load_and_split(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            samples = {
+                "Controller.java": "public class Controller {\n    public void run() {}\n}\n",
+                "Controller.php": "<?php\nclass Controller {\n    public function run() {}\n}\n",
+                "health.ts": "export function health(): string {\n    return \"ok\";\n}\n",
+            }
+            for filename, content in samples.items():
+                (root / filename).write_text(content, encoding="utf-8")
+
+            documents = [load_document(root / filename, root) for filename in samples]
+
+            self.assertTrue(all(document.file_type == "code" for document in documents))
+            self.assertTrue(all(split_document(document) for document in documents))
+            self.assertEqual(
+                {"Controller.java", "Controller.php", "health.ts"},
+                {document.source_path for document in documents},
+            )
 
     def test_incremental_index_reuses_unchanged_chunks(self) -> None:
         with TemporaryDirectory() as temporary:
