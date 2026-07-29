@@ -54,7 +54,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-docker.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-offline.ps1
 ```
 
-该入口会串行执行数据集、评估、backend unittest、pytest、MCP、可选 LangGraph、前端构建、本地 HTTP smoke 和 Compose dry-run；当前环境输出 `steps=15`，不会安装依赖，也不会执行 Docker `-Execute`。
+该入口会串行执行数据集、评估、backend unittest、pytest、MCP、可选 LangGraph、前端构建、本地 HTTP smoke、actor capability smoke 和 Compose dry-run；当前环境输出 `steps=16`，不会安装依赖，也不会执行 Docker `-Execute`。
 
 FastAPI 和 Vue 依赖可分别启动：
 

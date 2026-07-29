@@ -76,6 +76,11 @@ Invoke-CheckedCommand "local HTTP smoke" $powershell @(
     (Join-Path $projectRoot "scripts\smoke-http.ps1")
 )
 $stepCount++
+Invoke-CheckedCommand "actor capability smoke" $powershell @(
+    "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+    (Join-Path $projectRoot "scripts\smoke-actors.ps1")
+)
+$stepCount++
 Invoke-CheckedCommand "Docker Compose dry-run" $powershell @(
     "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
     (Join-Path $projectRoot "scripts\smoke-docker.ps1")
