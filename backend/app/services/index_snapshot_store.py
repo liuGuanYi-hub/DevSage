@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import time
 from uuid import uuid4
 
 from ..ingestion.indexer import IndexSnapshot
@@ -15,6 +16,7 @@ class FileIndexSnapshotStore:
     """Persist index documents and chunks so Hash-based reuse survives restart."""
 
     FORMAT_VERSION = 1
+    REPLACE_ATTEMPTS = 5
 
     def __init__(self, root: str | Path) -> None:
         self.root = Path(root).expanduser().resolve()
@@ -77,7 +79,14 @@ class FileIndexSnapshotStore:
                 json.dumps(payload, ensure_ascii=False, sort_keys=True),
                 encoding="utf-8",
             )
-            temporary.replace(destination)
+            for attempt in range(self.REPLACE_ATTEMPTS):
+                try:
+                    temporary.replace(destination)
+                    break
+                except PermissionError:
+                    if attempt == self.REPLACE_ATTEMPTS - 1:
+                        raise
+                    time.sleep(0.05 * (attempt + 1))
         finally:
             if temporary.exists():
                 temporary.unlink()

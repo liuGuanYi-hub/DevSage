@@ -34,6 +34,21 @@ class IndexSnapshotStoreTests(unittest.TestCase):
             path.write_text("not-json", encoding="utf-8")
             self.assertIsNone(store.load("sample-data"))
 
+    def test_snapshot_save_retries_transient_windows_file_lock(self) -> None:
+        with TemporaryDirectory() as temporary:
+            store = FileIndexSnapshotStore(temporary)
+            with patch.object(
+                Path,
+                "replace",
+                side_effect=[PermissionError("temporary lock"), Path(temporary) / "saved.json"],
+            ) as replace:
+                with patch("backend.app.services.index_snapshot_store.time.sleep") as sleep:
+                    path = store.save("sample-data", build_index(SAMPLE_ROOT))
+
+            self.assertEqual(2, replace.call_count)
+            sleep.assert_called_once_with(0.05)
+            self.assertEqual(store._path_for("sample-data"), path)
+
     def test_index_service_reuses_snapshot_after_process_restart(self) -> None:
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
