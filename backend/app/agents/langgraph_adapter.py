@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypedDict
 
 from .runner import AgentRunner
 from .state import AgentState
@@ -10,6 +10,22 @@ from .state import AgentState
 
 class LangGraphUnavailableError(RuntimeError):
     """Raised when the optional LangGraph dependency is not installed."""
+
+
+class LangGraphState(TypedDict, total=False):
+    """Serializable state channels shared with the local AgentState."""
+
+    task_id: str
+    query: str
+    source_root: str
+    category: str
+    status: str
+    steps: list[dict[str, str]]
+    tool_calls: list[str]
+    evidence: list[dict[str, Any]]
+    answer: dict[str, Any] | None
+    rewritten_query: str | None
+    retry_count: int
 
 
 def langgraph_available() -> bool:
@@ -37,7 +53,7 @@ def build_langgraph_graph(runner: AgentRunner):
             "LangGraph is optional and is not installed in the current environment"
         ) from exc
 
-    graph = StateGraph(dict)
+    graph = StateGraph(LangGraphState)
     for node_name in (
         "classify_question",
         "retrieve_evidence",
@@ -67,11 +83,11 @@ def build_langgraph_graph(runner: AgentRunner):
 
 
 def _wrap_node(runner: AgentRunner, node_name: str):
-    def node(raw_state: dict[str, Any]) -> dict[str, Any]:
+    def node(raw_state: LangGraphState) -> LangGraphState:
         state = AgentState.from_dict(raw_state)
         context = {"top_k": int(raw_state.get("top_k", 5))}
         runner.graph.nodes[node_name](state, context)
-        payload = state.to_dict()
+        payload: LangGraphState = state.to_dict()  # type: ignore[assignment]
         payload["top_k"] = context["top_k"]
         return payload
 

@@ -68,7 +68,7 @@
 
 ### 阶段 3：DevSage Agent 工作流
 
-- [ ] 使用 LangGraph 定义 Agent State；
+- [x] 使用 LangGraph 定义显式 Agent State；
 - [x] 提供可选 LangGraph 适配入口，未安装依赖时显式失败；
 - [x] 抽象本地 Agent Graph 节点、状态快照和有限终止契约；
 - [x] 实现初版问题分类和有限状态任务流程；
