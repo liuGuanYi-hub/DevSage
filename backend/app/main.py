@@ -106,6 +106,15 @@ def _resolve_request_source_root(project_id: str | None, source_root: str) -> st
     return resolved.relative_to(PROJECT_ROOT).as_posix()
 
 
+def _scope_knowledge_target_path(project_id: str | None, target_path: str) -> str:
+    """Keep project-specific approved notes isolated while preserving legacy paths."""
+
+    if not project_id:
+        return target_path
+    project_registry.get(project_id)
+    return f"projects/{project_id}/{target_path}"
+
+
 @app.post("/api/index", response_model=IndexResponse, tags=["index"])
 def index_source(request: IndexRequest) -> IndexResponse:
     """Build or incrementally update a project-relative source snapshot."""
@@ -337,13 +346,14 @@ def create_knowledge_note_preview(
     """Create a pending note preview without writing to disk."""
 
     try:
+        target_path = _scope_knowledge_target_path(request.project_id, request.target_path)
         preview = writeback_service.create_preview(
             title=request.title,
             content=request.content,
-            target_path=request.target_path,
+            target_path=target_path,
             source_citations=request.source_citations,
         )
-    except WritebackPolicyError as exc:
+    except (ProjectRegistryError, WritebackPolicyError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return KnowledgeNotePreviewResponse(
         preview_id=preview.preview_id,

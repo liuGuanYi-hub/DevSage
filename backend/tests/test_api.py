@@ -154,6 +154,33 @@ class ApiTests(unittest.TestCase):
         )
         self.assertEqual(400, unsafe_response.status_code)
 
+    def test_knowledge_note_preview_scopes_project_target_path(self) -> None:
+        response = self.client.post(
+            "/api/knowledge-notes/preview",
+            json={
+                "project_id": "sample-data",
+                "title": "Project note",
+                "content": "# Project note",
+                "target_path": "DevMind/project-note.md",
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(
+            "projects/sample-data/DevMind/project-note.md",
+            response.json()["target_path"],
+        )
+
+        missing_project_response = self.client.post(
+            "/api/knowledge-notes/preview",
+            json={
+                "project_id": "missing-project",
+                "title": "Project note",
+                "content": "# Project note",
+                "target_path": "project-note.md",
+            },
+        )
+        self.assertEqual(400, missing_project_response.status_code)
+
     def test_answer_endpoint_returns_evidence_grounded_response(self) -> None:
         response = self.client.post(
             "/api/answer",

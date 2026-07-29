@@ -62,6 +62,7 @@ class KnowledgeNotePreviewRequest(BaseModel):
     content: str = Field(min_length=1)
     target_path: str = Field(min_length=1)
     source_citations: list[str] = Field(default_factory=list)
+    project_id: str | None = Field(default=None, min_length=1)
 
 
 class KnowledgeNoteDiffResponse(BaseModel):
