@@ -28,6 +28,7 @@ services:
     volumes:
       - ./sample-data:/app/sample-data:ro
       - ./.git:/workspace/.git:ro
+      - devsage-approved-notes:/app/data/approved-notes
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
@@ -36,3 +37,4 @@ services:
 
 volumes:
   devsage-postgres-data:
+  devsage-approved-notes:

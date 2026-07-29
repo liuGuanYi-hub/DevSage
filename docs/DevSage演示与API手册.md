@@ -140,6 +140,7 @@ python -m unittest backend.tests.test_postgres_repository
 ```
 
 脚本会依次检查后端健康、项目注册发现、使用 `project_id` 的 PostgreSQL 迁移/索引写入和 Agent 证据返回；默认结束时停止服务但保留命名卷，不使用 `docker compose down -v`。
+Compose 还会将已审批知识笔记挂载到命名卷 `devsage-approved-notes`，容器重建不会清空审批后的暂存内容；该卷与 PostgreSQL 数据卷一样会产生 Docker 存储占用。
 
 ## 6. 验证入口
 
