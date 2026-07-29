@@ -66,11 +66,13 @@ npm run dev --prefix frontend
 | POST | `/api/answer` | 混合检索与证据约束回答 |
 | POST | `/api/answer/stream` | SSE 流式回答 |
 | POST | `/api/agent/run` | 运行有限图多工具 Agent |
-| POST | `/api/knowledge/preview` | 生成待审批知识笔记预览 |
-| POST | `/api/knowledge/approve` | 审批后写入项目暂存目录 |
+| POST | `/api/knowledge-notes/preview` | 生成待审批知识笔记预览，返回 Diff、Hash 和增删行 |
+| POST | `/api/knowledge-notes/{preview_id}/approve` | 审批后写入项目暂存目录；目标文件变更时拒绝过期覆盖 |
 | GET/POST | `/api/agent/tasks/*` | 查询、恢复和持久化 Agent 状态 |
 
 FastAPI 运行后也可通过 `/docs` 查看当前 OpenAPI 页面；接口响应不会返回环境变量内容或真实凭据。
+
+知识写回预览默认不落盘。预览响应中的 `diff.operation` 为 `create`、`update` 或 `noop`，并包含 `current_content_hash`、`proposed_content_hash`、`additions`、`deletions` 和 `unified_diff`。审批会再次读取目标文件并校验预览时的 Hash；如果目标在预览后发生变化，接口返回 400，必须重新生成预览。
 
 ## 4. MCP stdio 演示
 

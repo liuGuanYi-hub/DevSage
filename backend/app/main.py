@@ -323,6 +323,15 @@ def create_knowledge_note_preview(
         target_path=preview.target_path,
         content=preview.content,
         source_citations=list(preview.source_citations),
+        diff={
+            "operation": preview.diff.operation,
+            "target_exists": preview.diff.target_exists,
+            "current_content_hash": preview.diff.current_content_hash,
+            "proposed_content_hash": preview.diff.proposed_content_hash,
+            "additions": preview.diff.additions,
+            "deletions": preview.diff.deletions,
+            "unified_diff": list(preview.diff.unified_diff),
+        },
         status=preview.status,
     )
 
@@ -341,5 +350,14 @@ def approve_knowledge_note(preview_id: str) -> KnowledgeNotePreviewResponse:
         target_path=preview.target_path,
         content=preview.content,
         source_citations=list(preview.source_citations),
+        diff={
+            "operation": preview.diff.operation,
+            "target_exists": preview.diff.target_exists,
+            "current_content_hash": preview.diff.current_content_hash,
+            "proposed_content_hash": preview.diff.proposed_content_hash,
+            "additions": preview.diff.additions,
+            "deletions": preview.diff.deletions,
+            "unified_diff": list(preview.diff.unified_diff),
+        },
         status=preview.status,
     )

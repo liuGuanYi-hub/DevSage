@@ -62,10 +62,21 @@ class KnowledgeNotePreviewRequest(BaseModel):
     source_citations: list[str] = Field(default_factory=list)
 
 
+class KnowledgeNoteDiffResponse(BaseModel):
+    operation: str
+    target_exists: bool
+    current_content_hash: str | None
+    proposed_content_hash: str
+    additions: int
+    deletions: int
+    unified_diff: list[str]
+
+
 class KnowledgeNotePreviewResponse(BaseModel):
     preview_id: str
     title: str
     target_path: str
     content: str
     source_citations: list[str]
+    diff: KnowledgeNoteDiffResponse
     status: str

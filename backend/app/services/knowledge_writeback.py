@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import difflib
+import hashlib
 from pathlib import Path
 from uuid import uuid4
 
@@ -12,12 +14,26 @@ class WritebackPolicyError(ValueError):
 
 
 @dataclass(frozen=True)
+class NoteDiff:
+    """Describe the exact change that an approval would apply."""
+
+    operation: str
+    target_exists: bool
+    current_content_hash: str | None
+    proposed_content_hash: str
+    additions: int
+    deletions: int
+    unified_diff: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class NotePreview:
     preview_id: str
     title: str
     target_path: str
     content: str
     source_citations: tuple[str, ...]
+    diff: NoteDiff
     status: str = "pending"
 
 
@@ -43,6 +59,56 @@ class KnowledgeWritebackService:
         self.note_root = Path(note_root).expanduser().resolve()
         self._previews: dict[str, NotePreview] = {}
 
+    def _resolve_destination(self, target_path: str) -> Path:
+        destination = (self.note_root / target_path).resolve()
+        try:
+            destination.relative_to(self.note_root)
+        except ValueError as exc:
+            raise WritebackPolicyError("target_path escaped the note root") from exc
+        return destination
+
+    @staticmethod
+    def _content_hash(content: bytes) -> str:
+        return hashlib.sha256(content).hexdigest()
+
+    def _build_diff(self, target_path: str, content: str) -> NoteDiff:
+        destination = self._resolve_destination(target_path)
+        proposed_bytes = (content + "\n").encode("utf-8")
+        target_exists = destination.is_file()
+        current_bytes = destination.read_bytes() if target_exists else b""
+        current_text = current_bytes.decode("utf-8", errors="replace")
+        proposed_text = proposed_bytes.decode("utf-8")
+        diff_lines = tuple(
+            difflib.unified_diff(
+                current_text.splitlines(),
+                proposed_text.splitlines(),
+                fromfile=target_path if target_exists else "/dev/null",
+                tofile=target_path,
+                lineterm="",
+            )
+        )
+        additions = sum(
+            1 for line in diff_lines if line.startswith("+") and not line.startswith("+++")
+        )
+        deletions = sum(
+            1 for line in diff_lines if line.startswith("-") and not line.startswith("---")
+        )
+        if not target_exists:
+            operation = "create"
+        elif current_bytes == proposed_bytes:
+            operation = "noop"
+        else:
+            operation = "update"
+        return NoteDiff(
+            operation=operation,
+            target_exists=target_exists,
+            current_content_hash=self._content_hash(current_bytes) if target_exists else None,
+            proposed_content_hash=self._content_hash(proposed_bytes),
+            additions=additions,
+            deletions=deletions,
+            unified_diff=diff_lines,
+        )
+
     def create_preview(
         self,
         title: str,
@@ -64,6 +130,7 @@ class KnowledgeWritebackService:
             target_path=safe_target,
             content=clean_content,
             source_citations=tuple(source_citations),
+            diff=self._build_diff(safe_target, clean_content),
         )
         self._previews[preview.preview_id] = preview
         return preview
@@ -76,22 +143,25 @@ class KnowledgeWritebackService:
 
     def approve(self, preview_id: str) -> NotePreview:
         preview = self.get_preview(preview_id)
-        destination = (self.note_root / preview.target_path).resolve()
-        try:
-            destination.relative_to(self.note_root)
-        except ValueError as exc:
-            raise WritebackPolicyError("target_path escaped the note root") from exc
-
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(preview.content + "\n", encoding="utf-8")
+        if preview.status != "pending":
+            raise WritebackPolicyError("preview has already been approved")
+        destination = self._resolve_destination(preview.target_path)
+        current_diff = self._build_diff(preview.target_path, preview.content)
+        if current_diff.current_content_hash != preview.diff.current_content_hash:
+            raise WritebackPolicyError(
+                "target changed after preview; create a new preview before approval"
+            )
+        if current_diff.operation != "noop":
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(preview.content + "\n", encoding="utf-8")
         approved = NotePreview(
             preview_id=preview.preview_id,
             title=preview.title,
             target_path=preview.target_path,
             content=preview.content,
             source_citations=preview.source_citations,
+            diff=preview.diff,
             status="approved",
         )
         self._previews[preview_id] = approved
         return approved
-

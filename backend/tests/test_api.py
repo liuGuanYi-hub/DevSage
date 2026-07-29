@@ -67,6 +67,8 @@ class ApiTests(unittest.TestCase):
         )
         self.assertEqual(200, response.status_code)
         self.assertEqual("pending", response.json()["status"])
+        self.assertEqual("create", response.json()["diff"]["operation"])
+        self.assertFalse(response.json()["diff"]["target_exists"])
 
         unsafe_response = self.client.post(
             "/api/knowledge-notes/preview",
