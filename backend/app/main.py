@@ -83,10 +83,23 @@ task_store = _create_task_store()
 
 
 @app.get("/health", tags=["system"])
-def health() -> dict[str, str]:
-    """Return a minimal liveness response."""
+def health() -> dict[str, str | bool]:
+    """Return liveness and non-sensitive runtime mode information."""
 
-    return {"status": "ok", "service": "devsage-api"}
+    storage_mode = os.getenv("DEVSAGE_STORAGE", "memory").strip().lower() or "memory"
+    embedding_provider = os.getenv("EMBEDDING_PROVIDER", "hash").strip().lower() or "hash"
+    external_issue_configured = bool(
+        os.getenv("DEVSAGE_EXTERNAL_ISSUE_URL", "").strip()
+        and os.getenv("DEVSAGE_EXTERNAL_ISSUE_REPOSITORY", "").strip()
+    )
+
+    return {
+        "status": "ok",
+        "service": "devsage-api",
+        "storage": storage_mode,
+        "embedding_provider": embedding_provider,
+        "external_issue_configured": external_issue_configured,
+    }
 
 
 @app.get("/api/projects", response_model=ProjectListResponse, tags=["projects"])

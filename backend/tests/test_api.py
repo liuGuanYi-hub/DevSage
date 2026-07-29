@@ -18,7 +18,12 @@ class ApiTests(unittest.TestCase):
     def test_health_endpoint(self) -> None:
         response = self.client.get("/health")
         self.assertEqual(200, response.status_code)
-        self.assertEqual("ok", response.json()["status"])
+        payload = response.json()
+        self.assertEqual("ok", payload["status"])
+        self.assertIn(payload["storage"], {"memory", "postgres", "postgresql"})
+        self.assertIn("embedding_provider", payload)
+        self.assertFalse(payload["external_issue_configured"])
+        self.assertNotIn("API_KEY", str(payload))
 
     def test_api_validation_rejects_empty_query_and_out_of_range_top_k(self) -> None:
         empty_query_response = self.client.post(
