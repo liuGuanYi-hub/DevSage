@@ -70,6 +70,43 @@ class MCPServerTests(unittest.TestCase):
         )
         self.assertEqual(-32601, unknown["error"]["code"])
 
+    def test_project_id_resolves_registered_source_root(self) -> None:
+        response = self.server.handle_request(
+            {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "tools/call",
+                "params": {
+                    "name": "search_documents",
+                    "arguments": {
+                        "query": "8080 绔彛鍗犵敤",
+                        "project_id": "sample-data",
+                    },
+                },
+            }
+        )
+        self.assertFalse(response["result"]["isError"])
+        payload = json.loads(response["result"]["content"][0]["text"])
+        self.assertTrue(payload)
+
+    def test_unknown_project_id_is_a_tool_error(self) -> None:
+        response = self.server.handle_request(
+            {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "tools/call",
+                "params": {
+                    "name": "read_file",
+                    "arguments": {
+                        "project_id": "missing-project",
+                        "source_path": "README.md",
+                    },
+                },
+            }
+        )
+        self.assertTrue(response["result"]["isError"])
+        self.assertIn("project not found", response["result"]["content"][0]["text"])
+
     def test_notification_has_no_response(self) -> None:
         response = self.server.handle_request(
             {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}

@@ -110,6 +110,8 @@ python evaluation/scripts/smoke_mcp.py
 
 当前暴露的工具：`search_documents`、`search_code`、`read_file`、`get_git_history`、`generate_troubleshooting_report`。所有文件读取保持 source root 相对路径约束，Git 和 Issue 工具为只读。Issue 查询默认读取脱敏 `sample-data/issues/issues.json`；设置 `DEVSAGE_EXTERNAL_ISSUE_URL` 与 `DEVSAGE_EXTERNAL_ISSUE_REPOSITORY` 后，Agent 会切换到 GitHub-compatible `/search/issues` 只读接口，Token 只从指定环境变量读取且不会写入日志或错误信息。
 
+MCP 的文档检索、代码检索、文件读取和故障报告工具也支持可选 `project_id`。例如将 `search_code` 的 arguments 写成 `{"query":"UserController getUser","project_id":"sample-data","top_k":5}`；`project_id` 会由项目注册器解析并优先于 `source_root`，未知项目会被拒绝。`get_git_history` 不接受项目 ID，继续要求调用方显式提供只读 `repository_path`。
+
 ## 5. Docker / PostgreSQL smoke 边界
 
 默认只校验 Compose 配置，不会创建镜像、容器或卷：

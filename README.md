@@ -74,6 +74,8 @@ python -m backend.app.mcp.server
 
 服务按标准输入逐行读取 JSON-RPC 请求、按标准输出逐行返回响应，暴露 `search_documents`、`search_code`、`read_file`、`get_git_history` 和 `generate_troubleshooting_report`。默认不会启动网络端口，也不会修改 Git 仓库。
 
+MCP 的 `search_documents`、`search_code`、`read_file` 和 `generate_troubleshooting_report` 支持可选 `project_id`；传入后由同一项目注册器解析 source root，并覆盖兼容保留的 `source_root`。`get_git_history` 仍使用显式只读的 `repository_path`。
+
 ## 下一步
 
 1. 在 LangGraph 适配之上接入 checkpoint 和 Agent API；

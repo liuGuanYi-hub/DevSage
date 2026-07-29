@@ -28,6 +28,7 @@ REQUESTS = [
             "arguments": {
                 "query": "8080 端口占用",
                 "source_root": "sample-data",
+                "project_id": "sample-data",
                 "top_k": 5,
             },
         },

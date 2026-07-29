@@ -15,7 +15,8 @@ from typing import Any
 from ..agents.git_tools import GitToolError, get_git_history
 from ..agents.issue_tools import IssueToolError
 from ..agents.runner import AgentRunner
-from ..services.index_service import IndexService, SourceRootError
+from ..services.index_service import IndexService, PROJECT_ROOT, SourceRootError
+from ..services.project_registry import ProjectRegistry, ProjectRegistryError
 from ..services.troubleshooting import build_troubleshooting_report
 
 
@@ -38,6 +39,7 @@ TOOL_DEFINITIONS = [
             "properties": {
                 "query": {"type": "string"},
                 "source_root": {"type": "string", "default": "sample-data"},
+                "project_id": {"type": "string", "description": "Registered project id; takes precedence over source_root."},
                 "top_k": {"type": "integer", "minimum": 1, "maximum": 20},
             },
         },
@@ -51,6 +53,7 @@ TOOL_DEFINITIONS = [
             "properties": {
                 "query": {"type": "string"},
                 "source_root": {"type": "string", "default": "sample-data"},
+                "project_id": {"type": "string", "description": "Registered project id; takes precedence over source_root."},
                 "top_k": {"type": "integer", "minimum": 1, "maximum": 20},
             },
         },
@@ -63,6 +66,7 @@ TOOL_DEFINITIONS = [
             "required": ["source_path"],
             "properties": {
                 "source_root": {"type": "string", "default": "sample-data"},
+                "project_id": {"type": "string", "description": "Registered project id; takes precedence over source_root."},
                 "source_path": {"type": "string"},
                 "start_line": {"type": "integer", "minimum": 1},
                 "end_line": {"type": "integer", "minimum": 1},
@@ -90,6 +94,7 @@ TOOL_DEFINITIONS = [
             "properties": {
                 "query": {"type": "string"},
                 "source_root": {"type": "string", "default": "sample-data"},
+                "project_id": {"type": "string", "description": "Registered project id; takes precedence over source_root."},
                 "top_k": {"type": "integer", "minimum": 1, "maximum": 20},
             },
         },
@@ -100,8 +105,13 @@ TOOL_DEFINITIONS = [
 class MCPServer:
     """Dispatch MCP lifecycle and tool requests over JSON-compatible values."""
 
-    def __init__(self, index_service: IndexService | None = None) -> None:
+    def __init__(
+        self,
+        index_service: IndexService | None = None,
+        project_registry: ProjectRegistry | None = None,
+    ) -> None:
         self.index_service = index_service or IndexService()
+        self.project_registry = project_registry or ProjectRegistry.from_environment(PROJECT_ROOT)
         self.agent_runner = AgentRunner(self.index_service)
         self._tools: dict[str, Callable[[dict[str, Any]], Any]] = {
             "search_documents": self._search_documents,
@@ -125,7 +135,7 @@ class MCPServer:
             result = self._dispatch(str(method), request.get("params") or {})
         except MCPMethodNotFoundError as exc:
             return _error_response(request_id, -32601, str(exc))
-        except (SourceRootError, GitToolError, IssueToolError, ValueError) as exc:
+        except (SourceRootError, ProjectRegistryError, GitToolError, IssueToolError, ValueError) as exc:
             return _error_response(request_id, -32602, str(exc))
         except Exception:
             return _error_response(request_id, -32000, "internal MCP tool error")
@@ -157,7 +167,7 @@ class MCPServer:
             raise ValueError("tool arguments must be an object")
         try:
             value = self._tools[name](arguments)
-        except (SourceRootError, GitToolError, IssueToolError, ValueError) as exc:
+        except (SourceRootError, ProjectRegistryError, GitToolError, IssueToolError, ValueError) as exc:
             return {"content": [{"type": "text", "text": str(exc)}], "isError": True}
         return {
             "content": [
@@ -170,17 +180,17 @@ class MCPServer:
         }
 
     def _search_documents(self, arguments: dict[str, Any]) -> list[dict[str, Any]]:
-        query, source_root, top_k = _search_arguments(arguments)
+        query, source_root, top_k = self._search_arguments(arguments)
         _, results = self.index_service.search_hybrid(source_root, query, top_k)
         return [_result_dict(result) for result in results]
 
     def _search_code(self, arguments: dict[str, Any]) -> list[dict[str, Any]]:
-        query, source_root, top_k = _search_arguments(arguments)
+        query, source_root, top_k = self._search_arguments(arguments)
         results = self.index_service.search_code(source_root, query, top_k)
         return [_result_dict(result) for result in results]
 
     def _read_file(self, arguments: dict[str, Any]) -> dict[str, str]:
-        source_root = str(arguments.get("source_root", "sample-data"))
+        source_root = self._resolve_source_root(arguments)
         source_path = arguments.get("source_path")
         if not isinstance(source_path, str) or not source_path:
             raise ValueError("source_path is required")
@@ -203,7 +213,7 @@ class MCPServer:
         return [_result_dict(result) for result in results]
 
     def _generate_troubleshooting_report(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        query, source_root, top_k = _search_arguments(arguments)
+        query, source_root, top_k = self._search_arguments(arguments)
         state = self.agent_runner.run(query, source_root, top_k)
         report = build_troubleshooting_report(query, state.evidence)
         return {
@@ -221,6 +231,19 @@ class MCPServer:
             "citations": list(report.citations),
             "evidence_sufficient": report.evidence_sufficient,
         }
+
+    def _search_arguments(self, arguments: dict[str, Any]) -> tuple[str, str, int]:
+        query, _, top_k = _search_arguments(arguments)
+        return query, self._resolve_source_root(arguments), top_k
+
+    def _resolve_source_root(self, arguments: dict[str, Any]) -> str:
+        project_id = arguments.get("project_id")
+        if project_id is None:
+            return str(arguments.get("source_root", "sample-data"))
+        if not isinstance(project_id, str) or not project_id.strip():
+            raise ProjectRegistryError("project_id must be a non-empty string")
+        resolved = self.project_registry.resolve_source_root(project_id)
+        return resolved.relative_to(PROJECT_ROOT).as_posix()
 
 
 def run_stdio_server() -> None:
