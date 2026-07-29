@@ -623,26 +623,26 @@ GET  /api/evaluations/compare
 
 必须完成：
 
-- 支持 Markdown、README 和至少三种编程语言代码导入；
-- 按内容类型切分并保留文件路径、标题和行号；
+- [x] 支持 Markdown、README 和至少三种编程语言代码导入；
+- [x] 按内容类型切分并保留文件路径、标题和行号；
 - 生成 Embedding 并保存到 pgvector；
 - 实现 PostgreSQL 关键词检索；
-- 实现向量检索和基础 RRF 融合；
-- 实现带来源的问答；
-- 实现文档检索、代码检索和文件读取工具；
-- 实现项目知识总结；
-- 实现知识笔记预览和人工确认写回 Obsidian；
-- 完成基础聊天页面；
-- 用固定测试集验证检索结果。
+- [x] 实现向量检索和基础 RRF 融合（离线 Hash 基线）；
+- [x] 实现带来源的问答；
+- [x] 实现文档检索、代码检索和文件读取工具；
+- [x] 实现项目知识总结；
+- [x] 实现知识笔记预览和人工确认写回 Markdown（真实 Obsidian vault 待后续）；
+- [x] 完成基础聊天页面；
+- [x] 用固定测试集验证检索结果。
 
 交付物：
 
-- 可本地运行的 DevMind；
+- [x] 可本地运行的 DevMind；
 - 一个真实个人知识库；
 - 一个真实项目知识库；
-- 带文件路径和代码行号的回答；
-- 通过确认后写回的 Markdown 笔记；
-- MVP 测试记录。
+- [x] 带文件路径和代码行号的回答；
+- [x] 通过确认后写回的 Markdown 笔记；
+- [x] MVP 测试记录。
 
 ### 阶段 2：DevSage Agent 工作流
 
@@ -650,14 +650,14 @@ GET  /api/evaluations/compare
 
 任务：
 
-- 使用 LangGraph 定义 Agent State；
-- 实现问题分类和任务规划节点；
-- 接入 Git 历史和 Issue 检索工具；
-- 实现查询改写、证据判断和有限重试；
-- 实现代码定位和历史故障排查；
-- 生成结构化故障排查报告；
-- 展示 Agent 执行步骤和工具调用结果；
-- 为每个任务设置调用次数、超时和失败终止条件。
+- [x] 使用 LangGraph 定义 Agent State（提供适配器，已安装环境 smoke 通过；当前解释器中保留可选跳过）；
+- [x] 实现问题分类和任务规划节点；
+- [x] 接入 Git 历史和 Issue 检索工具；
+- [x] 实现查询改写、证据判断和有限重试；
+- [x] 实现代码定位和历史故障排查；
+- [x] 生成结构化故障排查报告；
+- [x] 展示 Agent 执行步骤和工具调用结果；
+- [x] 为每个任务设置调用次数、超时和失败终止条件。
 
 交付物：
 
@@ -673,14 +673,14 @@ GET  /api/evaluations/compare
 任务：
 
 - 增加用户、项目和权限模型；
-- 持久化 Agent 任务状态；
-- 实现任务暂停和恢复；
-- 实现写操作审批和 Diff 展示；
-- 实现文件 Hash 去重和增量索引；
+- [x] 持久化 Agent 任务状态；
+- [x] 实现任务暂停和恢复；
+- [x] 实现写操作审批和 Diff 展示；
+- [x] 实现文件 Hash 去重和增量索引；
 - 增加 Redis 缓存；
-- 增加日志、Token 统计和异常处理；
-- 完善 Pytest 自动化测试；
-- 使用 Docker Compose 组织服务。
+- [x] 增加日志、Token 统计和异常处理；
+- [x] 完善 Pytest 自动化测试；
+- [x] 使用 Docker Compose 组织服务（配置和 dry-run 已验证，真实容器启动待授权）。
 
 交付物：
 
@@ -696,14 +696,14 @@ GET  /api/evaluations/compare
 
 任务：
 
-- 将测试集扩展到 50～100 条问题；
-- 标注每个问题的正确来源和参考答案；
-- 标注预期工具和合理调用顺序；
-- 对比纯向量、纯关键词和混合检索；
-- 对比加入 Reranker 前后的效果；
-- 统计 Recall@5、MRR、Context Precision、Context Recall；
-- 统计 Faithfulness、Answer Relevance、Tool Call Accuracy；
-- 分析失败案例并记录优化结论。
+- [x] 将测试集扩展到 50～100 条问题（当前 50 条）；
+- [x] 标注每个问题的正确来源和参考答案；
+- [x] 标注预期工具和合理调用顺序；
+- [x] 对比纯向量、纯关键词和混合检索；
+- [x] 对比加入来源多样性 Reranker 前后的效果（神经 Reranker 待后续）；
+- [x] 统计 Recall@5、MRR、Context Precision、Context Recall；
+- [x] 统计 Faithfulness、Answer Relevance、Tool Call Accuracy（当前为可解释代理）；
+- [x] 分析失败案例并记录优化结论。
 
 交付物：
 
@@ -718,12 +718,12 @@ GET  /api/evaluations/compare
 
 任务：
 
-- 将检索和代码理解能力封装为 MCP Server；
-- 暴露 `search_documents`、`search_code`、`read_file` 等工具；
-- 完善 README、架构图和 Agent 流程图；
-- 准备脱敏演示数据；
-- 录制 3～5 分钟演示视频；
-- 根据真实测试结果更新简历描述；
+- [x] 将检索和代码理解能力封装为 MCP Server；
+- [x] 暴露 `search_documents`、`search_code`、`read_file` 等工具；
+- [x] 完善 README、架构图和 Agent 流程图；
+- [x] 准备脱敏演示数据；
+- [ ] 录制 3～5 分钟演示视频；
+- [x] 根据真实测试结果更新简历描述；
 - 如确有需要，再部署在线体验地址。
 
 交付物：
