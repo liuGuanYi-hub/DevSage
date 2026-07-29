@@ -23,6 +23,8 @@ class ProjectRegistryTests(unittest.TestCase):
         self.assertTrue(registry.resolve_source_root(project.project_id).is_dir())
         self.assertNotIn("\\", project.to_dict()["source_root"])
         self.assertIn("writeback_approve", project.to_dict()["roles"][1]["actions"])
+        self.assertEqual("local-demo", project.to_dict()["members"][0]["actor_id"])
+        self.assertIn("manage_project", project.to_dict()["members"][0]["actions"])
         self.assertEqual("operator", registry.role_for("sample-data", "local-demo"))
         self.assertEqual(
             "operator",

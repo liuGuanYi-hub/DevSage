@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 
 import {
   approveCodeChange,
@@ -24,6 +24,7 @@ const answer = ref<AgentResponse | null>(null);
 const indexInfo = ref<IndexResponse | null>(null);
 const projects = ref<Project[]>([]);
 const selectedProjectId = ref("sample-data");
+const selectedActorId = ref("local-demo");
 const status = ref("等待连接后端");
 const backendHealth = ref<"checking" | "online" | "offline">("checking");
 const isLoading = ref(false);
@@ -36,6 +37,17 @@ const codeTargetPath = ref("repositories/springboot-demo/README.md");
 const codeContent = ref("");
 const pendingCodePreview = ref<CodeChangePreview | null>(null);
 const codeWritebackStatus = ref("");
+
+const currentProject = computed(() =>
+  projects.value.find((project) => project.project_id === selectedProjectId.value),
+);
+const currentMember = computed(() =>
+  currentProject.value?.members.find((member) => member.actor_id === selectedActorId.value),
+);
+
+function can(action: string): boolean {
+  return currentMember.value?.actions.includes(action) ?? false;
+}
 
 function categoryLabel(category: string): string {
   const labels: Record<string, string> = {
@@ -59,6 +71,7 @@ async function refreshIndex() {
     indexInfo.value = await indexSource(
       "sample-data",
       selectedProjectId.value || undefined,
+      selectedActorId.value || undefined,
     );
     backendHealth.value = "online";
     status.value = `已索引 ${indexInfo.value.document_count} 个文件、${indexInfo.value.chunk_count} 个 Chunk`;
@@ -78,6 +91,7 @@ async function search() {
       "sample-data",
       5,
       selectedProjectId.value || undefined,
+      selectedActorId.value || undefined,
     );
     backendHealth.value = "online";
     answer.value = response;
@@ -96,7 +110,7 @@ async function search() {
 }
 
 async function createNotePreview() {
-  if (!answer.value || !noteContent.value.trim()) return;
+  if (!answer.value || !noteContent.value.trim() || !can("writeback_preview")) return;
   writebackStatus.value = "Generating a pending preview...";
   try {
     pendingPreview.value = await previewKnowledgeNote(
@@ -105,6 +119,7 @@ async function createNotePreview() {
       noteTargetPath.value.trim(),
       answer.value.citations,
       selectedProjectId.value || undefined,
+      selectedActorId.value || undefined,
     );
     writebackStatus.value = "Preview created. Review the diff before approval.";
   } catch (error) {
@@ -116,7 +131,10 @@ async function approveNote() {
   if (!pendingPreview.value) return;
   writebackStatus.value = "Approving note...";
   try {
-    pendingPreview.value = await approveKnowledgeNote(pendingPreview.value.preview_id);
+    pendingPreview.value = await approveKnowledgeNote(
+      pendingPreview.value.preview_id,
+      selectedActorId.value || undefined,
+    );
     writebackStatus.value = "Approved and written to the staging directory.";
   } catch (error) {
     writebackStatus.value = `Approval failed: ${error instanceof Error ? error.message : "unknown error"}`;
@@ -124,7 +142,7 @@ async function approveNote() {
 }
 
 async function createCodePreview() {
-  if (!codeContent.value.trim()) return;
+  if (!codeContent.value.trim() || !can("code_write_preview")) return;
   codeWritebackStatus.value = "Generating a code change preview...";
   try {
     pendingCodePreview.value = await previewCodeChange(
@@ -133,6 +151,7 @@ async function createCodePreview() {
       answer.value?.citations ?? [],
       "sample-data",
       selectedProjectId.value || undefined,
+      selectedActorId.value || undefined,
     );
     codeWritebackStatus.value = "Code preview created. Review the Diff before approval.";
   } catch (error) {
@@ -144,7 +163,10 @@ async function approveCode() {
   if (!pendingCodePreview.value) return;
   codeWritebackStatus.value = "Approving code change...";
   try {
-    pendingCodePreview.value = await approveCodeChange(pendingCodePreview.value.preview_id);
+    pendingCodePreview.value = await approveCodeChange(
+      pendingCodePreview.value.preview_id,
+      selectedActorId.value || undefined,
+    );
     codeWritebackStatus.value = "Code change approved and written.";
   } catch (error) {
     codeWritebackStatus.value = `Code approval failed: ${error instanceof Error ? error.message : "unknown error"}`;
@@ -159,13 +181,17 @@ async function loadProjects() {
     if (!projects.value.some((project) => project.project_id === selectedProjectId.value)) {
       selectedProjectId.value = projects.value[0]?.project_id ?? "sample-data";
     }
+    const project = projects.value.find((item) => item.project_id === selectedProjectId.value);
+    if (project && !project.members.some((member) => member.actor_id === selectedActorId.value)) {
+      selectedActorId.value = project.members[0]?.actor_id ?? "local-demo";
+    }
   } catch (error) {
     backendHealth.value = "offline";
     status.value = `项目列表未连接：${error instanceof Error ? error.message : "未知错误"}`;
   }
 }
 
-async function handleProjectChange() {
+function resetScopeState() {
   answer.value = null;
   results.value = [];
   indexInfo.value = null;
@@ -173,7 +199,21 @@ async function handleProjectChange() {
   pendingCodePreview.value = null;
   writebackStatus.value = "";
   codeWritebackStatus.value = "";
+}
+
+async function handleProjectChange() {
+  const project = projects.value.find((item) => item.project_id === selectedProjectId.value);
+  if (project && !project.members.some((member) => member.actor_id === selectedActorId.value)) {
+    selectedActorId.value = project.members[0]?.actor_id ?? "local-demo";
+  }
+  resetScopeState();
   status.value = "正在切换项目并清理旧证据…";
+  await refreshIndex();
+}
+
+async function handleActorChange() {
+  resetScopeState();
+  status.value = "正在切换本地角色并重新检查能力…";
   await refreshIndex();
 }
 
@@ -214,7 +254,18 @@ onMounted(async () => {
             </option>
           </select>
         </label>
-        <button type="button" @click="refreshIndex">重新索引当前项目</button>
+        <label v-if="currentProject?.members.length" class="actor-picker">
+          角色
+          <select v-model="selectedActorId" @change="handleActorChange" aria-label="选择本地角色">
+            <option v-for="member in currentProject.members" :key="member.actor_id" :value="member.actor_id">
+              {{ member.actor_id }} · {{ member.role }}
+            </option>
+          </select>
+        </label>
+        <span v-if="currentMember" class="capability-badge">
+          {{ currentMember.role }}：{{ currentMember.actions.length }} 项能力
+        </span>
+        <button type="button" @click="refreshIndex" :disabled="!can('manage_project')">重新索引当前项目</button>
         <span class="health-badge" :class="`health-${backendHealth}`" aria-live="polite">
           后端：{{ backendHealth === "checking" ? "检查中" : backendHealth === "online" ? "在线" : "离线" }}
         </span>
@@ -291,13 +342,14 @@ onMounted(async () => {
             <textarea v-model="noteContent" rows="8" aria-label="Knowledge note content"></textarea>
           </label>
           <div class="writeback-actions">
-            <button type="button" @click="createNotePreview" :disabled="!noteContent.trim()">
+            <button type="button" @click="createNotePreview" :disabled="!noteContent.trim() || !can('writeback_preview')">
               Generate preview
             </button>
             <button
               v-if="pendingPreview && pendingPreview.status === 'pending'"
               type="button"
               @click="approveNote"
+              :disabled="!can('writeback_approve')"
             >
               Approve and write
             </button>
@@ -328,13 +380,14 @@ onMounted(async () => {
             <textarea v-model="codeContent" rows="10" aria-label="Proposed code content"></textarea>
           </label>
           <div class="writeback-actions">
-            <button type="button" @click="createCodePreview" :disabled="!codeContent.trim()">
+            <button type="button" @click="createCodePreview" :disabled="!codeContent.trim() || !can('code_write_preview')">
               Generate code preview
             </button>
             <button
               v-if="pendingCodePreview && pendingCodePreview.status === 'pending'"
               type="button"
               @click="approveCode"
+              :disabled="!can('code_write_approve')"
             >
               Approve code change
             </button>
@@ -401,9 +454,10 @@ h1 { margin: 12px 0; font-size: clamp(2rem, 5vw, 3.6rem); line-height: 1.05; }
 .summary { color: #526176; font-size: 1.08rem; line-height: 1.7; }
 
 .toolbar { margin: 28px 0 16px; color: #526176; font-size: 0.9rem; flex-wrap: wrap; }
-.project-picker { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.project-picker, .actor-picker { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 select { border: 1px solid #cbd6e2; border-radius: 10px; padding: 10px 12px; color: #26384f; background: #ffffff; font: inherit; }
 .index-count { margin-left: auto; color: #7890aa; }
+.capability-badge { border-radius: 999px; padding: 5px 9px; color: #5b4b82; background: #f0ebff; font-weight: 700; }
 .health-badge { border-radius: 999px; padding: 5px 9px; font-weight: 700; }
 .health-checking { color: #765b00; background: #fff4c2; }
 .health-online { color: #276749; background: #e8f7ee; }

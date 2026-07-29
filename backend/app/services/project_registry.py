@@ -54,6 +54,14 @@ class ProjectDefinition:
                 {"role": role, "actions": list(ROLE_ACTIONS[role])}
                 for role in self.roles
             ],
+            "members": [
+                {
+                    "actor_id": actor_id,
+                    "role": role,
+                    "actions": list(ROLE_ACTIONS[role]),
+                }
+                for actor_id, role in self.members
+            ],
         }
 
 

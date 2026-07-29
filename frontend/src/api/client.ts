@@ -17,12 +17,19 @@ export interface ProjectRole {
   actions: string[];
 }
 
+export interface ProjectMember {
+  actor_id: string;
+  role: string;
+  actions: string[];
+}
+
 export interface Project {
   project_id: string;
   name: string;
   source_root: string;
   description: string;
   roles: ProjectRole[];
+  members: ProjectMember[];
 }
 
 export interface ProjectListResponse {
@@ -139,10 +146,15 @@ export interface CodeChangePreview {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
-async function request<T>(path: string, options: RequestInit): Promise<T> {
+async function request<T>(path: string, options: RequestInit, actorId?: string): Promise<T> {
+  const headers = new Headers(options.headers);
+  headers.set("Content-Type", "application/json");
+  if (actorId) {
+    headers.set("X-DevSage-Actor", actorId);
+  }
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...options,
+    headers,
   });
   if (!response.ok) {
     throw new Error(await response.text());
@@ -165,11 +177,12 @@ export function getHealth(): Promise<HealthResponse> {
 export function indexSource(
   sourceRoot = "sample-data",
   projectId?: string,
+  actorId?: string,
 ): Promise<IndexResponse> {
   return request<IndexResponse>("/api/index", {
     method: "POST",
     body: JSON.stringify({ source_root: sourceRoot, project_id: projectId }),
-  });
+  }, actorId);
 }
 
 export function searchEvidence(
@@ -177,11 +190,12 @@ export function searchEvidence(
   sourceRoot = "sample-data",
   topK = 5,
   projectId?: string,
+  actorId?: string,
 ): Promise<SearchResponse> {
   return request<SearchResponse>("/api/search", {
     method: "POST",
     body: JSON.stringify({ query, source_root: sourceRoot, top_k: topK, project_id: projectId }),
-  });
+  }, actorId);
 }
 
 export function answerQuestion(
@@ -189,11 +203,12 @@ export function answerQuestion(
   sourceRoot = "sample-data",
   topK = 5,
   projectId?: string,
+  actorId?: string,
 ): Promise<AnswerResponse> {
   return request<AnswerResponse>("/api/answer", {
     method: "POST",
     body: JSON.stringify({ query, source_root: sourceRoot, top_k: topK, project_id: projectId }),
-  });
+  }, actorId);
 }
 
 export function runAgent(
@@ -201,11 +216,12 @@ export function runAgent(
   sourceRoot = "sample-data",
   topK = 5,
   projectId?: string,
+  actorId?: string,
 ): Promise<AgentResponse> {
   return request<AgentResponse>("/api/agent/run", {
     method: "POST",
     body: JSON.stringify({ query, source_root: sourceRoot, top_k: topK, project_id: projectId }),
-  });
+  }, actorId);
 }
 
 export function previewKnowledgeNote(
@@ -214,6 +230,7 @@ export function previewKnowledgeNote(
   targetPath: string,
   sourceCitations: string[],
   projectId?: string,
+  actorId?: string,
 ): Promise<KnowledgeNotePreview> {
   return request<KnowledgeNotePreview>("/api/knowledge-notes/preview", {
     method: "POST",
@@ -224,13 +241,13 @@ export function previewKnowledgeNote(
       source_citations: sourceCitations,
       project_id: projectId,
     }),
-  });
+  }, actorId);
 }
 
-export function approveKnowledgeNote(previewId: string): Promise<KnowledgeNotePreview> {
+export function approveKnowledgeNote(previewId: string, actorId?: string): Promise<KnowledgeNotePreview> {
   return request<KnowledgeNotePreview>(`/api/knowledge-notes/${previewId}/approve`, {
     method: "POST",
-  });
+  }, actorId);
 }
 
 export function previewCodeChange(
@@ -239,6 +256,7 @@ export function previewCodeChange(
   sourceCitations: string[],
   sourceRoot = "sample-data",
   projectId?: string,
+  actorId?: string,
 ): Promise<CodeChangePreview> {
   return request<CodeChangePreview>("/api/code-changes/preview", {
     method: "POST",
@@ -249,11 +267,11 @@ export function previewCodeChange(
       source_root: sourceRoot,
       project_id: projectId,
     }),
-  });
+  }, actorId);
 }
 
-export function approveCodeChange(previewId: string): Promise<CodeChangePreview> {
+export function approveCodeChange(previewId: string, actorId?: string): Promise<CodeChangePreview> {
   return request<CodeChangePreview>(`/api/code-changes/${previewId}/approve`, {
     method: "POST",
-  });
+  }, actorId);
 }

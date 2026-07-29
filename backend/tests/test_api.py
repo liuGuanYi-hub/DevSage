@@ -60,6 +60,8 @@ class ApiTests(unittest.TestCase):
         self.assertGreaterEqual(payload["total"], 1)
         sample = next(item for item in payload["items"] if item["project_id"] == "sample-data")
         self.assertEqual("sample-data", sample["source_root"])
+        self.assertTrue(any(member["actor_id"] == "local-viewer" for member in sample["members"]))
+        self.assertIn("search", next(member for member in sample["members"] if member["actor_id"] == "local-viewer")["actions"])
         self.assertTrue(all("D:" not in str(item) for item in sample.values()))
 
         detail = self.client.get("/api/projects/sample-data")

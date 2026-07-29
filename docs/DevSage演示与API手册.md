@@ -96,7 +96,7 @@ FastAPI 运行后也可通过 `/docs` 查看当前 OpenAPI 页面；接口响应
 
 `/health` 还会返回 `storage`、`embedding_provider` 和 `external_issue_configured` 三个非敏感运行模式字段；它们用于诊断当前配置，不代表真实数据库、远程 Provider 或外部 Issue 已完成端到端验证。
 
-项目注册默认包含 `sample-data` 脱敏项目，也可通过 `DEVSAGE_PROJECT_MANIFEST` 指向项目根目录内的相对 JSON manifest。manifest 可用 `members` 对象把 actor ID 映射到 viewer/editor/operator；带 `project_id` 的 API 会读取 `X-DevSage-Actor`（默认 `local-demo`）并检查 action。当前这是本地 capability boundary，不是身份认证；正式用户身份和组织权限仍需后续接入。
+项目注册默认包含 `sample-data` 脱敏项目，也可通过 `DEVSAGE_PROJECT_MANIFEST` 指向项目根目录内的相对 JSON manifest。manifest 可用 `members` 对象把 actor ID 映射到 viewer/editor/operator；项目列表会返回非敏感的成员能力元数据，前端可切换本地 actor，并把 `X-DevSage-Actor` 传给索引、Agent 和审批接口。带 `project_id` 的 API 会检查 action。当前这是本地 capability boundary，不是身份认证；正式用户身份和组织权限仍需后续接入。
 
 `/api/index`、`/api/search`、`/api/answer`、`/api/answer/stream` 和 `/api/agent/run` 都支持可选 `project_id`。传入后由项目注册器解析 source root；未传入时继续兼容原有 `source_root` 参数。
 
