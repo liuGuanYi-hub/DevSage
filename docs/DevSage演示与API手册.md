@@ -135,6 +135,14 @@ python -m unittest backend.tests.test_postgres_repository
 
 该脚本使用临时端口启动 FastAPI，完成审批 smoke 后清理本次创建的测试笔记并关闭服务；它不会验证 PostgreSQL、Docker 卷或浏览器视觉渲染。
 
+如果需要一次性执行当前离线验证集合，可运行：
+
+```powershell
+.\scripts\verify-offline.ps1
+```
+
+该入口会串行执行评估、测试、MCP、可选 LangGraph、前端构建、本地 HTTP smoke 和 Compose dry-run；真实 Docker、外部 Issue 和远程 Embedding 仍保持显式配置/授权边界。
+
 默认只校验 Compose 配置，不会创建镜像、容器或卷：
 
 ```powershell

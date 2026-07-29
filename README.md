@@ -46,6 +46,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-http.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-docker.ps1
 ```
 
+也可以运行统一离线验证入口：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-offline.ps1
+```
+
+该入口会串行执行数据集、评估、后端、MCP、可选 LangGraph、前端构建、本地 HTTP smoke 和 Compose dry-run；不会安装依赖，也不会执行 Docker `-Execute`。
+
 FastAPI 和 Vue 依赖可分别启动：
 
 ```powershell
