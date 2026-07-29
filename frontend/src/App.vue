@@ -40,7 +40,12 @@ function categoryLabel(category: string): string {
     troubleshooting: "故障排查",
     code_location: "代码定位",
     knowledge: "知识问答",
+    knowledge_qa: "知识问答",
+    knowledge_write: "知识写回",
+    project_summary: "项目总结",
+    git_history: "Git 历史",
     git_diff: "Git 变更分析",
+    issue_search: "Issue 检索",
     unknown: "待分类",
   };
   return labels[category] ?? category;
