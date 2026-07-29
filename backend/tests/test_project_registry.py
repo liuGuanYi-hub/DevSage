@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from backend.app.services.project_registry import (
+    ROLE_ACTIONS,
     ProjectRegistry,
     ProjectRegistryError,
 )
@@ -22,6 +23,13 @@ class ProjectRegistryTests(unittest.TestCase):
         self.assertTrue(registry.resolve_source_root(project.project_id).is_dir())
         self.assertNotIn("\\", project.to_dict()["source_root"])
         self.assertIn("writeback_approve", project.to_dict()["roles"][1]["actions"])
+        self.assertEqual("operator", registry.role_for("sample-data", "local-demo"))
+        self.assertEqual(
+            "operator",
+            registry.require_action("sample-data", "local-demo", "manage_project"),
+        )
+        with self.assertRaises(ProjectRegistryError):
+            registry.require_action("sample-data", "unknown", "search")
 
     def test_manifest_load_is_confined_and_validated(self) -> None:
         with TemporaryDirectory() as temporary:
@@ -36,6 +44,7 @@ class ProjectRegistryTests(unittest.TestCase):
                             "source_root": "docs",
                             "description": "test project",
                             "roles": ["viewer"],
+                            "members": {"alice": "viewer"},
                         }
                     ]
                 ),
@@ -45,6 +54,10 @@ class ProjectRegistryTests(unittest.TestCase):
                 registry = ProjectRegistry.from_environment(root)
             self.assertEqual("docs-demo", registry.list_projects()[0].project_id)
             self.assertTrue(registry.resolve_source_root("docs-demo").is_dir())
+            self.assertEqual("viewer", registry.role_for("docs-demo", "alice"))
+            self.assertIn("search", ROLE_ACTIONS["viewer"])
+            with self.assertRaises(ProjectRegistryError):
+                registry.require_action("docs-demo", "alice", "writeback_preview")
 
     def test_manifest_rejects_absolute_path(self) -> None:
         with TemporaryDirectory() as temporary:

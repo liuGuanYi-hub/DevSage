@@ -4,7 +4,7 @@ from pathlib import Path
 import json
 import os
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 
 from .schemas.search import (
@@ -32,7 +32,11 @@ from .agents.runner import AgentRunner
 from .services.index_service import IndexService, SourceRootError
 from .services.answer_service import AnswerDraft, compose_routed_answer
 from .services.knowledge_writeback import KnowledgeWritebackService, WritebackPolicyError
-from .services.project_registry import ProjectRegistry, ProjectRegistryError
+from .services.project_registry import (
+    DEFAULT_ACTOR_ID,
+    ProjectRegistry,
+    ProjectRegistryError,
+)
 from .services.troubleshooting import TroubleshootingReport, build_troubleshooting_report
 from .services.task_store import (
     FileTaskStateStore,
@@ -87,13 +91,17 @@ def list_projects() -> ProjectListResponse:
 
 
 @app.get("/api/projects/{project_id}", response_model=ProjectResponse, tags=["projects"])
-def get_project(project_id: str) -> ProjectResponse:
+def get_project(
+    project_id: str,
+    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+) -> ProjectResponse:
     """Return one registered project without exposing absolute filesystem paths."""
 
     try:
         definition = project_registry.get(project_id)
     except ProjectRegistryError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    _authorize_project(project_id, actor_id, "read")
     return ProjectResponse(**definition.to_dict())
 
 
@@ -115,11 +123,33 @@ def _scope_knowledge_target_path(project_id: str | None, target_path: str) -> st
     return f"projects/{project_id}/{target_path}"
 
 
+def _authorize_project(project_id: str, actor_id: str, action: str) -> None:
+    """Enforce local project capability boundaries without pretending to authenticate."""
+
+    project_registry.get(project_id)
+    try:
+        project_registry.require_action(project_id, actor_id, action)
+    except ProjectRegistryError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
+def _project_id_from_target_path(target_path: str) -> str | None:
+    parts = target_path.split("/")
+    if len(parts) >= 3 and parts[0] == "projects":
+        return parts[1]
+    return None
+
+
 @app.post("/api/index", response_model=IndexResponse, tags=["index"])
-def index_source(request: IndexRequest) -> IndexResponse:
+def index_source(
+    request: IndexRequest,
+    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+) -> IndexResponse:
     """Build or incrementally update a project-relative source snapshot."""
 
     try:
+        if request.project_id:
+            _authorize_project(request.project_id, actor_id, "manage_project")
         requested_root = _resolve_request_source_root(request.project_id, request.source_root)
         source_root, snapshot = index_service.build(requested_root)
     except (SourceRootError, ProjectRegistryError) as exc:
@@ -139,10 +169,15 @@ def index_source(request: IndexRequest) -> IndexResponse:
 
 
 @app.post("/api/search", response_model=SearchResponse, tags=["retrieval"])
-def search_source(request: SearchRequest) -> SearchResponse:
+def search_source(
+    request: SearchRequest,
+    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+) -> SearchResponse:
     """Return keyword evidence with source citations."""
 
     try:
+        if request.project_id:
+            _authorize_project(request.project_id, actor_id, "search")
         requested_root = _resolve_request_source_root(request.project_id, request.source_root)
         source_root, results = index_service.search(
             requested_root,
@@ -207,10 +242,15 @@ def _troubleshooting_response(report: TroubleshootingReport) -> TroubleshootingR
 
 
 @app.post("/api/answer", response_model=AnswerResponse, tags=["answer"])
-def answer_question(request: AnswerRequest) -> AnswerResponse:
+def answer_question(
+    request: AnswerRequest,
+    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+) -> AnswerResponse:
     """Return a deterministic answer assembled only from direct evidence."""
 
     try:
+        if request.project_id:
+            _authorize_project(request.project_id, actor_id, "search")
         requested_root = _resolve_request_source_root(request.project_id, request.source_root)
         source_root, results = index_service.search_for_answer(
             requested_root,
@@ -229,10 +269,15 @@ def answer_question(request: AnswerRequest) -> AnswerResponse:
 
 
 @app.post("/api/answer/stream", tags=["answer"])
-def stream_answer(request: AnswerRequest) -> StreamingResponse:
+def stream_answer(
+    request: AnswerRequest,
+    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+) -> StreamingResponse:
     """Stream the evidence-grounded answer as Server-Sent Events."""
 
     try:
+        if request.project_id:
+            _authorize_project(request.project_id, actor_id, "search")
         requested_root = _resolve_request_source_root(request.project_id, request.source_root)
         source_root, results = index_service.search_for_answer(
             requested_root,
@@ -258,10 +303,15 @@ def stream_answer(request: AnswerRequest) -> StreamingResponse:
 
 
 @app.post("/api/agent/run", response_model=AgentResponse, tags=["agent"])
-def run_agent(request: AgentRequest) -> AgentResponse:
+def run_agent(
+    request: AgentRequest,
+    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+) -> AgentResponse:
     """Run the bounded offline Agent workflow."""
 
     try:
+        if request.project_id:
+            _authorize_project(request.project_id, actor_id, "agent")
         requested_root = _resolve_request_source_root(request.project_id, request.source_root)
         state = agent_runner.run(request.query, requested_root, request.top_k)
     except (SourceRootError, ProjectRegistryError) as exc:
@@ -342,10 +392,13 @@ def resume_agent_task(task_id: str, request: AgentResumeRequest) -> AgentRespons
 @app.post("/api/knowledge-notes/preview", response_model=KnowledgeNotePreviewResponse, tags=["knowledge-notes"])
 def create_knowledge_note_preview(
     request: KnowledgeNotePreviewRequest,
+    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
 ) -> KnowledgeNotePreviewResponse:
     """Create a pending note preview without writing to disk."""
 
     try:
+        if request.project_id:
+            _authorize_project(request.project_id, actor_id, "writeback_preview")
         target_path = _scope_knowledge_target_path(request.project_id, request.target_path)
         preview = writeback_service.create_preview(
             title=request.title,
@@ -375,12 +428,19 @@ def create_knowledge_note_preview(
 
 
 @app.post("/api/knowledge-notes/{preview_id}/approve", response_model=KnowledgeNotePreviewResponse, tags=["knowledge-notes"])
-def approve_knowledge_note(preview_id: str) -> KnowledgeNotePreviewResponse:
+def approve_knowledge_note(
+    preview_id: str,
+    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+) -> KnowledgeNotePreviewResponse:
     """Write a previously previewed note into the approved-note staging root."""
 
     try:
+        preview = writeback_service.get_preview(preview_id)
+        project_id = _project_id_from_target_path(preview.target_path)
+        if project_id:
+            _authorize_project(project_id, actor_id, "writeback_approve")
         preview = writeback_service.approve(preview_id)
-    except WritebackPolicyError as exc:
+    except (ProjectRegistryError, WritebackPolicyError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return KnowledgeNotePreviewResponse(
         preview_id=preview.preview_id,

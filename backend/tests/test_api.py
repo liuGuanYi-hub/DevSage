@@ -122,6 +122,59 @@ class ApiTests(unittest.TestCase):
         self.assertIn("sample-data", stream_response.text)
         self.assertIn("event: done", stream_response.text)
 
+    def test_project_actor_capability_boundary(self) -> None:
+        viewer_headers = {"X-DevSage-Actor": "local-viewer"}
+        search_response = self.client.post(
+            "/api/search",
+            headers=viewer_headers,
+            json={
+                "project_id": "sample-data",
+                "query": "8080 端口占用",
+            },
+        )
+        self.assertEqual(200, search_response.status_code)
+
+        index_response = self.client.post(
+            "/api/index",
+            headers=viewer_headers,
+            json={"project_id": "sample-data"},
+        )
+        self.assertEqual(403, index_response.status_code)
+
+        preview_response = self.client.post(
+            "/api/knowledge-notes/preview",
+            headers=viewer_headers,
+            json={
+                "project_id": "sample-data",
+                "title": "Viewer note",
+                "content": "# Viewer note",
+                "target_path": "DevMind/viewer-note.md",
+            },
+        )
+        self.assertEqual(403, preview_response.status_code)
+
+        editor_response = self.client.post(
+            "/api/knowledge-notes/preview",
+            headers={"X-DevSage-Actor": "local-editor"},
+            json={
+                "project_id": "sample-data",
+                "title": "Editor note",
+                "content": "# Editor note",
+                "target_path": "DevMind/editor-note.md",
+            },
+        )
+        self.assertEqual(200, editor_response.status_code)
+
+        unknown_response = self.client.post(
+            "/api/answer",
+            headers={"X-DevSage-Actor": "unknown"},
+            json={
+                "project_id": "sample-data",
+                "query": "8080 端口占用",
+            },
+        )
+        self.assertEqual(403, unknown_response.status_code)
+
     def test_api_rejects_source_root_escape(self) -> None:
         response = self.client.post(
             "/api/index",

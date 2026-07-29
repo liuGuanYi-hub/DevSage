@@ -26,6 +26,7 @@ ROLE_ACTIONS: dict[str, tuple[str, ...]] = {
         "manage_project",
     ),
 }
+DEFAULT_ACTOR_ID = "local-demo"
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,11 @@ class ProjectDefinition:
     source_root: str
     description: str
     roles: tuple[str, ...] = ("viewer", "editor", "operator")
+    members: tuple[tuple[str, str], ...] = (
+        (DEFAULT_ACTOR_ID, "operator"),
+        ("local-viewer", "viewer"),
+        ("local-editor", "editor"),
+    )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -88,13 +94,7 @@ class ProjectRegistry:
         if not isinstance(payload, list):
             raise ProjectRegistryError("project manifest must contain a list")
         definitions = tuple(
-            ProjectDefinition(
-                project_id=str(item["project_id"]),
-                name=str(item["name"]),
-                source_root=str(item["source_root"]),
-                description=str(item.get("description", "")),
-                roles=tuple(str(role) for role in item.get("roles", ROLE_ACTIONS)),
-            )
+            _definition_from_manifest_item(item)
             for item in payload
             if isinstance(item, dict)
         )
@@ -120,6 +120,29 @@ class ProjectRegistry:
             raise ProjectRegistryError(f"project source root is not a directory: {project_id}")
         return resolved
 
+    def role_for(self, project_id: str, actor_id: str) -> str:
+        """Resolve a configured local actor to one role for a project."""
+
+        definition = self.get(project_id)
+        actor = actor_id.strip()
+        if not actor:
+            raise ProjectRegistryError("actor id must not be empty")
+        assignments = dict(definition.members)
+        try:
+            return assignments[actor]
+        except KeyError as exc:
+            raise ProjectRegistryError("actor is not a member of the project") from exc
+
+    def require_action(self, project_id: str, actor_id: str, action: str) -> str:
+        """Return the actor role or reject an action outside its capability boundary."""
+
+        role = self.role_for(project_id, actor_id)
+        if action not in ROLE_ACTIONS[role]:
+            raise ProjectRegistryError(
+                f"role {role} is not allowed to perform action {action}"
+            )
+        return role
+
     def _validate_definitions(self) -> None:
         ids: set[str] = set()
         for definition in self._definitions:
@@ -132,3 +155,30 @@ class ProjectRegistry:
                 raise ProjectRegistryError("project name and source root are required")
             if not set(definition.roles).issubset(ROLE_ACTIONS):
                 raise ProjectRegistryError("project contains an unsupported role")
+            member_ids: set[str] = set()
+            for actor_id, role in definition.members:
+                if not actor_id.strip() or actor_id in member_ids:
+                    raise ProjectRegistryError("project members must be unique and non-empty")
+                if role not in ROLE_ACTIONS or role not in definition.roles:
+                    raise ProjectRegistryError("project member contains an unsupported role")
+                member_ids.add(actor_id)
+
+
+def _definition_from_manifest_item(item: dict[str, Any]) -> ProjectDefinition:
+    """Build a definition while keeping local-demo compatibility for old manifests."""
+
+    roles = tuple(str(role) for role in item.get("roles", ROLE_ACTIONS))
+    raw_members = item.get("members")
+    if raw_members is None:
+        fallback_role = "operator" if "operator" in roles else (roles[0] if roles else "")
+        raw_members = {DEFAULT_ACTOR_ID: fallback_role} if fallback_role else {}
+    if not isinstance(raw_members, dict):
+        raise ProjectRegistryError("project members must be an object")
+    return ProjectDefinition(
+        project_id=str(item["project_id"]),
+        name=str(item["name"]),
+        source_root=str(item["source_root"]),
+        description=str(item.get("description", "")),
+        roles=roles,
+        members=tuple((str(actor), str(role)) for actor, role in raw_members.items()),
+    )

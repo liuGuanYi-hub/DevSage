@@ -76,7 +76,7 @@ npm run dev --prefix frontend
 
 FastAPI 运行后也可通过 `/docs` 查看当前 OpenAPI 页面；接口响应不会返回环境变量内容或真实凭据。
 
-项目注册默认包含 `sample-data` 脱敏项目，也可通过 `DEVSAGE_PROJECT_MANIFEST` 指向项目根目录内的相对 JSON manifest。返回的 viewer/editor/operator 是能力矩阵边界，不是身份认证；正式用户身份和组织权限仍需后续接入。
+项目注册默认包含 `sample-data` 脱敏项目，也可通过 `DEVSAGE_PROJECT_MANIFEST` 指向项目根目录内的相对 JSON manifest。manifest 可用 `members` 对象把 actor ID 映射到 viewer/editor/operator；带 `project_id` 的 API 会读取 `X-DevSage-Actor`（默认 `local-demo`）并检查 action。当前这是本地 capability boundary，不是身份认证；正式用户身份和组织权限仍需后续接入。
 
 `/api/index`、`/api/search`、`/api/answer`、`/api/answer/stream` 和 `/api/agent/run` 都支持可选 `project_id`。传入后由项目注册器解析 source root；未传入时继续兼容原有 `source_root` 参数。
 

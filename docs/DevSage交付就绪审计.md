@@ -28,7 +28,7 @@
 | PostgreSQL/pgvector 真实部署 | 待授权 | Docker 镜像、容器、迁移、真实查询和卷恢复尚未执行 |
 | 真实 Embedding Provider | 未完成 | 尚未配置非 Hash Provider 并完成真实请求质量评估 |
 | 外部 Issue 平台 | 未完成 | 适配器和 fake transport 已通过，但没有配置真实平台做只读 smoke |
-| 正式用户/组织/权限模型 | 未完成 | 当前 viewer/editor/operator 是本地 capability boundary，不是身份认证 |
+| 正式用户/组织/权限模型 | 部分完成 | `project_id` API 已检查本地 actor/action；仍缺正式身份认证、成员持久化和组织权限 |
 | Redis 缓存 | 未完成 | 尚未接入或验证缓存一致性与失效策略 |
 | 在线部署体验 | 未完成 | 尚未部署到可访问环境并完成外部链路验证 |
 | 3～5 分钟演示视频 | 未完成 | 尚未录制和审核最终演示材料 |
