@@ -10,6 +10,7 @@ from .search import SearchHit
 class AgentRequest(BaseModel):
     query: str = Field(min_length=1)
     source_root: str = Field(default="sample-data", min_length=1)
+    project_id: str | None = Field(default=None, min_length=1)
     top_k: int = Field(default=5, ge=1, le=20)
     persist: bool = False
 

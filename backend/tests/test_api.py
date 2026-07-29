@@ -62,6 +62,41 @@ class ApiTests(unittest.TestCase):
         self.assertTrue(any("springboot-errors.md" in result["source_path"] for result in results))
         self.assertTrue(all(result["citation"] for result in results))
 
+    def test_registered_project_id_can_drive_index_search_and_agent(self) -> None:
+        index_response = self.client.post(
+            "/api/index",
+            json={"project_id": "sample-data"},
+        )
+        self.assertEqual(200, index_response.status_code)
+        self.assertEqual("sample-data", index_response.json()["source_root"])
+
+        search_response = self.client.post(
+            "/api/search",
+            json={
+                "project_id": "sample-data",
+                "query": "8080 端口占用",
+            },
+        )
+        self.assertEqual(200, search_response.status_code)
+        self.assertTrue(search_response.json()["results"])
+
+        agent_response = self.client.post(
+            "/api/agent/run",
+            json={
+                "project_id": "sample-data",
+                "query": "8080 端口被占用怎么排查？",
+            },
+        )
+        self.assertEqual(200, agent_response.status_code)
+        self.assertEqual("sample-data", agent_response.json()["source_root"])
+
+    def test_registered_project_id_rejects_unknown_project(self) -> None:
+        response = self.client.post(
+            "/api/index",
+            json={"project_id": "missing-project"},
+        )
+        self.assertEqual(400, response.status_code)
+
     def test_api_rejects_source_root_escape(self) -> None:
         response = self.client.post(
             "/api/index",

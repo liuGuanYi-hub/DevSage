@@ -1,7 +1,4 @@
-"""DevSage API entrypoint.
-
-阶段 0 只提供健康检查和项目列表占位接口，方便后续接入真实服务。
-"""
+"""DevSage API entrypoint for project-aware retrieval and Agent workflows."""
 
 from pathlib import Path
 import json
@@ -100,13 +97,23 @@ def get_project(project_id: str) -> ProjectResponse:
     return ProjectResponse(**definition.to_dict())
 
 
+def _resolve_request_source_root(project_id: str | None, source_root: str) -> str:
+    """Resolve a registered project while preserving the legacy source_root API."""
+
+    if not project_id:
+        return source_root
+    resolved = project_registry.resolve_source_root(project_id)
+    return resolved.relative_to(PROJECT_ROOT).as_posix()
+
+
 @app.post("/api/index", response_model=IndexResponse, tags=["index"])
 def index_source(request: IndexRequest) -> IndexResponse:
     """Build or incrementally update a project-relative source snapshot."""
 
     try:
-        source_root, snapshot = index_service.build(request.source_root)
-    except SourceRootError as exc:
+        requested_root = _resolve_request_source_root(request.project_id, request.source_root)
+        source_root, snapshot = index_service.build(requested_root)
+    except (SourceRootError, ProjectRegistryError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PostgresRepositoryError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -127,12 +134,13 @@ def search_source(request: SearchRequest) -> SearchResponse:
     """Return keyword evidence with source citations."""
 
     try:
+        requested_root = _resolve_request_source_root(request.project_id, request.source_root)
         source_root, results = index_service.search(
-            request.source_root,
+            requested_root,
             request.query,
             request.top_k,
         )
-    except SourceRootError as exc:
+    except (SourceRootError, ProjectRegistryError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PostgresRepositoryError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -194,12 +202,13 @@ def answer_question(request: AnswerRequest) -> AnswerResponse:
     """Return a deterministic answer assembled only from direct evidence."""
 
     try:
+        requested_root = _resolve_request_source_root(request.project_id, request.source_root)
         source_root, results = index_service.search_hybrid(
-            request.source_root,
+            requested_root,
             request.query,
             request.top_k,
         )
-    except SourceRootError as exc:
+    except (SourceRootError, ProjectRegistryError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PostgresRepositoryError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -215,12 +224,13 @@ def stream_answer(request: AnswerRequest) -> StreamingResponse:
     """Stream the evidence-grounded answer as Server-Sent Events."""
 
     try:
+        requested_root = _resolve_request_source_root(request.project_id, request.source_root)
         source_root, results = index_service.search_hybrid(
-            request.source_root,
+            requested_root,
             request.query,
             request.top_k,
         )
-    except SourceRootError as exc:
+    except (SourceRootError, ProjectRegistryError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PostgresRepositoryError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -243,8 +253,9 @@ def run_agent(request: AgentRequest) -> AgentResponse:
     """Run the bounded offline Agent workflow."""
 
     try:
-        state = agent_runner.run(request.query, request.source_root, request.top_k)
-    except SourceRootError as exc:
+        requested_root = _resolve_request_source_root(request.project_id, request.source_root)
+        state = agent_runner.run(request.query, requested_root, request.top_k)
+    except (SourceRootError, ProjectRegistryError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PostgresRepositoryError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
