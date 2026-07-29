@@ -1,6 +1,6 @@
 # DevSage 交付就绪审计
 
-- 审计时间：2026-07-30 05:42
+- 审计时间：2026-07-30 06:10
 - 审计范围：DevMind MVP、DevSage Agent、工程化部署、量化评估、MCP 展示
 - 审计原则：只把当前文件、测试、运行输出或远端状态能直接证明的内容标记为已完成。
 
@@ -21,6 +21,7 @@
 | PostgreSQL 应用层持久化链路 | 已完成合同验证 | fake connection、迁移、保存、持久化 Chunk 读取和 pgvector 调用合同 |
 | MCP stdio 展示 | 已完成 | 5 个工具的 JSON-RPC smoke |
 | 离线交付门禁 | 已完成 | `scripts/verify-offline.ps1`，当前环境 16 步通过（含 pytest 和 actor capability smoke） |
+| Actor 能力 HTTP smoke | 已完成 | `scripts/smoke-actors.ps1`；viewer/editor/operator 的允许、拒绝动作和 preview 不写盘均已由独立进程验证 |
 | 一键本地演示与演示脚本 | 已完成（未做视觉回归） | `scripts/start-demo.ps1`、`docs/DevSage演示脚本.md`；启动/健康/清理已验证 |
 | 只读环境预检 | 已完成 | `scripts/preflight.ps1`；Python、Node、npm、pytest、前端依赖可用，Docker CLI 可用但 daemon 未运行；未安装依赖或创建资源 |
 | Compose 构建边界与后端健康检查 | 已完成（静态） | `backend/.dockerignore`、Dockerfile `HEALTHCHECK` 和 Compose backend healthcheck；未执行镜像构建或容器启动 |

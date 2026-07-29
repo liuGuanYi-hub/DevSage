@@ -96,6 +96,7 @@
 - [ ] 实现用户、项目和权限模型；
 - [x] 建立本地项目注册与 viewer/editor/operator 能力矩阵边界（正式用户身份认证仍待接入）；
 - [x] 让带 `project_id` 的索引、检索、Agent 和知识写回 API 执行本地 actor/action 能力检查；
+- [x] 用独立 HTTP smoke 验证 viewer/editor/operator 能力边界和 preview 不写盘；
 - [x] 让索引、搜索、问答和 Agent API 支持通过 `project_id` 进入注册项目边界；
 - [x] 实现任务状态持久化；
 - [x] 实现受限任务暂停与恢复；
