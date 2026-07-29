@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 
-import { answerQuestion, indexSource, type AnswerResponse, type IndexResponse, type SearchHit } from "./api/client";
+import { indexSource, runAgent, type AgentResponse, type IndexResponse, type SearchHit } from "./api/client";
 
 const query = ref("");
 const results = ref<SearchHit[]>([]);
-const answer = ref<AnswerResponse | null>(null);
+const answer = ref<AgentResponse | null>(null);
 const indexInfo = ref<IndexResponse | null>(null);
 const status = ref("等待连接后端");
 const isLoading = ref(false);
@@ -25,7 +25,7 @@ async function search() {
   isLoading.value = true;
   status.value = "正在检索证据…";
   try {
-    const response = await answerQuestion(query.value);
+    const response = await runAgent(query.value);
     answer.value = response;
     results.value = response.evidence;
     status.value = response.evidence_sufficient
@@ -65,6 +65,12 @@ onMounted(refreshIndex);
           </div>
           <p>{{ answer.answer }}</p>
           <small v-if="answer.warning">{{ answer.warning }}</small>
+          <small>工具：{{ answer.tool_calls.join("、") }}</small>
+          <ol class="agent-steps">
+            <li v-for="step in answer.steps" :key="`${step.name}-${step.status}`">
+              {{ step.name }} · {{ step.status }} · {{ step.detail }}
+            </li>
+          </ol>
         </article>
         <article v-for="result in results" :key="result.citation" class="result-card">
           <div class="result-meta">
@@ -194,6 +200,14 @@ input {
 .result-card p {
   white-space: pre-wrap;
   line-height: 1.6;
+}
+
+.agent-steps {
+  margin: 14px 0 0;
+  padding-left: 20px;
+  color: #526176;
+  font-size: 0.88rem;
+  line-height: 1.7;
 }
 
 .empty-state {

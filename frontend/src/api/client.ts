@@ -34,6 +34,20 @@ export interface AnswerResponse {
   warning: string | null;
 }
 
+export interface AgentStep {
+  name: string;
+  status: string;
+  detail: string;
+}
+
+export interface AgentResponse extends AnswerResponse {
+  task_id: string;
+  category: string;
+  status: string;
+  tool_calls: string[];
+  steps: AgentStep[];
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 async function request<T>(path: string, options: RequestInit): Promise<T> {
@@ -71,6 +85,17 @@ export function answerQuestion(
   topK = 5,
 ): Promise<AnswerResponse> {
   return request<AnswerResponse>("/api/answer", {
+    method: "POST",
+    body: JSON.stringify({ query, source_root: sourceRoot, top_k: topK }),
+  });
+}
+
+export function runAgent(
+  query: string,
+  sourceRoot = "sample-data",
+  topK = 5,
+): Promise<AgentResponse> {
+  return request<AgentResponse>("/api/agent/run", {
     method: "POST",
     body: JSON.stringify({ query, source_root: sourceRoot, top_k: topK }),
   });

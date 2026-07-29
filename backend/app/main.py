@@ -20,6 +20,8 @@ from .schemas.search import (
     SearchRequest,
     SearchResponse,
 )
+from .schemas.agent import AgentRequest, AgentResponse, AgentStepResponse
+from .agents.runner import AgentRunner
 from .services.index_service import IndexService, SourceRootError
 from .services.answer_service import AnswerDraft, compose_evidence_answer
 from .services.knowledge_writeback import KnowledgeWritebackService, WritebackPolicyError
@@ -34,6 +36,7 @@ app = FastAPI(
 )
 
 index_service = IndexService()
+agent_runner = AgentRunner(index_service)
 writeback_service = KnowledgeWritebackService(PROJECT_ROOT / "data" / "approved-notes")
 
 
@@ -161,6 +164,35 @@ def stream_answer(request: AnswerRequest) -> StreamingResponse:
         yield f"event: done\ndata: {response.model_dump_json() if hasattr(response, 'model_dump_json') else response.json()}\n\n"
 
     return StreamingResponse(events(), media_type="text/event-stream")
+
+
+@app.post("/api/agent/run", response_model=AgentResponse, tags=["agent"])
+def run_agent(request: AgentRequest) -> AgentResponse:
+    """Run the bounded offline Agent workflow."""
+
+    try:
+        state = agent_runner.run(request.query, request.source_root, request.top_k)
+    except SourceRootError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    draft = state.answer
+    return AgentResponse(
+        task_id=state.task_id,
+        query=state.query,
+        source_root=state.source_root,
+        category=state.category,
+        status=state.status,
+        answer=draft.answer,
+        citations=list(draft.citations),
+        evidence_sufficient=draft.evidence_sufficient,
+        warning=draft.warning,
+        tool_calls=state.tool_calls,
+        steps=[
+            AgentStepResponse(name=step.name, status=step.status, detail=step.detail)
+            for step in state.steps
+        ],
+        evidence=[_to_search_hit(result) for result in state.evidence],
+    )
 
 
 @app.post("/api/knowledge-notes/preview", response_model=KnowledgeNotePreviewResponse, tags=["knowledge-notes"])

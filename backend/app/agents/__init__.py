@@ -1,2 +1,2 @@
-"""Agent state, graph and prompt modules reserved for later phases."""
+"""Finite-state Agent components used before LangGraph integration."""
 

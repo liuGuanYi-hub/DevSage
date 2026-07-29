@@ -114,6 +114,22 @@ class ApiTests(unittest.TestCase):
         self.assertIn("event: meta", response.text)
         self.assertIn("event: done", response.text)
 
+    def test_agent_endpoint_reports_tools_and_steps(self) -> None:
+        response = self.client.post(
+            "/api/agent/run",
+            json={
+                "source_root": "sample-data",
+                "query": "用户接口入口在哪个类？",
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        payload = response.json()
+        self.assertEqual("code_location", payload["category"])
+        self.assertIn("search_code", payload["tool_calls"])
+        self.assertIn("read_file", payload["tool_calls"])
+        self.assertTrue(payload["steps"])
+        self.assertTrue(payload["citations"])
+
 
 if __name__ == "__main__":
     unittest.main()
