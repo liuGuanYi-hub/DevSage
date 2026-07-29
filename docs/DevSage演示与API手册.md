@@ -127,6 +127,14 @@ python -m unittest backend.tests.test_postgres_repository
 
 ## 5. Docker / PostgreSQL smoke 边界
 
+在不启动 Docker 的情况下，可以先用真实本地 HTTP 服务验证项目发现、索引、Agent 和知识写回审批链路：
+
+```powershell
+.\scripts\smoke-http.ps1
+```
+
+该脚本使用临时端口启动 FastAPI，完成审批 smoke 后清理本次创建的测试笔记并关闭服务；它不会验证 PostgreSQL、Docker 卷或浏览器视觉渲染。
+
 默认只校验 Compose 配置，不会创建镜像、容器或卷：
 
 ```powershell

@@ -50,6 +50,7 @@ class ProjectStructureTests(unittest.TestCase):
             "evaluation/scripts/validate_mvp_dataset.py",
             "evaluation/scripts/evaluate_agent_grounding.py",
             "evaluation/scripts/smoke_mcp.py",
+            "scripts/smoke-http.ps1",
             "scripts/smoke-docker.ps1",
             "docs/DevSage演示与API手册.md",
             "docs/diagrams/devsage-architecture.html",
