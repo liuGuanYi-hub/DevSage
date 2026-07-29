@@ -120,6 +120,7 @@
 - [x] 统计 Faithfulness、Answer Relevance 的离线词法代理，并明确不等同于 LLM 评审；
 - [x] 统计 Tool Call Accuracy 的预期工具覆盖率；
 - [x] 统计 Agent Source Recall@5 和完整来源案例率；
+- [x] 为安全边界问题保留策略文档与配置模板的双来源证据；
 - [x] 记录失败案例和每次优化结果；
 - [ ] 只使用实测数据更新 README 和简历。
 

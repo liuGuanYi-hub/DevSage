@@ -48,6 +48,14 @@ def search_answer_chunks(
             provider,
             hybrid_search_fn,
         )
+    if category in {"knowledge_qa", "knowledge_write"} and _is_security_boundary_query(query):
+        return category, _search_security_boundary(
+            chunk_list,
+            query,
+            top_k,
+            provider,
+            hybrid_search_fn,
+        )
     return category, _run_hybrid(
         chunk_list,
         _expand_code_query(query),
@@ -138,6 +146,31 @@ def _search_project_summary(
     return select_source_diverse(fused, top_k=top_k, max_per_source=1)
 
 
+def _search_security_boundary(
+    chunks: list[ChunkRecord],
+    query: str,
+    top_k: int,
+    provider: EmbeddingProvider | None,
+    hybrid_search_fn: HybridSearchFn | None,
+) -> list[SearchResult]:
+    """Keep policy docs and explicitly relevant config in security answers."""
+
+    document_chunks = [chunk for chunk in chunks if _is_document_chunk(chunk, query)]
+    expanded_query = f"{query} .env.example POSTGRES_PASSWORD DATABASE_URL Token 密码 密钥"
+    results = [
+        result
+        for result in _run_hybrid(
+            document_chunks,
+            expanded_query,
+            top_k * 2,
+            provider,
+            hybrid_search_fn,
+        )
+        if _is_document_chunk(result.chunk, query)
+    ]
+    return select_source_diverse(results, top_k=top_k, max_per_source=1)
+
+
 def _run_hybrid(
     chunks: Iterable[ChunkRecord],
     query: str,
@@ -182,7 +215,41 @@ def _is_sensitive_config_query(query: str, chunk: ChunkRecord) -> bool:
     normalized = query.lower()
     return any(
         term in normalized
-        for term in (".env", "环境变量", "密码", "密钥", "token", "secret", "凭据")
+        for term in (
+            ".env",
+            "环境变量",
+            "密码",
+            "密钥",
+            "token",
+            "secret",
+            "凭据",
+            "提交",
+            "配置模板",
+            "不能",
+            "不应该",
+            "真实",
+        )
+    )
+
+
+def _is_security_boundary_query(query: str) -> bool:
+    """Detect questions where config-template evidence is part of the answer."""
+
+    normalized = query.lower()
+    return any(
+        term in normalized
+        for term in (
+            "不应该提交",
+            "不能",
+            "真实数据库密码",
+            "配置模板",
+            "安全边界",
+            "敏感内容",
+            "密码",
+            "密钥",
+            "token",
+            ".env",
+        )
     )
 
 

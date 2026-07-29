@@ -105,6 +105,16 @@ class AgentTests(unittest.TestCase):
         self.assertIn("create_knowledge_note_preview", state.tool_calls)
         self.assertNotIn("approve_knowledge_note", state.tool_calls)
 
+    def test_security_boundary_agent_respects_source_root_boundary(self) -> None:
+        state = self.runner.run(
+            "样例项目为什么不能把真实数据库密码写入配置模板？",
+            "sample-data",
+        )
+
+        sources = {result.chunk.source_path for result in state.evidence}
+        self.assertIn("README.md", sources)
+        self.assertNotIn(".env.example", sources)
+
     def test_unknown_question_stops_with_insufficient_evidence(self) -> None:
         state = self.runner.run("frobulate_qzxv_731942_unindexed", "sample-data")
         self.assertEqual("insufficient_evidence", state.status)

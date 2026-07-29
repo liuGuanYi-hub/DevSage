@@ -47,6 +47,17 @@ class AnswerSearchTests(unittest.TestCase):
             }.issubset(sources)
         )
 
+    def test_security_boundary_includes_env_template_evidence(self) -> None:
+        category, results = search_answer_chunks(
+            self.chunks,
+            "样例项目为什么不能把真实数据库密码写入配置模板？",
+        )
+
+        self.assertEqual("knowledge_write", category)
+        sources = {result.chunk.source_path for result in results}
+        self.assertIn(".env.example", sources)
+        self.assertIn("README.md", sources)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,6 @@
 # DevSage 交付就绪审计
 
-- 审计时间：2026-07-30 04:45
+- 审计时间：2026-07-30 05:05
 - 审计范围：DevMind MVP、DevSage Agent、工程化部署、量化评估、MCP 展示
 - 审计原则：只把当前文件、测试、运行输出或远端状态能直接证明的内容标记为已完成。
 
@@ -39,10 +39,11 @@
 
 - Agent Source Recall@5：`0.9800`
 - Agent 完整来源案例率：`0.9600`
+- Agent grounding 边界失败：`2/50`；两例预期的 `.env.example` 位于 `sample-data` source root 之外，Agent 未越界读取
 - Expected Tool Coverage：`0.9333`
-- 上下文 Context Precision@5：`0.3015`
-- 上下文 Context Recall@5：`0.9800`
-- 上下文失败案例：`2/50`，均为评估集预期的根目录 `.env.example` 超出 `sample-data` source root 的边界案例
+- 上下文 Context Precision@5：`0.3095`
+- 上下文 Context Recall@5：`1.0000`
+- 上下文失败案例：`0/50`；安全边界问题已增加配置模板证据路由，普通代码定位仍排除 `.env.example`
 
 ## 下一步执行顺序
 

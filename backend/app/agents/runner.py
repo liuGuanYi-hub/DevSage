@@ -282,7 +282,11 @@ class AgentRunner:
         if state.category == "knowledge_write":
             if not self._record_tool(state, "search_documents", "writeback source evidence"):
                 return []
-            results = self.index_service.search_hybrid(state.source_root, search_query, top_k)[1]
+            results = self._search_answer_evidence(
+                state.source_root,
+                search_query,
+                top_k,
+            )
             self._read_first_evidence(state, results)
             if results and any(result.matched_terms for result in results):
                 preview_draft = compose_evidence_answer(search_query, results)
@@ -365,9 +369,26 @@ class AgentRunner:
 
         if not self._record_tool(state, "search_documents", "hybrid evidence"):
             return []
-        results = self.index_service.search_hybrid(state.source_root, search_query, top_k)[1]
+        results = self._search_answer_evidence(
+            state.source_root,
+            search_query,
+            top_k,
+        )
         self._read_first_evidence(state, results)
         return results
+
+    def _search_answer_evidence(
+        self,
+        source_root: str,
+        query: str,
+        top_k: int,
+    ) -> list:
+        """Reuse category-aware retrieval while keeping lightweight test doubles valid."""
+
+        search_for_answer = getattr(self.index_service, "search_for_answer", None)
+        if callable(search_for_answer):
+            return search_for_answer(source_root, query, top_k)[1]
+        return self.index_service.search_hybrid(source_root, query, top_k)[1]
 
     def _read_first_evidence(self, state: AgentState, results) -> None:
         if not results:
