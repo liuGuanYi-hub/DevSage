@@ -94,6 +94,26 @@ export interface AgentResponse extends AnswerResponse {
   usage: AgentUsage;
 }
 
+export interface KnowledgeNoteDiff {
+  operation: string;
+  target_exists: boolean;
+  current_content_hash: string | null;
+  proposed_content_hash: string;
+  additions: number;
+  deletions: number;
+  unified_diff: string[];
+}
+
+export interface KnowledgeNotePreview {
+  preview_id: string;
+  title: string;
+  target_path: string;
+  content: string;
+  source_citations: string[];
+  diff: KnowledgeNoteDiff;
+  status: string;
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 async function request<T>(path: string, options: RequestInit): Promise<T> {
@@ -156,5 +176,30 @@ export function runAgent(
   return request<AgentResponse>("/api/agent/run", {
     method: "POST",
     body: JSON.stringify({ query, source_root: sourceRoot, top_k: topK, project_id: projectId }),
+  });
+}
+
+export function previewKnowledgeNote(
+  title: string,
+  content: string,
+  targetPath: string,
+  sourceCitations: string[],
+  projectId?: string,
+): Promise<KnowledgeNotePreview> {
+  return request<KnowledgeNotePreview>("/api/knowledge-notes/preview", {
+    method: "POST",
+    body: JSON.stringify({
+      title,
+      content,
+      target_path: targetPath,
+      source_citations: sourceCitations,
+      project_id: projectId,
+    }),
+  });
+}
+
+export function approveKnowledgeNote(previewId: string): Promise<KnowledgeNotePreview> {
+  return request<KnowledgeNotePreview>(`/api/knowledge-notes/${previewId}/approve`, {
+    method: "POST",
   });
 }

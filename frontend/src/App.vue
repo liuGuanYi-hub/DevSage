@@ -2,11 +2,14 @@
 import { onMounted, ref } from "vue";
 
 import {
+  approveKnowledgeNote,
   indexSource,
   listProjects,
+  previewKnowledgeNote,
   runAgent,
   type AgentResponse,
   type IndexResponse,
+  type KnowledgeNotePreview,
   type Project,
   type SearchHit,
 } from "./api/client";
@@ -19,6 +22,11 @@ const projects = ref<Project[]>([]);
 const selectedProjectId = ref("sample-data");
 const status = ref("等待连接后端");
 const isLoading = ref(false);
+const noteTitle = ref("DevSage knowledge note");
+const noteContent = ref("");
+const noteTargetPath = ref("DevMind/answer.md");
+const pendingPreview = ref<KnowledgeNotePreview | null>(null);
+const writebackStatus = ref("");
 
 function categoryLabel(category: string): string {
   const labels: Record<string, string> = {
@@ -57,6 +65,8 @@ async function search() {
     );
     answer.value = response;
     results.value = response.evidence;
+    noteContent.value = response.answer;
+    noteTitle.value = query.value.trim().slice(0, 80) || "DevSage knowledge note";
     status.value = response.evidence_sufficient
       ? `找到 ${response.evidence.length} 条直接证据`
       : "证据不足，页面保留排查线索";
@@ -64,6 +74,34 @@ async function search() {
     status.value = `检索失败：${error instanceof Error ? error.message : "未知错误"}`;
   } finally {
     isLoading.value = false;
+  }
+}
+
+async function createNotePreview() {
+  if (!answer.value || !noteContent.value.trim()) return;
+  writebackStatus.value = "Generating a pending preview...";
+  try {
+    pendingPreview.value = await previewKnowledgeNote(
+      noteTitle.value.trim() || "DevSage knowledge note",
+      noteContent.value.trim(),
+      noteTargetPath.value.trim(),
+      answer.value.citations,
+      selectedProjectId.value || undefined,
+    );
+    writebackStatus.value = "Preview created. Review the diff before approval.";
+  } catch (error) {
+    writebackStatus.value = `Preview failed: ${error instanceof Error ? error.message : "unknown error"}`;
+  }
+}
+
+async function approveNote() {
+  if (!pendingPreview.value) return;
+  writebackStatus.value = "Approving note...";
+  try {
+    pendingPreview.value = await approveKnowledgeNote(pendingPreview.value.preview_id);
+    writebackStatus.value = "Approved and written to the staging directory.";
+  } catch (error) {
+    writebackStatus.value = `Approval failed: ${error instanceof Error ? error.message : "unknown error"}`;
   }
 }
 
@@ -162,6 +200,44 @@ onMounted(async () => {
           </div>
         </article>
 
+        <article class="writeback-card">
+          <div class="result-meta">
+            <strong>Knowledge note preview and approval</strong>
+            <span v-if="pendingPreview">{{ pendingPreview.status }}</span>
+          </div>
+          <label class="field-label">
+            Title
+            <input v-model="noteTitle" aria-label="Knowledge note title" />
+          </label>
+          <label class="field-label">
+            Target path
+            <input v-model="noteTargetPath" aria-label="Knowledge note target path" />
+          </label>
+          <label class="field-label">
+            Content
+            <textarea v-model="noteContent" rows="8" aria-label="Knowledge note content"></textarea>
+          </label>
+          <div class="writeback-actions">
+            <button type="button" @click="createNotePreview" :disabled="!noteContent.trim()">
+              Generate preview
+            </button>
+            <button
+              v-if="pendingPreview && pendingPreview.status === 'pending'"
+              type="button"
+              @click="approveNote"
+            >
+              Approve and write
+            </button>
+          </div>
+          <small v-if="writebackStatus" class="writeback-status">{{ writebackStatus }}</small>
+          <div v-if="pendingPreview" class="diff-summary">
+            <small>
+              {{ pendingPreview.diff.operation }} · +{{ pendingPreview.diff.additions }} / -{{ pendingPreview.diff.deletions }} · {{ pendingPreview.target_path }}
+            </small>
+            <pre>{{ pendingPreview.diff.unified_diff.join("\n") }}</pre>
+          </div>
+        </article>
+
         <article v-for="result in results" :key="result.citation" class="result-card">
           <div class="result-meta">
             <strong>{{ result.source_path }}</strong>
@@ -226,6 +302,7 @@ input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; p
 .result-card { border: 1px solid #d7e0ea; background: #f8fbfd; }
 .answer-card { border: 1px solid #8bb5d8; background: #eef7ff; }
 .report-card { border: 1px solid #b9d8c5; background: #f3fbf5; }
+.writeback-card { border: 1px solid #d6c38e; background: #fffaf0; }
 .result-meta { justify-content: space-between; flex-wrap: wrap; color: #416b98; font-size: 0.85rem; }
 .result-card p, .report-card p { white-space: pre-wrap; line-height: 1.6; }
 .answer-text { white-space: pre-wrap; line-height: 1.7; font-size: 1.05rem; }
@@ -234,6 +311,13 @@ input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; p
 .finding { margin-top: 14px; padding-top: 10px; border-top: 1px solid #d6eadb; }
 .finding ul, .next-steps ol { margin-bottom: 0; padding-left: 20px; line-height: 1.6; }
 .next-steps { margin-top: 16px; }
+.field-label { display: grid; gap: 6px; margin-top: 12px; color: #526176; font-size: 0.88rem; font-weight: 600; }
+.field-label textarea { resize: vertical; border: 1px solid #cbd6e2; border-radius: 10px; padding: 12px 14px; font: inherit; line-height: 1.5; }
+.writeback-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.writeback-actions button:last-child { background: #8a6421; }
+.writeback-status { display: block; margin-top: 10px; color: #6a541d; }
+.diff-summary { margin-top: 14px; }
+.diff-summary pre { max-height: 240px; overflow: auto; padding: 12px; border-radius: 10px; background: #29261f; color: #f8edc7; white-space: pre-wrap; font: 0.82rem/1.5 "SFMono-Regular", Consolas, monospace; }
 .empty-state { color: #6c7b8f; text-align: center; }
 li { margin: 8px 0; line-height: 1.5; }
 
