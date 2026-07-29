@@ -1,12 +1,12 @@
 # DevSage
 
-DevSage 是基于 Agentic RAG 的研发知识库与故障排查系统。当前处于阶段 1：已完成本地数据接入、内容 Hash、结构化 Chunk、关键词/离线向量检索基线、来源查询 API 和知识写回审批边界。
+DevSage 是基于 Agentic RAG 的研发知识库与故障排查系统。当前处于阶段 3 的离线可验证基线：已完成本地数据接入、内容 Hash、结构化 Chunk、关键词/离线向量检索基线、来源查询 API、知识写回审批边界和有限图 Agent。
 
 ## 当前版本范围
 
 - `DevMind`：个人模式，优先连接 Obsidian 笔记和个人项目代码；
 - `DevSage`：后续扩展到 Git、Issue、多项目和团队协作；
-- 当前仍未接入 PostgreSQL/pgvector 持久化、真实 Embedding 服务和完整 Agent 编排。
+- 当前仍未接入 PostgreSQL/pgvector 持久化、真实 Embedding 服务、LangGraph 运行时和外部 Issue 平台。
 
 ## 目录结构
 
@@ -44,12 +44,12 @@ npm run dev --prefix frontend
 
 ## 当前正在做
 
-当前 API 已支持索引 `sample-data`、关键词/混合证据查询、证据约束回答、SSE 流式输出、有限状态多工具 Agent、脱敏 Issue 查询、本地 Git 历史查询、来源行号、索引变化统计，以及知识笔记预览和审批写入项目暂存目录。Embedding 默认使用离线 Hash；显式配置远程 Provider 后才会发起请求。下一步是接入 PostgreSQL + pgvector 持久化。
+当前 API 已支持索引 `sample-data`、关键词/混合证据查询、证据约束回答、SSE 流式输出、有限图多工具 Agent、脱敏 Issue 查询、本地 Git 历史和 Commit Diff 只读查询、来源行号、索引变化统计，以及知识笔记预览和审批写入项目暂存目录。Agent 状态可生成 JSON 快照，工具调用和图步骤有硬上限。Embedding 默认使用离线 Hash；显式配置远程 Provider 后才会发起请求。
 
 ## 下一步
 
-1. 接入 PostgreSQL 全文检索和 pgvector 持久化；
-2. 选择真实 Embedding Provider 并替换 Hash 测试替身；
-3. 把前端占位页接入索引、查询和来源接口；
-4. 用 `evaluation/datasets/devmind_mvp_questions.json` 持续比较检索策略；
-5. 再进入 LangGraph Agent 和项目总结流程。
+1. 在当前 Graph 契约之上接入真实 LangGraph，并保持离线测试路径；
+2. 接入 PostgreSQL 全文检索和 pgvector 持久化；
+3. 选择真实 Embedding Provider 并替换 Hash 测试替身；
+4. 增加任务状态持久化、工具超时和有限重试；
+5. 用 `evaluation/datasets/devmind_mvp_questions.json` 持续比较检索策略，再进入项目总结流程。

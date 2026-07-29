@@ -10,6 +10,7 @@ QUESTION_CATEGORIES = (
     "knowledge_write",
     "knowledge_qa",
     "git_history",
+    "git_diff",
     "issue_search",
 )
 
@@ -28,6 +29,8 @@ def classify_question(query: str) -> str:
         return "troubleshooting"
     if any(word in text for word in ("issue", "问题单", "历史故障", "故障记录", "之前出现过", "是否出现过")):
         return "issue_search"
+    if any(word in text for word in ("diff", "patch", "show", "差异", "变更", "提交内容", "改了什么", "修改了什么")):
+        return "git_diff"
     if any(word in text for word in ("提交", "commit", "git", "修改记录")):
         return "git_history"
     if any(word in text for word in ("在哪里", "哪个类", "哪个方法", "接口", "路由", "代码")):

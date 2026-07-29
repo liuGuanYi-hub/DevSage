@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from backend.app.agents.git_tools import GitToolError, get_git_history
+from backend.app.agents.git_tools import GitToolError, get_commit_diff, get_git_history
 from backend.app.agents.issue_tools import search_issues
 
 
@@ -22,6 +22,19 @@ class GitIssueToolTests(unittest.TestCase):
     def test_git_history_rejects_path_escape(self) -> None:
         with self.assertRaises(GitToolError):
             get_git_history(repository_path="../", limit=1)
+
+    def test_commit_diff_is_bounded_and_cited(self) -> None:
+        history = get_git_history(repository_path=".", limit=1)
+        result = get_commit_diff(history[0].chunk.metadata["commit_hash"], max_lines=10)
+        self.assertEqual("git_diff", result.chunk.file_type)
+        self.assertIn("git-diff", result.matched_terms)
+        self.assertLessEqual(result.chunk.end_line, 11)
+
+    def test_commit_diff_rejects_path_escape_and_bad_hash(self) -> None:
+        with self.assertRaises(GitToolError):
+            get_commit_diff("not-a-commit")
+        with self.assertRaises(GitToolError):
+            get_commit_diff("faedcf2", path="../README.md")
 
 
 if __name__ == "__main__":

@@ -1,8 +1,10 @@
+import json
 import unittest
 from pathlib import Path
 
 from backend.app.agents.classifier import classify_question
 from backend.app.agents.runner import AgentRunner
+from backend.app.agents.state import AgentState
 from backend.app.services.index_service import IndexService
 
 
@@ -45,6 +47,31 @@ class AgentTests(unittest.TestCase):
         self.assertIn("search_documents", state.tool_calls)
         self.assertIn("search_issues", state.tool_calls)
         self.assertIn("get_git_history", state.tool_calls)
+
+    def test_git_diff_question_is_classified_separately(self) -> None:
+        self.assertEqual("git_diff", classify_question("最近一次提交改了什么"))
+
+    def test_git_diff_question_uses_read_only_diff_tool(self) -> None:
+        state = self.runner.run("最近一次提交改了什么", "sample-data")
+        self.assertEqual("git_diff", state.category)
+        self.assertIn("get_commit_diff", state.tool_calls)
+        self.assertTrue(state.answer.evidence_sufficient)
+
+    def test_state_snapshot_round_trip_is_json_safe(self) -> None:
+        state = self.runner.run("用户接口入口在哪里", "sample-data")
+        snapshot = state.to_dict()
+        json.dumps(snapshot, ensure_ascii=False)
+        restored = AgentState.from_dict(snapshot)
+        self.assertEqual(state.task_id, restored.task_id)
+        self.assertEqual(state.status, restored.status)
+        self.assertEqual(state.tool_calls, restored.tool_calls)
+        self.assertEqual(state.answer.citations, restored.answer.citations)
+
+    def test_tool_limit_stops_before_unbounded_read(self) -> None:
+        runner = AgentRunner(IndexService(), max_tool_calls=1)
+        state = runner.run("用户接口入口在哪里", "sample-data")
+        self.assertEqual("tool_limit_reached", state.status)
+        self.assertIsNone(state.answer)
 
 
 if __name__ == "__main__":

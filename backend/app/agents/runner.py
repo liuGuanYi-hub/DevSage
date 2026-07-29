@@ -2,36 +2,63 @@
 
 from __future__ import annotations
 
+import re
 from uuid import uuid4
 
 from ..services.answer_service import compose_evidence_answer
 from ..services.index_service import IndexService, SourceRootError
 from .classifier import classify_question
-from .git_tools import GitToolError, get_git_history
+from .git_tools import GitToolError, get_commit_diff, get_git_history
+from .graph import AgentGraph, AgentLimits
 from .issue_tools import IssueToolError, search_issues
 from .state import AgentState, AgentStep
 
 
 class AgentRunner:
-    """Run a small finite workflow until evidence is sufficient or exhausted."""
+    """Run an observable graph until evidence is sufficient or exhausted."""
 
-    def __init__(self, index_service: IndexService, max_tool_calls: int = 4) -> None:
+    def __init__(
+        self,
+        index_service: IndexService,
+        max_tool_calls: int = 4,
+        max_steps: int = 12,
+    ) -> None:
         self.index_service = index_service
         self.max_tool_calls = max_tool_calls
+        self.max_steps = max_steps
+        self.graph = AgentGraph(
+            nodes={
+                "classify_question": self._classify_node,
+                "retrieve_evidence": self._retrieve_node,
+                "evidence_check": self._evidence_node,
+                "compose_answer": self._compose_node,
+            },
+            transitions={},
+            limits=AgentLimits(max_steps=max_steps, max_tool_calls=max_tool_calls),
+        )
 
     def run(self, query: str, source_root: str, top_k: int = 5) -> AgentState:
         state = AgentState(uuid4().hex, query, source_root)
-        category = classify_question(query)
-        state.set_category(category)
-        state.steps.append(AgentStep("classify_question", "completed", category))
-
         try:
-            state.evidence = self._retrieve(state, top_k)
+            self.graph.run(state, {"top_k": top_k})
         except (SourceRootError, GitToolError, IssueToolError):
             state.status = "failed"
-            state.steps.append(AgentStep("retrieve_evidence", "failed", "invalid source root"))
+            state.steps.append(AgentStep("retrieve_evidence", "failed", "invalid source root or tool input"))
             raise
+        return state
 
+    def _classify_node(self, state: AgentState, _context: dict[str, object]) -> str:
+        category = classify_question(state.query)
+        state.set_category(category)
+        state.steps.append(AgentStep("classify_question", "completed", category))
+        return "retrieve_evidence"
+
+    def _retrieve_node(self, state: AgentState, context: dict[str, object]) -> str:
+        top_k = int(context.get("top_k", 5))
+        state.evidence = self._retrieve(state, top_k)
+        return "evidence_check"
+
+    def _evidence_node(self, state: AgentState, _context: dict[str, object]) -> str:
         state.steps.append(
             AgentStep(
                 "evidence_check",
@@ -39,18 +66,29 @@ class AgentRunner:
                 f"candidates={len(state.evidence)}",
             )
         )
-        draft = compose_evidence_answer(query, state.evidence)
+        return "compose_answer"
+
+    def _compose_node(self, state: AgentState, _context: dict[str, object]) -> None:
+        draft = compose_evidence_answer(state.query, state.evidence)
         state.answer = draft
         state.status = "completed" if draft.evidence_sufficient else "insufficient_evidence"
         state.steps.append(AgentStep("compose_answer", state.status, "evidence-grounded draft"))
-        return state
+        return None
+
+    def _record_tool(self, state: AgentState, name: str, detail: str) -> bool:
+        if not state.record_tool_call(name, self.max_tool_calls):
+            state.status = "tool_limit_reached"
+            state.steps.append(AgentStep("terminate", "limit_reached", f"tool limit reached before {name}"))
+            return False
+        state.steps.append(AgentStep(name, "completed", detail))
+        return True
 
     def _retrieve(self, state: AgentState, top_k: int):
         if state.category == "code_location":
-            state.tool_calls.append("search_code")
-            state.steps.append(AgentStep("search_code", "completed", "code chunks"))
+            if not self._record_tool(state, "search_code", "code chunks"):
+                return []
             results = self.index_service.search_code(state.source_root, state.query, top_k)
-            if results and len(state.tool_calls) < self.max_tool_calls:
+            if results and self._record_tool(state, "read_file", results[0].citation):
                 result = results[0]
                 self.index_service.read_file(
                     state.source_root,
@@ -58,31 +96,45 @@ class AgentRunner:
                     result.chunk.start_line,
                     result.chunk.end_line,
                 )
-                state.tool_calls.append("read_file")
-                state.steps.append(AgentStep("read_file", "completed", result.citation))
             return results
 
         if state.category == "project_summary":
-            state.tool_calls.extend(["search_documents", "search_code"])
-            state.steps.append(AgentStep("search_documents", "completed", "project docs"))
-            state.steps.append(AgentStep("search_code", "completed", "project code"))
+            if not self._record_tool(state, "search_documents", "project docs"):
+                return []
+            if not self._record_tool(state, "search_code", "project code"):
+                return []
             return self.index_service.search_project(state.source_root, state.query, top_k)
 
         if state.category == "git_history":
-            state.tool_calls.append("get_git_history")
-            state.steps.append(AgentStep("get_git_history", "completed", "local repository"))
+            if not self._record_tool(state, "get_git_history", "local repository"):
+                return []
             return get_git_history(state.query, limit=top_k)
 
+        if state.category == "git_diff":
+            commit_hash = _extract_commit_hash(state.query)
+            if commit_hash is None:
+                if not self._record_tool(state, "get_git_history", "select latest local commit"):
+                    return []
+                history = get_git_history("", limit=1)
+                if not history:
+                    return []
+                commit_hash = history[0].chunk.metadata["commit_hash"]
+            if not self._record_tool(state, "get_commit_diff", f"commit {commit_hash}"):
+                return []
+            return [get_commit_diff(commit_hash)]
+
         if state.category == "issue_search":
-            state.tool_calls.append("search_issues")
-            state.steps.append(AgentStep("search_issues", "completed", "exported Issue records"))
+            if not self._record_tool(state, "search_issues", "exported Issue records"):
+                return []
             return search_issues(state.query, limit=top_k)
 
         if state.category == "troubleshooting":
-            state.tool_calls.extend(["search_documents", "search_issues", "get_git_history"])
-            state.steps.append(AgentStep("search_documents", "completed", "hybrid evidence"))
-            state.steps.append(AgentStep("search_issues", "completed", "historical failures"))
-            state.steps.append(AgentStep("get_git_history", "completed", "recent repository changes"))
+            if not self._record_tool(state, "search_documents", "hybrid evidence"):
+                return []
+            if not self._record_tool(state, "search_issues", "historical failures"):
+                return []
+            if not self._record_tool(state, "get_git_history", "recent repository changes"):
+                return []
             document_results = self.index_service.search_hybrid(
                 state.source_root,
                 state.query,
@@ -97,6 +149,11 @@ class AgentRunner:
                 top_k=top_k,
             )
 
-        state.tool_calls.append("search_documents")
-        state.steps.append(AgentStep("search_documents", "completed", "hybrid evidence"))
+        if not self._record_tool(state, "search_documents", "hybrid evidence"):
+            return []
         return self.index_service.search_hybrid(state.source_root, state.query, top_k)[1]
+
+
+def _extract_commit_hash(query: str) -> str | None:
+    match = re.search(r"(?<![0-9a-fA-F])[0-9a-fA-F]{7,40}(?![0-9a-fA-F])", query)
+    return match.group(0) if match else None
