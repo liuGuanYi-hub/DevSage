@@ -30,7 +30,7 @@ from .schemas.agent import (
 from .schemas.projects import ProjectListResponse, ProjectResponse
 from .agents.runner import AgentRunner
 from .services.index_service import IndexService, SourceRootError
-from .services.answer_service import AnswerDraft, compose_evidence_answer
+from .services.answer_service import AnswerDraft, compose_routed_answer
 from .services.knowledge_writeback import KnowledgeWritebackService, WritebackPolicyError
 from .services.project_registry import ProjectRegistry, ProjectRegistryError
 from .services.troubleshooting import TroubleshootingReport, build_troubleshooting_report
@@ -212,7 +212,7 @@ def answer_question(request: AnswerRequest) -> AnswerResponse:
 
     try:
         requested_root = _resolve_request_source_root(request.project_id, request.source_root)
-        source_root, results = index_service.search_hybrid(
+        source_root, results = index_service.search_for_answer(
             requested_root,
             request.query,
             request.top_k,
@@ -224,7 +224,7 @@ def answer_question(request: AnswerRequest) -> AnswerResponse:
     return _answer_response(
         request.query,
         source_root,
-        compose_evidence_answer(request.query, results),
+        compose_routed_answer(request.query, results),
     )
 
 
@@ -234,7 +234,7 @@ def stream_answer(request: AnswerRequest) -> StreamingResponse:
 
     try:
         requested_root = _resolve_request_source_root(request.project_id, request.source_root)
-        source_root, results = index_service.search_hybrid(
+        source_root, results = index_service.search_for_answer(
             requested_root,
             request.query,
             request.top_k,
@@ -244,7 +244,7 @@ def stream_answer(request: AnswerRequest) -> StreamingResponse:
     except PostgresRepositoryError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    draft = compose_evidence_answer(request.query, results)
+    draft = compose_routed_answer(request.query, results)
     response = _answer_response(request.query, source_root, draft)
 
     def events():

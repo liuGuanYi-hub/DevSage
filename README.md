@@ -6,6 +6,7 @@ DevSage 是基于 Agentic RAG 的研发知识库与故障排查系统。当前�
 
 - 混合检索已增加来源多样性重排，并提供离线上下文质量代理评估；代理指标不等同于真实 LLM 评审。
 - Agent 已增加来源级 grounding 评估、配置文件检索、代码路径加权、项目总结证据预算和有界工具重试；50 条问题当前 Agent Source Recall@5 为 0.9800，完整来源案例率为 0.9600。指标仍是固定脱敏数据集上的离线结果。
+- 答案 API 与上下文评估已共享分类检索路由：代码定位优先代码证据，项目总结使用多来源预算和结构化摘要，普通问题继续使用混合检索；当前上下文质量代理为 Precision@5 `0.3015`、Recall@5 `0.9800`、失败 `2/50`，剩余失败是评估集根目录 `.env.example` 超出 `sample-data` 的边界案例。
 
 - `DevMind`：个人模式，优先连接 Obsidian 笔记和个人项目代码；
 - `DevSage`：后续扩展到 Git、Issue、多项目和团队协作；
@@ -73,7 +74,7 @@ npm run dev --prefix frontend
 
 ## 当前正在做
 
-当前 API 已支持项目注册发现、索引 `sample-data`、关键词/混合证据查询、证据约束回答、SSE 流式输出、有限图多工具 Agent、脱敏或可选外部 Issue 查询、本地 Git 历史和 Commit Diff 只读查询、结构化故障排查报告、来源行号、索引变化统计，以及知识笔记预览和审批写入项目暂存目录。离线模式默认把索引快照写入被忽略的 `data/index-snapshots/`，服务重启后仍可按内容 Hash 复用未变化文档；PostgreSQL 模式使用数据库持久化。Agent 状态可生成 JSON 快照，API 还返回不含查询正文的完成 usage：离线 token 估算、工具调用/重试次数和运行时；这些 token 不是供应商账单。工具调用、图步骤和总运行时有硬上限。Embedding 默认使用离线 Hash；显式配置远程 Provider 后才会发起请求。另提供无第三方依赖的 MCP-compatible stdio Server。
+当前 API 已支持项目注册发现、索引 `sample-data`、关键词/混合证据查询、分类答案检索路由、项目总结结构化回答、证据约束回答、SSE 流式输出、有限图多工具 Agent、脱敏或可选外部 Issue 查询、本地 Git 历史和 Commit Diff 只读查询、结构化故障排查报告、来源行号、索引变化统计，以及知识笔记预览和审批写入项目暂存目录。离线模式默认把索引快照写入被忽略的 `data/index-snapshots/`，服务重启后仍可按内容 Hash 复用未变化文档；PostgreSQL 模式使用数据库持久化。Agent 状态可生成 JSON 快照，API 还返回不含查询正文的完成 usage：离线 token 估算、工具调用/重试次数和运行时；这些 token 不是供应商账单。工具调用、图步骤和总运行时有硬上限。Embedding 默认使用离线 Hash；显式配置远程 Provider 后才会发起请求。另提供无第三方依赖的 MCP-compatible stdio Server。
 
 ## MCP 演示
 

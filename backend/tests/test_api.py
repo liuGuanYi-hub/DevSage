@@ -196,6 +196,35 @@ class ApiTests(unittest.TestCase):
         self.assertTrue(payload["citations"])
         self.assertIn("springboot-errors.md", payload["answer"])
 
+    def test_answer_endpoint_routes_code_location_to_code_evidence(self) -> None:
+        response = self.client.post(
+            "/api/answer",
+            json={
+                "source_root": "sample-data",
+                "query": "示例 Spring Boot 项目的用户接口入口在哪个类？",
+            },
+        )
+
+        self.assertEqual(200, response.status_code)
+        payload = response.json()
+        self.assertTrue(
+            any("UserController.java" in citation for citation in payload["citations"])
+        )
+
+    def test_answer_endpoint_formats_project_summary_with_wider_evidence(self) -> None:
+        response = self.client.post(
+            "/api/answer",
+            json={
+                "source_root": "sample-data",
+                "query": "示例 Spring Boot 项目包含哪些与用户查询相关的文件？",
+            },
+        )
+
+        self.assertEqual(200, response.status_code)
+        payload = response.json()
+        self.assertTrue(payload["answer"].startswith("项目总结"))
+        self.assertTrue(any("UserService.java" in citation for citation in payload["citations"]))
+
     def test_answer_endpoint_refuses_unsupported_conclusion(self) -> None:
         response = self.client.post(
             "/api/answer",

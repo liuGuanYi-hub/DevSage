@@ -7,6 +7,12 @@ from pathlib import Path
 from threading import RLock
 
 from ..ingestion.indexer import IndexSnapshot, build_index
+from ..retrieval.answer_search import (
+    _expand_code_query,
+    _is_code_chunk,
+    _is_document_chunk,
+    search_answer_chunks,
+)
 from ..retrieval.hybrid_search import search_hybrid
 from ..retrieval.keyword_search import search_keyword
 from ..retrieval.models import SearchResult
@@ -19,27 +25,6 @@ from .index_snapshot_store import FileIndexSnapshotStore
 PROJECT_ROOT = Path(
     os.getenv("DEVSAGE_PROJECT_ROOT", str(Path(__file__).resolve().parents[3]))
 ).resolve()
-
-CODE_QUERY_EXPANSIONS = {
-    "用户": "user UserController UserService",
-    "接口": "controller Controller endpoint",
-    "登录": "login AuthController",
-    "认证": "auth Authenticate middleware",
-    "令牌": "token Bearer Sanctum",
-    "路由": "route Route routes",
-    "方法": "method function",
-    "调用链": "Controller Service",
-    "调用": "Controller Service",
-    "中间件": "middleware Authenticate auth:sanctum",
-    "任务列表": "task tasks api.php auth:sanctum",
-    "登录路由": "api.php AuthController login",
-    "token 类型": "token_type Bearer AuthController",
-    "返回什么类型": "UserDto UserController getUser",
-    "配置": "application.yml server.port",
-    "端口": "application.yml server.port",
-    "getuser": "UserController UserDto UserService",
-}
-
 
 class SourceRootError(ValueError):
     """Raised when an API caller requests an invalid source directory."""
@@ -161,13 +146,29 @@ class IndexService:
             provider=self.embedding_provider,
         )
 
+    def search_for_answer(
+        self,
+        source_root: str,
+        query: str,
+        top_k: int,
+    ) -> tuple[str, list[SearchResult]]:
+        """Retrieve answer evidence using category-aware production routing."""
+
+        relative_root, snapshot = self.get_or_build(source_root)
+        _, results = search_answer_chunks(
+            snapshot.chunks,
+            query,
+            top_k=top_k,
+            provider=self.embedding_provider,
+        )
+        return relative_root, results
+
     def search_code(self, source_root: str, query: str, top_k: int) -> list[SearchResult]:
         _, snapshot = self.get_or_build(source_root)
         code_chunks = [
             chunk
             for chunk in snapshot.chunks
-            if chunk.file_type in {"code", "config"}
-            and not chunk.source_path.startswith(("issues/", "git/"))
+            if _is_code_chunk(chunk, query)
         ]
         expanded_query = _expand_code_query(query)
         candidates = search_keyword(
@@ -182,18 +183,13 @@ class IndexService:
         document_chunks = [
             chunk
             for chunk in snapshot.chunks
-            if chunk.file_type == "markdown"
-            or (
-                chunk.file_type == "config"
-                and not chunk.source_path.startswith(("issues/", "git/"))
-            )
+            if _is_document_chunk(chunk, query)
         ]
         document_results = search_hybrid(document_chunks, query, top_k=top_k * 2)
         code_chunks = [
             chunk
             for chunk in snapshot.chunks
-            if chunk.file_type in {"code", "config"}
-            and not chunk.source_path.startswith(("issues/", "git/"))
+            if _is_code_chunk(chunk, query)
         ]
         code_results = search_keyword(
             code_chunks,
@@ -233,13 +229,3 @@ class IndexService:
         if bounded_end < start_line:
             return ""
         return "\n".join(lines[start_line - 1 : bounded_end])
-
-
-def _expand_code_query(query: str) -> str:
-    normalized_query = query.lower()
-    expansions = " ".join(
-        expansion
-        for term, expansion in CODE_QUERY_EXPANSIONS.items()
-        if term.lower() in normalized_query
-    )
-    return f"{query} {expansions}".strip()

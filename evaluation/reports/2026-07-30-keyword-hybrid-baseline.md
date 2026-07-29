@@ -140,3 +140,23 @@
 | 混合 + 来源多样性重排 | 0.8200 | 0.6783 | 0.6753 |
 
 Agent grounding 仍为 Source Recall@5 `0.9800`、完整来源案例率 `0.9600`；上下文质量代理当前为 Context Precision `0.2000`、Context Recall `0.6783`、Answer Relevance Proxy F1 `0.1213`、Faithfulness Proxy Precision `0.8661`。本轮未执行真实外部网络请求，适配器只通过 fake transport 测试。
+
+## 2026-07-30 04:34：统一答案检索路由与项目总结回答
+
+本轮没有只调整评估脚本，而是新增 `backend/app/retrieval/answer_search.py` 作为生产答案检索路由，并让 `/api/answer`、`/api/answer/stream`、Agent 代码路径规则和上下文质量评估共享同一组分类与证据筛选逻辑：代码定位优先代码来源并按需合并支持文档；项目总结使用至少 8 个候选来源并按代码/文档分组组织答案；普通问题继续使用混合检索。对无关代码定位问题，根目录点号环境模板不会被默认当作代码证据，只有查询明确指向环境变量、密码、Token 等配置时才允许进入该分支。
+
+### 上下文质量代理结果
+
+| 指标 | 路由改造前 | 当前 |
+|---|---:|---:|
+| Context Precision@5（Chunk） | 0.2440 | 0.3015 |
+| Context Precision@5（去重来源） | 0.2440 | 0.3079 |
+| Context Recall@5 | 0.8000 | 0.9800 |
+| Answer Relevance Proxy F1 | 0.1260 | 0.1402 |
+| Reference Term Recall | 0.8492 | 0.8596 |
+| Faithfulness Proxy Precision | 0.8545 | 0.7637 |
+| 失败案例 | 16/50 | 2/50 |
+
+当前两条失败仍是评估集预期的根目录 `.env.example`，而 Agent 使用的 `sample-data` source root 不包含该文件，属于数据范围边界，不应伪装成已解决。Faithfulness 代理下降说明来源扩展后答案包含了更多检索片段，仍需后续做更精确的证据裁剪；以上所有数字仍是词法代理，不等同于人工或 LLM-as-a-judge 结论。
+
+本轮新增答案路由和 API 回归测试，定向测试共 `48` 项通过，`python -m compileall -q backend evaluation` 通过。未执行真实 Docker、外部 Issue 网络请求或远程 Embedding 请求。

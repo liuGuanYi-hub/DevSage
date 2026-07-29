@@ -18,10 +18,9 @@ if str(PROJECT_ROOT) not in sys.path:
 from backend.app.ingestion.chunkers import split_document
 from backend.app.ingestion.indexer import build_index
 from backend.app.ingestion.loaders import load_document
-from backend.app.retrieval.hybrid_search import search_hybrid
+from backend.app.retrieval.answer_search import search_answer_chunks
 from backend.app.retrieval.keyword_search import tokenize
-from backend.app.services.answer_service import compose_evidence_answer
-from backend.app.services.index_service import _expand_code_query
+from backend.app.services.answer_service import compose_routed_answer
 
 
 def _terms(value: str) -> set[str]:
@@ -91,11 +90,11 @@ def evaluate(top_k: int = 5) -> dict[str, object]:
 
     for case in cases:
         expected = {_normalise_source(source) for source in case["expected_sources"]}
-        # Mirror IndexService.search_hybrid so the quality report measures the
-        # production query preprocessing rather than the raw low-level baseline.
-        results = search_hybrid(
+        # Use the same category-aware answer route as the production API. The
+        # raw hybrid strategy remains measured separately as a retrieval baseline.
+        _, results = search_answer_chunks(
             chunks,
-            _expand_code_query(case["question"]),
+            case["question"],
             top_k=top_k,
         )
         retrieved = [result.chunk.source_path for result in results]
@@ -107,7 +106,7 @@ def evaluate(top_k: int = 5) -> dict[str, object]:
         )
         recall = relevant_count / len(expected) if expected else 0.0
 
-        draft = compose_evidence_answer(case["question"], results)
+        draft = compose_routed_answer(case["question"], results)
         evidence_text = "\n".join(result.chunk.content for result in draft.evidence)
         relevance = lexical_f1(draft.answer, case["reference_answer"])
         reference_recall = lexical_recall(draft.answer, case["reference_answer"])

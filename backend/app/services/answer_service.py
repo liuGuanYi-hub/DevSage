@@ -71,3 +71,13 @@ def compose_evidence_answer(
         warning=warning,
     )
 
+
+def compose_routed_answer(query: str, results: list[SearchResult]) -> AnswerDraft:
+    """Select the answer format that matches the shared retrieval category."""
+
+    from ..agents.classifier import classify_question
+    from .project_summary import compose_project_summary
+
+    if classify_question(query) == "project_summary":
+        return compose_project_summary(query, results)
+    return compose_evidence_answer(query, results)

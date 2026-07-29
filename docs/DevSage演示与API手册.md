@@ -80,6 +80,8 @@ FastAPI 运行后也可通过 `/docs` 查看当前 OpenAPI 页面；接口响应
 
 `/api/index`、`/api/search`、`/api/answer`、`/api/answer/stream` 和 `/api/agent/run` 都支持可选 `project_id`。传入后由项目注册器解析 source root；未传入时继续兼容原有 `source_root` 参数。
 
+`/api/answer` 和 `/api/answer/stream` 使用分类答案检索路由：代码定位问题优先代码来源并按需合并支持文档；项目总结问题使用更宽的多来源证据预算，并按文档/配置和代码分组组织回答；其他问题继续使用混合检索。离线上下文质量评估调用同一套路由，避免评估脚本与生产回答路径分叉。
+
 知识写回预览默认不落盘。预览响应中的 `diff.operation` 为 `create`、`update` 或 `noop`，并包含 `current_content_hash`、`proposed_content_hash`、`additions`、`deletions` 和 `unified_diff`。审批会再次读取目标文件并校验预览时的 Hash；如果目标在预览后发生变化，接口返回 400，必须重新生成预览。
 知识写回请求也支持可选 `project_id`；传入已注册项目时，目标会自动隔离到 `data/approved-notes/projects/<project_id>/` 下，避免不同项目的同名笔记互相覆盖。未传入时保留旧的兼容目标路径。
 
