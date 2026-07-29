@@ -36,11 +36,13 @@ def get_git_history(
     query: str = "",
     repository_path: str | Path | None = None,
     limit: int = 5,
+    timeout_seconds: float = 5.0,
 ) -> list[SearchResult]:
     """Return recent matching commits from a local repository."""
 
     if limit <= 0:
         return []
+    _validate_timeout(timeout_seconds)
     repository = _resolve_repository(repository_path)
     command = [
         "git",
@@ -60,7 +62,10 @@ def get_git_history(
             text=True,
             encoding="utf-8",
             errors="replace",
+            timeout=timeout_seconds,
         )
+    except subprocess.TimeoutExpired as exc:
+        raise GitToolError("git history query timed out") from exc
     except (OSError, subprocess.CalledProcessError) as exc:
         raise GitToolError("git history query failed") from exc
 
@@ -108,6 +113,7 @@ def get_commit_diff(
     repository_path: str | Path | None = None,
     path: str | Path | None = None,
     max_lines: int = 1200,
+    timeout_seconds: float = 10.0,
 ) -> SearchResult:
     """Return a bounded, read-only diff for one validated commit."""
 
@@ -115,6 +121,7 @@ def get_commit_diff(
         raise GitToolError("commit_hash must be a hexadecimal Git object id")
     if max_lines <= 0:
         raise GitToolError("max_lines must be positive")
+    _validate_timeout(timeout_seconds)
     repository = _resolve_repository(repository_path)
     path_argument = _resolve_diff_path(repository, path)
     command = [
@@ -140,7 +147,10 @@ def get_commit_diff(
             text=True,
             encoding="utf-8",
             errors="replace",
+            timeout=timeout_seconds,
         )
+    except subprocess.TimeoutExpired as exc:
+        raise GitToolError("git commit diff query timed out") from exc
     except (OSError, subprocess.CalledProcessError) as exc:
         raise GitToolError("git commit diff query failed") from exc
 
@@ -164,6 +174,11 @@ def get_commit_diff(
         },
     )
     return SearchResult(chunk=chunk, score=1.0, matched_terms=("git-diff",))
+
+
+def _validate_timeout(timeout_seconds: float) -> None:
+    if timeout_seconds <= 0 or timeout_seconds > 60:
+        raise GitToolError("timeout_seconds must be between 0 and 60")
 
 
 def _resolve_diff_path(repository: Path, path: str | Path | None) -> str | None:

@@ -1,4 +1,6 @@
 import unittest
+import subprocess
+from unittest.mock import patch
 from pathlib import Path
 
 from backend.app.agents.git_tools import GitToolError, get_commit_diff, get_git_history
@@ -35,6 +37,14 @@ class GitIssueToolTests(unittest.TestCase):
             get_commit_diff("not-a-commit")
         with self.assertRaises(GitToolError):
             get_commit_diff("faedcf2", path="../README.md")
+
+    def test_git_tools_convert_timeout_to_safe_error(self) -> None:
+        with patch(
+            "backend.app.agents.git_tools.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(["git"], 0.01),
+        ):
+            with self.assertRaisesRegex(GitToolError, "timed out"):
+                get_git_history(limit=1, timeout_seconds=0.01)
 
 
 if __name__ == "__main__":
