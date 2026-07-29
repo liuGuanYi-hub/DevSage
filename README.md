@@ -42,6 +42,7 @@ python evaluation/scripts/evaluate_retrieval_strategies.py
 python evaluation/scripts/smoke_mcp.py
 python -m unittest backend.tests.test_postgres_repository
 python -m unittest discover -s backend/tests -p "test_*.py"
+python -m pytest -q
 python -m compileall -q backend evaluation/scripts
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-http.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-docker.ps1

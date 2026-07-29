@@ -9,6 +9,7 @@ class ProjectStructureTests(unittest.TestCase):
     def test_required_stage_zero_files_exist(self) -> None:
         required_files = [
             "README.md",
+            "pytest.ini",
             "DevSage长期任务路线图.md",
             "backend/app/main.py",
             "backend/app/ingestion/loaders.py",
