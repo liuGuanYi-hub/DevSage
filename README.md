@@ -27,7 +27,7 @@ DevSage/
 └── .env.example             # 非敏感配置模板
 ```
 
-项目展示入口：[演示与 API 手册](docs/DevSage演示与API手册.md)、[系统架构图](docs/diagrams/devsage-architecture.html)、[Agent 流程图](docs/diagrams/devsage-agent.html)、[交付就绪审计](docs/DevSage交付就绪审计.md)。
+项目展示入口：[演示与 API 手册](docs/DevSage演示与API手册.md)、[3–5 分钟演示脚本](docs/DevSage演示脚本.md)、[系统架构图](docs/diagrams/devsage-architecture.html)、[Agent 流程图](docs/diagrams/devsage-agent.html)、[交付就绪审计](docs/DevSage交付就绪审计.md)。
 
 ## 当前验证命令
 
