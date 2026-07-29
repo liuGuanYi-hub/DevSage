@@ -21,6 +21,7 @@ from backend.app.ingestion.loaders import load_document
 from backend.app.retrieval.hybrid_search import search_hybrid
 from backend.app.retrieval.keyword_search import tokenize
 from backend.app.services.answer_service import compose_evidence_answer
+from backend.app.services.index_service import _expand_code_query
 
 
 def _terms(value: str) -> set[str]:
@@ -90,7 +91,13 @@ def evaluate(top_k: int = 5) -> dict[str, object]:
 
     for case in cases:
         expected = {_normalise_source(source) for source in case["expected_sources"]}
-        results = search_hybrid(chunks, case["question"], top_k=top_k)
+        # Mirror IndexService.search_hybrid so the quality report measures the
+        # production query preprocessing rather than the raw low-level baseline.
+        results = search_hybrid(
+            chunks,
+            _expand_code_query(case["question"]),
+            top_k=top_k,
+        )
         retrieved = [result.chunk.source_path for result in results]
         relevant_count = len(expected.intersection(retrieved))
         precision = relevant_count / len(retrieved) if retrieved else 0.0

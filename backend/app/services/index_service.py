@@ -146,16 +146,17 @@ class IndexService:
         top_k: int,
     ) -> tuple[str, list[SearchResult]]:
         relative_root, snapshot = self.get_or_build(source_root)
+        expanded_query = _expand_code_query(query)
         if self.persistence is not None:
             return relative_root, self.persistence.search_hybrid(
                 relative_root,
-                query,
+                expanded_query,
                 top_k,
                 self.embedding_provider,
             )
         return relative_root, search_hybrid(
             snapshot.chunks,
-            query,
+            expanded_query,
             top_k=top_k,
             provider=self.embedding_provider,
         )

@@ -60,6 +60,18 @@ class IndexPersistenceTests(unittest.TestCase):
         self.assertEqual("8080", persistence.hybrid_calls[0][1])
         self.assertEqual(4, persistence.hybrid_calls[0][2])
 
+    def test_hybrid_search_applies_deterministic_code_query_expansion(self) -> None:
+        persistence = RecordingPersistence()
+        service = IndexService(
+            embedding_provider=HashEmbeddingProvider(dimension=8),
+            persistence=persistence,
+        )
+
+        service.search_hybrid("sample-data", "用户接口", top_k=4)
+
+        self.assertIn("UserController", persistence.hybrid_calls[0][1])
+        self.assertIn("UserService", persistence.hybrid_calls[0][1])
+
 
 if __name__ == "__main__":
     unittest.main()

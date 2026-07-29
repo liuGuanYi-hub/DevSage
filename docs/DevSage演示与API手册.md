@@ -112,6 +112,8 @@ python evaluation/scripts/smoke_mcp.py
 
 MCP 的文档检索、代码检索、文件读取和故障报告工具也支持可选 `project_id`。例如将 `search_code` 的 arguments 写成 `{"query":"UserController getUser","project_id":"sample-data","top_k":5}`；`project_id` 会由项目注册器解析并优先于 `source_root`，未知项目会被拒绝。`get_git_history` 不接受项目 ID，继续要求调用方显式提供只读 `repository_path`。
 
+通用 hybrid 查询会先应用现有的确定性代码词扩展，再进入关键词与离线向量融合；这样可以让“用户接口”“登录”“配置”等自然语言问题更容易命中类名、控制器、路由和配置文件。raw RRF 仍保留在策略评估中作为不带业务扩展的基线。
+
 ## 5. Docker / PostgreSQL smoke 边界
 
 默认只校验 Compose 配置，不会创建镜像、容器或卷：
