@@ -19,6 +19,34 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         self.assertEqual("ok", response.json()["status"])
 
+    def test_api_validation_rejects_empty_query_and_out_of_range_top_k(self) -> None:
+        empty_query_response = self.client.post(
+            "/api/search",
+            json={"query": "", "source_root": "sample-data"},
+        )
+        self.assertEqual(422, empty_query_response.status_code)
+
+        oversized_top_k_response = self.client.post(
+            "/api/agent/run",
+            json={
+                "query": "8080 端口占用",
+                "source_root": "sample-data",
+                "top_k": 21,
+            },
+        )
+        self.assertEqual(422, oversized_top_k_response.status_code)
+
+    def test_code_change_validation_rejects_empty_target(self) -> None:
+        response = self.client.post(
+            "/api/code-changes/preview",
+            json={
+                "project_id": "sample-data",
+                "target_path": "",
+                "proposed_content": "content",
+            },
+        )
+        self.assertEqual(422, response.status_code)
+
     def test_project_registry_lists_safe_metadata(self) -> None:
         response = self.client.get("/api/projects")
         self.assertEqual(200, response.status_code)
