@@ -96,7 +96,7 @@ python evaluation/scripts/smoke_mcp.py
 .\scripts\verify-offline.ps1
 ```
 
-门禁会验证数据集、50 条评测、后端测试、MCP、可选 LangGraph、前端构建、本地 HTTP smoke 和 Compose dry-run；不会执行 Docker `-Execute`。
+门禁会验证数据集、50 条评测、backend unittest、pytest、MCP、可选 LangGraph、前端构建、本地 HTTP smoke 和 Compose dry-run；当前环境输出 `steps=15`，不会执行 Docker `-Execute`。
 
 ## 演示结束与边界声明
 

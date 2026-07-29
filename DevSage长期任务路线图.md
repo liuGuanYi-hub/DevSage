@@ -132,7 +132,7 @@
 - [x] 暴露 `search_documents`、`search_code`、`read_file`；
 - [x] 暴露 `get_git_history` 和 `generate_troubleshooting_report`；
 - [x] 提供可重复的 MCP stdio JSON-RPC smoke；
-- [x] 完成本地前后端浏览器冒烟验证：索引、Agent 查询和结构化报告链路均返回 200；
+- [x] 完成本地前后端 HTTP 冒烟验证：索引、Agent 查询和结构化报告链路均返回 200（浏览器视觉回归仍待工具授权）；
 - [x] 完善架构图、Agent 流程图和 API 文档；
 - [x] 编写 3～5 分钟可复现演示脚本；
 - [x] 准备脱敏演示数据；
