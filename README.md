@@ -40,6 +40,8 @@ npm install --prefix frontend
 npm run dev --prefix frontend
 ```
 
+前端默认使用 Vite 代理把 `/api` 和 `/health` 转发到 `127.0.0.1:8000`；如需连接其他后端地址，可设置 `VITE_API_BASE_URL`。页面已展示 Agent 分类、工具调用、执行步骤、引用证据和结构化故障排查报告。
+
 执行 Docker Compose 前必须先准备本地环境变量，并确认数据库数据目录和端口范围。不要把真实密码、Token 或 `.env` 文件提交到仓库。
 
 ## 当前正在做
@@ -61,5 +63,5 @@ python -m backend.app.mcp.server
 1. 在 LangGraph 适配之上接入 checkpoint 和 Agent API；
 2. 接入 PostgreSQL 全文检索和 pgvector 持久化；
 3. 选择真实 Embedding Provider 并替换 Hash 测试替身；
-4. 接入外部 Issue、前端演示和正式 MCP 宿主；
+4. 接入外部 Issue 和正式 MCP 宿主；
 5. 扩充评估集并持续比较检索策略。

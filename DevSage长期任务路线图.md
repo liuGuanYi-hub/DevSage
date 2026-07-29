@@ -82,6 +82,7 @@
 - [ ] 接入外部 Issue 平台；
 - [x] 生成结构化故障排查报告；
 - [x] 展示 Agent 节点和工具调用过程；
+- [x] 前端展示 Agent 分类、工具链、执行步骤、引用证据和结构化排查报告；
 - [x] 增加最大调用次数、图步骤上限和失败终止机制；
 - [x] 增加 Git/远程 Embedding 工具超时边界；
 - [x] 增加 Agent 全局任务超时；
@@ -118,6 +119,7 @@
 - [x] 封装无第三方依赖的 MCP-compatible stdio Server；
 - [x] 暴露 `search_documents`、`search_code`、`read_file`；
 - [x] 暴露 `get_git_history` 和 `generate_troubleshooting_report`；
+- [x] 完成本地前后端浏览器冒烟验证：索引、Agent 查询和结构化报告链路均返回 200；
 - [ ] 完善架构图、Agent 流程图和 API 文档；
 - [ ] 准备脱敏演示数据；
 - [ ] 录制 3～5 分钟演示视频；

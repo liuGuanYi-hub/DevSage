@@ -40,15 +40,31 @@ export interface AgentStep {
   detail: string;
 }
 
+export interface TroubleshootingFinding {
+  source_type: string;
+  citations: string[];
+  snippets: string[];
+}
+
+export interface TroubleshootingReport {
+  query: string;
+  summary: string;
+  findings: TroubleshootingFinding[];
+  next_steps: string[];
+  citations: string[];
+  evidence_sufficient: boolean;
+}
+
 export interface AgentResponse extends AnswerResponse {
   task_id: string;
   category: string;
   status: string;
   tool_calls: string[];
   steps: AgentStep[];
+  report: TroubleshootingReport | null;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 async function request<T>(path: string, options: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
