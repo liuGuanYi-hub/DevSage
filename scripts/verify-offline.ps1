@@ -37,6 +37,12 @@ Invoke-CheckedCommand "context quality evaluation" $python @("evaluation/scripts
 $stepCount++
 Invoke-CheckedCommand "retrieval strategy evaluation" $python @("evaluation/scripts/evaluate_retrieval_strategies.py")
 $stepCount++
+Invoke-CheckedCommand "offline evaluation report" $python @(
+    "evaluation/scripts/generate_offline_report.py",
+    "--json-output", "evaluation/reports/offline-baseline.json",
+    "--markdown-output", "evaluation/reports/offline-baseline.md"
+)
+$stepCount++
 Invoke-CheckedCommand "backend tests" $python @("-m", "unittest", "discover", "-s", "backend/tests", "-p", "test_*.py")
 $stepCount++
 Invoke-CheckedCommand "evaluation tests" $python @("-m", "unittest", "discover", "-s", "evaluation/tests", "-p", "test_*.py")

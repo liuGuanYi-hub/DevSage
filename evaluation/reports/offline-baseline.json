@@ -1,0 +1,97 @@
+{
+  "dataset": {
+    "path": "evaluation/datasets/devmind_mvp_questions.json",
+    "questions": 50,
+    "sha256": "373098066a7811288aa694ad91a90e95020aec0b88c4756139ecc1f6bb21a6ad"
+  },
+  "interpretation": {
+    "embedding": "offline Hash baseline",
+    "external_services": "not used",
+    "faithfulness": "lexical proxy, not human or LLM evaluation"
+  },
+  "metrics": {
+    "agent_grounding": {
+      "failure_count": 2,
+      "failures": [
+        {
+          "category": "knowledge_qa",
+          "id": "mvp-020",
+          "missing_sources": [
+            ".env.example"
+          ],
+          "retrieved_sources": [
+            "README.md",
+            "docs/laravel-auth.md",
+            "docs/springboot-errors.md",
+            "repositories/laravel-task-api/README.md",
+            "repositories/springboot-demo/README.md"
+          ],
+          "source_recall": 0.5
+        },
+        {
+          "category": "knowledge_write",
+          "id": "mvp-047",
+          "missing_sources": [
+            ".env.example"
+          ],
+          "retrieved_sources": [
+            "README.md",
+            "docs/knowledge-writing-policy.md",
+            "docs/springboot-errors.md",
+            "repositories/laravel-task-api/README.md",
+            "repositories/springboot-demo/README.md"
+          ],
+          "source_recall": 0.5
+        }
+      ],
+      "full_source_case_rate": 0.96,
+      "questions": 50,
+      "source_recall_at_5": 0.98
+    },
+    "context_quality": {
+      "answer_relevance_proxy_f1": 0.14037572881684415,
+      "context_precision_at_5": 0.30950000000000005,
+      "context_recall_at_5": 1.0,
+      "evidence_sufficient_rate": 1.0,
+      "failure_count": 0,
+      "failures": [],
+      "faithfulness_proxy_precision": 0.7610605721105528,
+      "questions": 50,
+      "reference_term_recall": 0.8615115464216585,
+      "unique_source_precision_at_5": 0.3159047619047619
+    },
+    "retrieval_strategies": {
+      "hybrid_raw_rrf": {
+        "case_recall_at_5": 0.74,
+        "mrr": 0.654,
+        "questions": 50,
+        "source_recall_at_5": 0.5716666666666667
+      },
+      "hybrid_source_diverse": {
+        "case_recall_at_5": 0.82,
+        "mrr": 0.6753333333333333,
+        "questions": 50,
+        "source_recall_at_5": 0.6783333333333332
+      },
+      "keyword": {
+        "case_recall_at_5": 0.72,
+        "mrr": 0.4346666666666666,
+        "questions": 50,
+        "source_recall_at_5": 0.545
+      },
+      "vector": {
+        "case_recall_at_5": 0.78,
+        "mrr": 0.6806666666666666,
+        "questions": 50,
+        "source_recall_at_5": 0.6283333333333333
+      }
+    },
+    "tool_call_accuracy": {
+      "expected_tool_coverage": 0.9333333333333331,
+      "fully_covered_case_rate": 0.84,
+      "questions": 50
+    }
+  },
+  "report_kind": "devsage-offline-mvp-baseline",
+  "schema_version": 1
+}

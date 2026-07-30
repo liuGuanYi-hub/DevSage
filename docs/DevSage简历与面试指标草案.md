@@ -23,7 +23,7 @@ DevSage 是一个面向研发知识库和故障排查的 Agentic RAG 平台，�
 | Context Recall@5 | `1.0000` | Chunk 级离线代理指标 |
 | Context Precision@5 | `0.3095` | 仍需继续优化排序和证据裁剪 |
 | MCP 工具 | 5 个 | 已通过本地 JSON-RPC stdio smoke |
-| 离线交付门禁 | 17 步 | 包含数据集、评估、测试、MCP、HTTP、一键演示启动、actor capability smoke、前端构建和 Compose dry-run |
+| 离线交付门禁 | 18 步 | 包含数据集、评估报告、测试、MCP、HTTP、一键演示启动、actor capability smoke、前端构建和 Compose dry-run |
 
 ## 技术亮点表述
 
