@@ -57,12 +57,31 @@ const loginPassword = ref("");
 const loginStatus = ref("");
 const authUsername = ref("");
 const showExecutionDetails = ref(false);
-const exampleQueries = [
-  { label: "8080 端口占用怎么排查？", query: "8080 端口被占用，应该怎么排查？" },
-  { label: "Spring Boot 用户接口在哪？", query: "示例 Spring Boot 项目的用户接口入口在哪个类？" },
-  { label: "Laravel 任务接口为什么 401？", query: "Laravel 登录成功后访问任务列表为什么返回 401？" },
-  { label: "用户查询涉及哪些文件？", query: "示例 Spring Boot 项目包含哪些与用户查询相关的文件？" },
-  { label: "本地 actor 和正式认证有什么区别？", query: "项目的本地 actor 权限和正式身份认证有什么区别？" },
+const exampleGroups = [
+  {
+    label: "故障排查",
+    icon: "!",
+    tone: "troubleshooting",
+    examples: [{ label: "8080 端口占用怎么排查？", query: "8080 端口被占用，应该怎么排查？" }],
+  },
+  {
+    label: "代码定位",
+    icon: "</>",
+    tone: "code",
+    examples: [
+      { label: "Spring Boot 用户接口在哪？", query: "示例 Spring Boot 项目的用户接口入口在哪个类？" },
+      { label: "用户查询涉及哪些文件？", query: "示例 Spring Boot 项目包含哪些与用户查询相关的文件？" },
+    ],
+  },
+  {
+    label: "认证与权限",
+    icon: "✓",
+    tone: "auth",
+    examples: [
+      { label: "Laravel 任务接口为什么 401？", query: "Laravel 登录成功后访问任务列表为什么返回 401？" },
+      { label: "本地 actor 和正式认证有什么区别？", query: "项目的本地 actor 权限和正式身份认证有什么区别？" },
+    ],
+  },
 ];
 
 const requiresLogin = computed(() => Boolean(healthDetails.value?.auth_enabled && !authToken.value));
@@ -497,16 +516,24 @@ onMounted(async () => {
           <strong>从知识库试试</strong>
           <span>点击示例填入问题，再开始排查</span>
         </div>
-        <div class="prompt-chip-row">
-          <button
-            v-for="example in exampleQueries"
-            :key="example.query"
-            type="button"
-            class="prompt-chip"
-            @click="chooseExample(example.query)"
-          >
-            {{ example.label }}
-          </button>
+        <div class="example-group-list">
+          <div v-for="group in exampleGroups" :key="group.label" class="example-group">
+            <div class="example-group-label">
+              <span class="example-group-icon" :class="`example-group-icon-${group.tone}`" aria-hidden="true">{{ group.icon }}</span>
+              <span>{{ group.label }}</span>
+            </div>
+            <div class="prompt-chip-row">
+              <button
+                v-for="example in group.examples"
+                :key="example.query"
+                type="button"
+                class="prompt-chip"
+                @click="chooseExample(example.query)"
+              >
+                {{ example.label }}
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -784,7 +811,14 @@ input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; p
 .example-prompts { margin: 12px 0 4px; }
 .example-prompts-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; color: #416b98; font-size: 0.86rem; }
 .example-prompts-heading span { color: #7890aa; font-size: 0.78rem; }
-.prompt-chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.example-group-list { display: grid; gap: 10px; }
+.example-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.example-group-label { display: inline-flex; align-items: center; gap: 6px; min-width: 92px; color: #526176; font-size: 0.8rem; font-weight: 700; }
+.example-group-icon { display: inline-flex; width: 22px; height: 22px; align-items: center; justify-content: center; border-radius: 7px; font-size: 0.72rem; font-weight: 800; }
+.example-group-icon-troubleshooting { color: #8b5a18; background: #fff0c7; }
+.example-group-icon-code { color: #315e8c; background: #dcecf9; }
+.example-group-icon-auth { color: #276749; background: #e0f4e8; }
+.prompt-chip-row { display: flex; flex: 1; min-width: 0; gap: 8px; flex-wrap: wrap; }
 .prompt-chip { padding: 8px 11px; border: 1px solid #cbdbea; border-radius: 999px; color: #416b98; background: #f1f6fb; font-size: 0.84rem; text-align: left; }
 .prompt-chip:hover { border-color: #8bb5d8; background: #e5f0fa; }
 .results { display: grid; gap: 12px; margin-top: 24px; }
