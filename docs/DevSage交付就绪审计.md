@@ -24,7 +24,7 @@
 | 离线交付门禁 | 已完成 | `scripts/verify-offline.ps1`，当前环境 18 步通过（含评估报告、pytest、一键演示启动和 actor capability smoke） |
 | Actor 能力 HTTP smoke | 已完成 | `scripts/smoke-actors.ps1`；viewer/editor/operator 的允许、拒绝动作、任务读取作用域和 preview 不写盘均已由独立进程验证 |
 | 一键本地演示与演示脚本 | 已完成（未做视觉回归） | `scripts/start-demo.ps1`、`docs/DevSage演示脚本.md`；启动/健康/HTML 入口标记/清理已验证 |
-| 只读环境预检 | 已完成 | `scripts/preflight.ps1`；Python、Node、npm、pytest、前端依赖可用，Docker CLI 可用但 daemon 未运行；未安装依赖或创建资源 |
+| 只读环境预检 | 已完成 | `scripts/preflight.ps1`；报告 Python、Node、npm、pytest、前端依赖、Docker daemon 和浏览器工具状态；未安装依赖或创建资源 |
 | Compose 构建边界与后端健康检查 | 已完成（静态） | `backend/.dockerignore`、Dockerfile `HEALTHCHECK` 和 Compose backend healthcheck；未执行镜像构建或容器启动 |
 
 ## 尚未达到最终交付条件

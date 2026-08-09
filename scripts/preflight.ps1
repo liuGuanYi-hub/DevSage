@@ -10,6 +10,9 @@ $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
 $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
 $npmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
 $dockerCommand = Get-Command docker -ErrorAction SilentlyContinue
+$agentBrowserCommand = Get-Command agent-browser -ErrorAction SilentlyContinue
+$playwrightCliCommand = Get-Command playwright-cli -ErrorAction SilentlyContinue
+$chromeCommand = Get-Command chrome, msedge -ErrorAction SilentlyContinue | Select-Object -First 1
 $pytestAvailable = $false
 $dockerDaemonAvailable = $false
 
@@ -39,6 +42,9 @@ Write-Output ("pytest={0}" -f $(if ($pytestAvailable) { "available" } else { "mi
 Write-Output ("frontend_dependencies={0}" -f $(if ($frontendDependencies) { "present" } else { "missing" }))
 Write-Output ("docker_cli={0}" -f $(if ($null -ne $dockerCommand) { "available" } else { "missing" }))
 Write-Output ("docker_daemon={0}" -f $(if ($dockerDaemonAvailable) { "running" } else { "unavailable" }))
+Write-Output ("agent_browser={0}" -f $(if ($null -ne $agentBrowserCommand) { "available" } else { "missing" }))
+Write-Output ("playwright_cli={0}" -f $(if ($null -ne $playwrightCliCommand) { "available" } else { "missing" }))
+Write-Output ("system_browser={0}" -f $(if ($null -ne $chromeCommand) { "available" } else { "missing" }))
 if ($null -ne $cDrive) {
     Write-Output ("C_free_GB={0:N2}" -f ($cDrive.Free / 1GB))
 }
