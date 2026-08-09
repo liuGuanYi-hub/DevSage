@@ -57,7 +57,20 @@ const loginPassword = ref("");
 const loginStatus = ref("");
 const authUsername = ref("");
 const showExecutionDetails = ref(false);
-const exampleGroups = [
+interface ExampleQuery {
+  label: string;
+  query: string;
+  projectId?: string;
+}
+
+interface ExampleGroup {
+  label: string;
+  icon: string;
+  tone: string;
+  examples: ExampleQuery[];
+}
+
+const exampleGroups: ExampleGroup[] = [
   {
     label: "故障排查",
     icon: "!",
@@ -80,6 +93,43 @@ const exampleGroups = [
     examples: [
       { label: "Laravel 任务接口为什么 401？", query: "Laravel 登录成功后访问任务列表为什么返回 401？" },
       { label: "本地 actor 和正式认证有什么区别？", query: "项目的本地 actor 权限和正式身份认证有什么区别？" },
+    ],
+  },
+  {
+    label: "Vault 知识库",
+    icon: "⌂",
+    tone: "vault",
+    examples: [
+      {
+        label: "Vault 的目录分别负责什么？",
+        query: "Obsidian 知识库的核心目录分别负责什么？",
+        projectId: "obsidian-vault",
+      },
+      {
+        label: "如何从 Inbox 进入 Research？",
+        query: "Obsidian 知识库的研究资料应该如何从 Inbox 进入 Research？",
+        projectId: "obsidian-vault",
+      },
+      {
+        label: "哪些 Obsidian 插件值得先装？",
+        query: "第一次使用 Obsidian，哪些插件最值得先安装？",
+        projectId: "obsidian-vault",
+      },
+      {
+        label: "如何记录一次 Agent 评估？",
+        query: "如何使用 Agent Evaluation Template 记录一次完整评估？",
+        projectId: "obsidian-vault",
+      },
+      {
+        label: "如何搭建个人 AI 工作流？",
+        query: "如何把 ChatGPT、Codex 和 Obsidian 组成个人 AI 工作流？",
+        projectId: "obsidian-vault",
+      },
+      {
+        label: "知识库如何刷新和审计？",
+        query: "Obsidian 知识库每周如何刷新 Topic Index 和审计报告？",
+        projectId: "obsidian-vault",
+      },
     ],
   },
 ];
@@ -196,8 +246,12 @@ function toggleExecutionDetails(event: Event): void {
   showExecutionDetails.value = (event.target as HTMLDetailsElement).open;
 }
 
-function chooseExample(exampleQuery: string): void {
+async function chooseExample(exampleQuery: string, projectId?: string): Promise<void> {
   query.value = exampleQuery;
+  if (projectId && projectId !== selectedProjectId.value) {
+    selectedProjectId.value = projectId;
+    await handleProjectChange();
+  }
 }
 
 async function refreshIndex() {
@@ -521,7 +575,7 @@ onMounted(async () => {
       <section v-if="!requiresLogin" class="example-prompts" aria-label="知识库问题示例">
         <div class="example-prompts-heading">
           <strong>从知识库试试</strong>
-          <span>点击示例填入问题，再开始排查</span>
+          <span>点击示例填入问题；Vault 案例会自动切换只读项目</span>
         </div>
         <div class="example-group-list">
           <div v-for="group in exampleGroups" :key="group.label" class="example-group">
@@ -535,12 +589,29 @@ onMounted(async () => {
                 :key="example.query"
                 type="button"
                 class="prompt-chip"
-                @click="chooseExample(example.query)"
+                @click="chooseExample(example.query, example.projectId)"
               >
                 {{ example.label }}
               </button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section v-if="currentProject?.read_only" class="vault-project-card" aria-label="Obsidian Vault 项目状态">
+        <div class="vault-project-head">
+          <div>
+            <span class="eyebrow">External knowledge source</span>
+            <h2>{{ currentProject.name }}</h2>
+          </div>
+          <span class="status-pill">只读保护</span>
+        </div>
+        <p>当前页面只读取 Vault 内容，所有索引快照保存在 DevSage 自己的 data 目录，不会在 Vault 内创建或修改文件。</p>
+        <div class="vault-project-facts">
+          <span>项目：{{ currentProject.source_root }}</span>
+          <span>角色：{{ currentMember?.role ?? "vault_viewer" }}</span>
+          <span>过滤：.obsidian · cache · build · node_modules</span>
+          <span v-if="indexInfo">索引：{{ indexInfo.document_count }} 文件 / {{ indexInfo.chunk_count }} Chunk</span>
         </div>
       </section>
 
@@ -826,9 +897,16 @@ input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; p
 .example-group-icon-troubleshooting { color: #8b5a18; background: #fff0c7; }
 .example-group-icon-code { color: #315e8c; background: #dcecf9; }
 .example-group-icon-auth { color: #276749; background: #e0f4e8; }
+.example-group-icon-vault { color: #6b4e8f; background: #efe6fb; }
 .prompt-chip-row { display: flex; flex: 1; min-width: 0; gap: 8px; flex-wrap: wrap; }
 .prompt-chip { padding: 8px 11px; border: 1px solid #cbdbea; border-radius: 999px; color: #416b98; background: #f1f6fb; font-size: 0.84rem; text-align: left; }
 .prompt-chip:hover { border-color: #8bb5d8; background: #e5f0fa; }
+.vault-project-card { margin-top: 14px; padding: 16px 18px; border: 1px solid #cbbbe2; border-radius: 14px; background: linear-gradient(135deg, #fbf8ff, #f2edfb); }
+.vault-project-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.vault-project-head h2 { margin: 5px 0 0; color: #4e3c70; font-size: 1.15rem; }
+.vault-project-card p { margin: 10px 0; color: #665b7d; line-height: 1.55; }
+.vault-project-facts { display: flex; gap: 8px; flex-wrap: wrap; color: #6c5b86; font-size: 0.8rem; }
+.vault-project-facts span { padding: 5px 8px; border-radius: 8px; background: rgba(255,255,255,0.72); }
 .results { display: grid; gap: 12px; margin-top: 24px; }
 .result-card, .answer-card, .report-card { padding: 18px; border-radius: 14px; }
 .result-card { border: 1px solid #d7e0ea; background: #f8fbfd; }
