@@ -16,7 +16,7 @@ DevSage 是一个面向研发知识库和故障排查的 Agentic RAG 平台，�
 
 | 维度 | 当前结果 | 证据边界 |
 |---|---:|---|
-| Pytest | `126 passed, 2 skipped` | 当前本地环境；2 项为未安装 LangGraph 的可选测试 |
+| Pytest | `127 passed, 2 skipped` | 当前本地环境；2 项为未安装 LangGraph 的可选测试 |
 | Agent Source Recall@5 | `0.9800` | 固定 50 条脱敏评估集 |
 | Agent 完整来源案例率 | `0.9600` | 固定 50 条脱敏评估集 |
 | Expected Tool Coverage | `0.9333` | 预期工具覆盖率，不是人工判断准确率 |
