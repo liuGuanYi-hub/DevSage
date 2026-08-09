@@ -51,9 +51,19 @@ def resolve_source_root(source_root: str) -> Path:
 class IndexService:
     """Build local snapshots with offline file recovery or PostgreSQL persistence."""
 
-    def __init__(self, embedding_provider=None, persistence=None, snapshot_store=None) -> None:
+    def __init__(
+        self,
+        embedding_provider=None,
+        persistence=None,
+        snapshot_store=None,
+        external_roots: dict[str, str | Path] | None = None,
+    ) -> None:
         self._snapshots: dict[str, IndexSnapshot] = {}
         self._lock = RLock()
+        self.external_roots = {
+            str(logical_root): Path(filesystem_root).expanduser().resolve()
+            for logical_root, filesystem_root in (external_roots or {}).items()
+        }
         self.embedding_provider = embedding_provider or create_embedding_provider()
         self.persistence = persistence if persistence is not None else self._create_persistence()
         if snapshot_store is not None:
@@ -65,6 +75,17 @@ class IndexService:
         else:
             self.snapshot_store = None
         self._persistence_initialized = False
+
+    def _resolve_source_root(self, source_root: str) -> tuple[str, Path]:
+        """Resolve a legacy workspace root or an explicitly registered external root."""
+
+        external_root = self.external_roots.get(source_root)
+        if external_root is not None:
+            if not external_root.is_dir():
+                raise SourceRootError(f"registered external source is not a directory: {source_root}")
+            return source_root, external_root
+        resolved = resolve_source_root(source_root)
+        return resolved.relative_to(PROJECT_ROOT).as_posix(), resolved
 
     @staticmethod
     def _create_persistence():
@@ -95,29 +116,28 @@ class IndexService:
         )
 
     def build(self, source_root: str) -> tuple[str, IndexSnapshot]:
-        resolved = resolve_source_root(source_root)
+        logical_root, resolved = self._resolve_source_root(source_root)
         key = resolved.as_posix()
-        relative_root = resolved.relative_to(PROJECT_ROOT).as_posix()
         with self._lock:
             previous = self._snapshots.get(key)
         if previous is None and self.snapshot_store is not None:
-            previous = self.snapshot_store.load(relative_root)
+            previous = self.snapshot_store.load(logical_root)
         snapshot = build_index(resolved, previous=previous)
-        self._persist_snapshot(relative_root, resolved, snapshot)
+        self._persist_snapshot(logical_root, resolved, snapshot)
         if self.snapshot_store is not None:
-            self.snapshot_store.save(relative_root, snapshot)
+            self.snapshot_store.save(logical_root, snapshot)
         with self._lock:
             self._snapshots[key] = snapshot
-        return relative_root, snapshot
+        return logical_root, snapshot
 
     def get_or_build(self, source_root: str) -> tuple[str, IndexSnapshot]:
-        resolved = resolve_source_root(source_root)
+        logical_root, resolved = self._resolve_source_root(source_root)
         key = resolved.as_posix()
         with self._lock:
             snapshot = self._snapshots.get(key)
         if snapshot is None:
             return self.build(source_root)
-        return resolved.relative_to(PROJECT_ROOT).as_posix(), snapshot
+        return logical_root, snapshot
 
     def search(self, source_root: str, query: str, top_k: int) -> tuple[str, list[SearchResult]]:
         relative_root, snapshot = self.get_or_build(source_root)
@@ -239,7 +259,7 @@ class IndexService:
     ) -> str:
         """Read a bounded, source-root-relative file range safely."""
 
-        root = resolve_source_root(source_root)
+        _, root = self._resolve_source_root(source_root)
         requested = Path(source_path)
         if requested.is_absolute() or any(part in {"", ".", ".."} for part in requested.parts):
             raise SourceRootError("source_path must stay inside source_root")

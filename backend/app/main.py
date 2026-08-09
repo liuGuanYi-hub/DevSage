@@ -75,12 +75,12 @@ app = FastAPI(
     description="研发知识库与故障排查系统 API",
 )
 
-index_service = IndexService()
+project_registry = ProjectRegistry.from_environment(PROJECT_ROOT)
+index_service = IndexService(external_roots=project_registry.external_sources())
 agent_runner = AgentRunner(index_service)
 writeback_service = KnowledgeWritebackService(PROJECT_ROOT / "data" / "approved-notes")
 code_writeback_service = CodeChangeWritebackService(PROJECT_ROOT)
 issue_writeback_service = ExternalIssueWritebackService()
-project_registry = ProjectRegistry.from_environment(PROJECT_ROOT)
 approval_logger = logging.getLogger("devsage.approval")
 
 
@@ -264,9 +264,18 @@ def _resolve_request_source_root(project_id: str | None, source_root: str) -> st
     """Resolve a registered project while preserving the legacy source_root API."""
 
     if not project_id:
+        if project_registry.is_external_source_root(source_root):
+            raise ProjectRegistryError("external source roots require a project_id")
         return source_root
-    resolved = project_registry.resolve_source_root(project_id)
-    return resolved.relative_to(PROJECT_ROOT).as_posix()
+    definition = project_registry.get(project_id)
+    project_registry.resolve_source_root(project_id)
+    return definition.source_root
+
+
+def _project_index_action(project_id: str) -> str:
+    """Allow external read-only sources to refresh only their DevSage snapshot."""
+
+    return "index" if project_registry.get(project_id).read_only else "manage_project"
 
 
 def _scope_knowledge_target_path(project_id: str | None, target_path: str) -> str:
@@ -304,7 +313,7 @@ def index_source(
 
     try:
         if request.project_id:
-            _authorize_project(request.project_id, actor_id, "manage_project")
+            _authorize_project(request.project_id, actor_id, _project_index_action(request.project_id))
         requested_root = _resolve_request_source_root(request.project_id, request.source_root)
         source_root, snapshot = index_service.build(requested_root)
     except (SourceRootError, ProjectRegistryError) as exc:

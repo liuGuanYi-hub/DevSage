@@ -29,6 +29,16 @@ EXCLUDED_DIRECTORIES = {
     ".git",
     ".idea",
     ".venv",
+    ".obsidian",
+    ".cache",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".trash",
+    "cache",
+    "coverage",
+    "dist",
+    "build",
     "node_modules",
     "__pycache__",
 }
@@ -49,7 +59,7 @@ def iter_source_files(
         if not path.is_file():
             continue
         relative_parts = path.relative_to(root_path).parts
-        if any(part in EXCLUDED_DIRECTORIES for part in relative_parts):
+        if any(part.lower() in EXCLUDED_DIRECTORIES for part in relative_parts):
             continue
         if path.suffix.lower() in extension_map:
             yield path

@@ -43,6 +43,8 @@ export interface Project {
   name: string;
   source_root: string;
   description: string;
+  source_kind: string;
+  read_only: boolean;
   roles: ProjectRole[];
   members: ProjectMember[];
 }

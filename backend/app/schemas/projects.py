@@ -21,6 +21,8 @@ class ProjectResponse(BaseModel):
     name: str
     source_root: str
     description: str
+    source_kind: str = "workspace"
+    read_only: bool = False
     roles: list[ProjectRoleResponse]
     members: list[ProjectMemberResponse]
 

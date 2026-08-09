@@ -74,6 +74,15 @@ npm run dev --prefix frontend
 
 打开 Vite 提供的地址，点击“重新索引样例数据”，再输入“8080 端口被占用，应该怎么排查？”或“Laravel 登录逻辑在哪个控制器方法中？”。页面会展示答案、工具链、执行步骤和结构化故障排查报告。
 
+如需把个人 Obsidian Vault 作为额外的只读项目接入，可在启动前设置：
+
+```powershell
+$env:DEVSAGE_OBSIDIAN_VAULT_PATH = "D:\zzd_project\cursor\life\Obsidian Vault"
+.\scripts\start-demo.ps1
+```
+
+注册后的项目 ID 为 `obsidian-vault`，角色为 `vault_viewer`。该角色允许刷新 DevSage 自己的索引快照、检索和运行 Agent，但不拥有任何写回审批能力。引用保持 Vault 内相对路径并附带 `Lx-Ly` 行号，`.obsidian` 和缓存目录不会进入索引；DevSage 快照位于项目自身的 `data/index-snapshots/`。
+
 ## 3. HTTP API 目录
 
 | 方法 | 路径 | 用途 |

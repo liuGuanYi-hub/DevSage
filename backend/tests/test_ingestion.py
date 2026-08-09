@@ -83,6 +83,19 @@ class IngestionTests(unittest.TestCase):
                 {document.source_path for document in documents},
             )
 
+    def test_obsidian_and_cache_directories_are_excluded(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "Keep.md").write_text("# Keep\n\nsearchable note\n", encoding="utf-8")
+            for directory in (".obsidian", ".cache", "Cache", "__pycache__"):
+                ignored = root / directory
+                ignored.mkdir()
+                (ignored / "ignored.md").write_text("should not be indexed", encoding="utf-8")
+
+            snapshot = build_index(root)
+
+            self.assertEqual({"Keep.md"}, {document.source_path for document in snapshot.documents})
+
     def test_incremental_index_reuses_unchanged_chunks(self) -> None:
         with TemporaryDirectory() as temporary:
             root = Path(temporary)

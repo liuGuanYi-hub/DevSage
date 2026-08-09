@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [ValidateRange(0, 3600)]
-    [int]$DurationSeconds = 0
+    [int]$DurationSeconds = 0,
+    [string]$ObsidianVaultPath = ""
 )
 
 Set-StrictMode -Version Latest
@@ -15,6 +16,7 @@ $frontendPort = 5173
 $backendProcess = $null
 $frontendProcess = $null
 $previousStorage = $env:DEVSAGE_STORAGE
+$previousObsidianVaultPath = $env:DEVSAGE_OBSIDIAN_VAULT_PATH
 
 function Assert-PortAvailable {
     param([Parameter(Mandatory = $true)][int]$Port)
@@ -44,6 +46,13 @@ function Stop-DemoProcess {
 }
 
 try {
+    if ($ObsidianVaultPath.Trim()) {
+        $resolvedVaultPath = Resolve-Path -LiteralPath $ObsidianVaultPath -ErrorAction Stop
+        if (-not (Test-Path -LiteralPath $resolvedVaultPath.Path -PathType Container)) {
+            throw "Obsidian Vault path is not a directory: $ObsidianVaultPath"
+        }
+        $env:DEVSAGE_OBSIDIAN_VAULT_PATH = $resolvedVaultPath.Path
+    }
     if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
         throw "python command was not found"
     }
@@ -109,6 +118,7 @@ try {
     Write-Output "DevSage demo running: http://127.0.0.1:$frontendPort"
     Write-Output "Backend health: http://127.0.0.1:$backendPort/health"
     Write-Output "Storage: memory (no Docker, no database volume)"
+    Write-Output ("Obsidian Vault: {0}" -f $(if ($env:DEVSAGE_OBSIDIAN_VAULT_PATH) { "external read-only enabled" } else { "not configured" }))
 
     if ($DurationSeconds -gt 0) {
         Start-Sleep -Seconds $DurationSeconds
@@ -129,5 +139,10 @@ try {
         Remove-Item Env:DEVSAGE_STORAGE -ErrorAction SilentlyContinue
     } else {
         $env:DEVSAGE_STORAGE = $previousStorage
+    }
+    if ($null -eq $previousObsidianVaultPath) {
+        Remove-Item Env:DEVSAGE_OBSIDIAN_VAULT_PATH -ErrorAction SilentlyContinue
+    } else {
+        $env:DEVSAGE_OBSIDIAN_VAULT_PATH = $previousObsidianVaultPath
     }
 }

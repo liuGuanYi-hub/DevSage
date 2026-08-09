@@ -109,6 +109,10 @@ function can(action: string): boolean {
   return currentMember.value?.actions.includes(action) ?? false;
 }
 
+function canIndex(): boolean {
+  return can("manage_project") || can("index");
+}
+
 function categoryLabel(category: string): string {
   const labels: Record<string, string> = {
     troubleshooting: "故障排查",
@@ -483,13 +487,16 @@ onMounted(async () => {
         <span v-if="currentMember" class="capability-badge">
           {{ currentMember.role }}：{{ currentMember.actions.length }} 项能力
         </span>
+        <span v-if="currentProject?.read_only" class="readonly-badge">
+          外部只读 · {{ currentProject.source_kind === "obsidian_vault" ? "Obsidian Vault" : "只读源" }}
+        </span>
         <span v-if="healthDetails?.auth_enabled" class="auth-badge">
           已认证 · {{ authUsername || selectedActorId }}
         </span>
         <button v-if="healthDetails?.auth_enabled" type="button" class="secondary-button" @click="logout">
           退出登录
         </button>
-        <button type="button" @click="refreshIndex" :disabled="!can('manage_project')">重新索引当前项目</button>
+        <button type="button" @click="refreshIndex" :disabled="!canIndex()">重新索引当前项目</button>
         <span class="health-badge" :class="`health-${backendHealth}`" aria-live="polite">
           后端：{{ backendHealth === "checking" ? "检查中" : backendHealth === "online" ? "在线" : "离线" }}
         </span>
@@ -731,7 +738,7 @@ onMounted(async () => {
                 <span class="evidence-score">{{ evidence.score.toFixed(3) }}</span>
               </div>
               <strong class="evidence-path">{{ evidence.source_path }}</strong>
-              <small class="evidence-citation">{{ evidence.citation }}</small>
+              <small class="evidence-citation">{{ answer.source_root }}/{{ evidence.source_path }} · L{{ evidence.start_line }}-L{{ evidence.end_line }}</small>
               <div class="markdown-content evidence-markdown">
                 <template v-for="(block, index) in evidence.blocks" :key="`evidence-block-${index}`">
                   <h4 v-if="block.type === 'heading'" v-html="block.html"></h4>
@@ -798,6 +805,7 @@ h1 { margin: 12px 0; font-size: clamp(2rem, 5vw, 3.6rem); line-height: 1.05; }
 select { border: 1px solid #cbd6e2; border-radius: 10px; padding: 10px 12px; color: #26384f; background: #ffffff; font: inherit; }
 .index-count { margin-left: auto; color: #7890aa; }
 .capability-badge { border-radius: 999px; padding: 5px 9px; color: #5b4b82; background: #f0ebff; font-weight: 700; }
+.readonly-badge { border-radius: 999px; padding: 5px 9px; color: #315e8c; background: #e3f0fb; font-weight: 700; }
 .auth-badge { border-radius: 999px; padding: 5px 9px; color: #24664b; background: #e7f6ee; font-weight: 700; }
 .secondary-button { color: #416b98; background: #edf4fb; border: 1px solid #c7d9eb; }
 .health-badge { border-radius: 999px; padding: 5px 9px; font-weight: 700; }

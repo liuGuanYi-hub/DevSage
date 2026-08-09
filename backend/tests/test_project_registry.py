@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from backend.app.services.project_registry import (
     ROLE_ACTIONS,
+    OBSIDIAN_PROJECT_ID,
     ProjectRegistry,
     ProjectRegistryError,
 )
@@ -68,6 +69,34 @@ class ProjectRegistryTests(unittest.TestCase):
             with patch.dict(os.environ, {"DEVSAGE_PROJECT_MANIFEST": str(root / "projects.json")}, clear=False):
                 with self.assertRaises(ProjectRegistryError):
                     ProjectRegistry.from_environment(root)
+
+    def test_external_obsidian_registration_is_logical_and_read_only(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            vault = root / "Obsidian Vault"
+            vault.mkdir()
+            with patch.dict(
+                os.environ,
+                {
+                    "DEVSAGE_PROJECT_MANIFEST": "",
+                    "DEVSAGE_OBSIDIAN_VAULT_PATH": str(vault),
+                },
+                clear=False,
+            ):
+                registry = ProjectRegistry.from_environment(PROJECT_ROOT)
+
+            project = registry.get(OBSIDIAN_PROJECT_ID)
+            payload = project.to_dict()
+            self.assertEqual(OBSIDIAN_PROJECT_ID, project.source_root)
+            self.assertTrue(project.read_only)
+            self.assertEqual("obsidian_vault", project.source_kind)
+            self.assertEqual("vault_viewer", project.members[0][1])
+            self.assertIn("index", payload["members"][0]["actions"])
+            self.assertNotIn(str(vault), str(payload))
+            self.assertEqual(vault.resolve(), registry.resolve_source_root(OBSIDIAN_PROJECT_ID))
+            self.assertEqual({OBSIDIAN_PROJECT_ID: vault.resolve()}, registry.external_sources())
+            with self.assertRaises(ProjectRegistryError):
+                registry.require_action(OBSIDIAN_PROJECT_ID, "obsidian-viewer", "writeback_preview")
 
 
 if __name__ == "__main__":

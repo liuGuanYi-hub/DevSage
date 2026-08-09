@@ -110,8 +110,11 @@ class MCPServer:
         index_service: IndexService | None = None,
         project_registry: ProjectRegistry | None = None,
     ) -> None:
-        self.index_service = index_service or IndexService()
         self.project_registry = project_registry or ProjectRegistry.from_environment(PROJECT_ROOT)
+        self.index_service = index_service or IndexService(
+            external_roots=self.project_registry.external_sources()
+        )
+        self.index_service.external_roots.update(self.project_registry.external_sources())
         self.agent_runner = AgentRunner(self.index_service)
         self._tools: dict[str, Callable[[dict[str, Any]], Any]] = {
             "search_documents": self._search_documents,
@@ -239,11 +242,15 @@ class MCPServer:
     def _resolve_source_root(self, arguments: dict[str, Any]) -> str:
         project_id = arguments.get("project_id")
         if project_id is None:
-            return str(arguments.get("source_root", "sample-data"))
+            source_root = str(arguments.get("source_root", "sample-data"))
+            if self.project_registry.is_external_source_root(source_root):
+                raise ProjectRegistryError("external source roots require a project_id")
+            return source_root
         if not isinstance(project_id, str) or not project_id.strip():
             raise ProjectRegistryError("project_id must be a non-empty string")
-        resolved = self.project_registry.resolve_source_root(project_id)
-        return resolved.relative_to(PROJECT_ROOT).as_posix()
+        definition = self.project_registry.get(project_id)
+        self.project_registry.resolve_source_root(project_id)
+        return definition.source_root
 
 
 def run_stdio_server() -> None:

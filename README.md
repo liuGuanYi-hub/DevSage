@@ -89,6 +89,25 @@ npm run dev --prefix frontend
 前端默认使用 Vite 代理把 `/api` 和 `/health` 转发到 `127.0.0.1:8000`；`/health` 只额外报告当前 storage、embedding 模式和外部 Issue 是否配置，不返回密钥或 URL。如需连接其他后端地址，可设置 `VITE_API_BASE_URL`。页面启动时读取 `/api/projects`，支持选择注册项目和本地 actor，并把 `project_id` 与 `X-DevSage-Actor` 传给索引、Agent 和审批接口；切换项目或 actor 时会清理旧答案、引用和待审批 Diff，避免跨项目或跨角色误读；同时展示 Agent 分类、工具调用、执行步骤、引用证据和结构化故障排查报告。
 检索得到答案后，页面还提供可编辑的知识笔记草稿、代码变更草稿、Diff 预览和显式审批写入按钮；写回请求沿用当前项目 ID，服务端负责最终路径隔离、角色能力检查和过期 Hash 校验。
 
+### 外部 Obsidian Vault 只读接入
+
+DevSage 支持把外部 Obsidian Vault 注册为逻辑项目 `obsidian-vault`。只需要在启动 DevSage 的 PowerShell 会话中设置 Vault 路径：
+
+```powershell
+$env:DEVSAGE_OBSIDIAN_VAULT_PATH = "D:\zzd_project\cursor\life\Obsidian Vault"
+.scripts\start-demo.ps1
+```
+
+也可以直接传参：
+
+```powershell
+.\scripts\start-demo.ps1 -ObsidianVaultPath "D:\zzd_project\cursor\life\Obsidian Vault"
+```
+
+该项目只提供 `vault_viewer` 角色：可以读取、检索、运行 Agent 和刷新 DevSage 索引，但不能审批知识笔记、代码变更或外部 Issue 写回。前端和 API 只返回逻辑项目名、Vault 内相对路径及 `Lx-Ly` 行号引用，不暴露绝对磁盘路径。
+
+索引器会排除 `.obsidian`、`.git`、缓存目录、构建产物和 `node_modules` 等运行时内容；快照仍写入 DevSage 自己的 `data/index-snapshots/`，不会在 Obsidian Vault 内新增注册文件、索引文件或其他写入内容。
+
 执行 Docker Compose 前必须先准备本地环境变量，并确认数据库数据目录和端口范围。不要把真实密码、Token 或 `.env` 文件提交到仓库。
 
 外部 Issue 默认不联网。需要启用时，在当前 PowerShell 会话设置 `DEVSAGE_EXTERNAL_ISSUE_URL`、`DEVSAGE_EXTERNAL_ISSUE_REPOSITORY`，并可通过 `DEVSAGE_EXTERNAL_ISSUE_TOKEN_ENV` 指定 Token 环境变量；适配器只执行查询，不执行创建、修改或关闭 Issue。
