@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 
 import {
+  approveIssueWrite,
   approveCodeChange,
   approveKnowledgeNote,
   getHealth,
@@ -10,6 +11,7 @@ import {
   login,
   listProjects,
   previewCodeChange,
+  previewIssueWrite,
   previewKnowledgeNote,
   runAgent,
   setAuthToken,
@@ -17,6 +19,7 @@ import {
   type CodeChangePreview,
   type HealthResponse,
   type IndexResponse,
+  type IssueWritePreview,
   type KnowledgeNotePreview,
   type Project,
   type SearchHit,
@@ -43,10 +46,16 @@ const codeTargetPath = ref("repositories/springboot-demo/README.md");
 const codeContent = ref("");
 const pendingCodePreview = ref<CodeChangePreview | null>(null);
 const codeWritebackStatus = ref("");
+const issueTitle = ref("");
+const issueBody = ref("");
+const issueLabels = ref("bug, troubleshooting");
+const pendingIssuePreview = ref<IssueWritePreview | null>(null);
+const issueWriteStatus = ref("");
 const authToken = ref(getAuthToken());
 const loginUsername = ref("");
 const loginPassword = ref("");
 const loginStatus = ref("");
+const authUsername = ref("");
 const showExecutionDetails = ref(false);
 
 const requiresLogin = computed(() => Boolean(healthDetails.value?.auth_enabled && !authToken.value));
@@ -128,6 +137,31 @@ ${warning}
 `;
 }
 
+function buildIssueBody(response: AgentResponse): string {
+  const citations = response.citations.length
+    ? response.citations.map((citation) => `- ${citation}`).join("\n")
+    : "- 暂无直接引用";
+  const nextSteps = response.report?.next_steps.length
+    ? response.report.next_steps.map((step) => `- ${step}`).join("\n")
+    : "- 请结合证据来源继续复核";
+  return `## 问题背景
+
+${response.query}
+
+## 当前判断
+
+${response.answer.trim()}
+
+## 建议下一步
+
+${nextSteps}
+
+## 来源
+
+${citations}
+`;
+}
+
 function toggleExecutionDetails(event: Event): void {
   showExecutionDetails.value = (event.target as HTMLDetailsElement).open;
 }
@@ -165,8 +199,12 @@ async function search() {
     results.value = response.evidence;
     noteTitle.value = query.value.trim().slice(0, 80) || "DevSage knowledge note";
     noteContent.value = buildKnowledgeNote(response, noteTitle.value);
+    issueTitle.value = `[${categoryLabel(response.category)}] ${query.value.trim()}`.slice(0, 200);
+    issueBody.value = buildIssueBody(response);
     pendingPreview.value = null;
     pendingCodePreview.value = null;
+    pendingIssuePreview.value = null;
+    issueWriteStatus.value = "";
     showExecutionDetails.value = false;
     status.value = response.evidence_sufficient
       ? `找到 ${response.evidence.length} 条直接证据`
@@ -243,6 +281,37 @@ async function approveCode() {
   }
 }
 
+async function createIssuePreview() {
+  if (!answer.value || !issueTitle.value.trim() || !issueBody.value.trim() || !can("issue_write_preview")) return;
+  issueWriteStatus.value = "正在生成 Issue 草稿预览…";
+  try {
+    pendingIssuePreview.value = await previewIssueWrite(
+      issueTitle.value.trim(),
+      issueBody.value.trim(),
+      issueLabels.value.split(",").map((label) => label.trim()).filter(Boolean),
+      selectedProjectId.value || undefined,
+      selectedActorId.value || undefined,
+    );
+    issueWriteStatus.value = "预览已生成；尚未发送到外部 Issue 平台。";
+  } catch (error) {
+    issueWriteStatus.value = `Issue 预览失败：${error instanceof Error ? error.message : "未知错误"}`;
+  }
+}
+
+async function approveIssue() {
+  if (!pendingIssuePreview.value) return;
+  issueWriteStatus.value = "正在提交 Issue…";
+  try {
+    pendingIssuePreview.value = await approveIssueWrite(
+      pendingIssuePreview.value.preview_id,
+      selectedActorId.value || undefined,
+    );
+    issueWriteStatus.value = "Issue 已提交。";
+  } catch (error) {
+    issueWriteStatus.value = `Issue 提交失败：${error instanceof Error ? error.message : "未知错误"}`;
+  }
+}
+
 async function loadProjects() {
   try {
     const response = await listProjects();
@@ -267,8 +336,10 @@ function resetScopeState() {
   indexInfo.value = null;
   pendingPreview.value = null;
   pendingCodePreview.value = null;
+  pendingIssuePreview.value = null;
   writebackStatus.value = "";
   codeWritebackStatus.value = "";
+  issueWriteStatus.value = "";
 }
 
 async function handleProjectChange() {
@@ -305,6 +376,7 @@ async function submitLogin() {
     setAuthToken(response.access_token);
     authToken.value = response.access_token;
     selectedActorId.value = response.actor_id;
+    authUsername.value = response.username;
     loginPassword.value = "";
     loginStatus.value = `已登录 ${response.username}`;
     await loadProjects();
@@ -312,6 +384,15 @@ async function submitLogin() {
   } catch (error) {
     loginStatus.value = `登录失败：${error instanceof Error ? error.message : "未知错误"}`;
   }
+}
+
+function logout() {
+  setAuthToken("");
+  authToken.value = "";
+  authUsername.value = "";
+  loginPassword.value = "";
+  resetScopeState();
+  status.value = "已退出登录";
 }
 
 onMounted(async () => {
@@ -372,6 +453,12 @@ onMounted(async () => {
         <span v-if="currentMember" class="capability-badge">
           {{ currentMember.role }}：{{ currentMember.actions.length }} 项能力
         </span>
+        <span v-if="healthDetails?.auth_enabled" class="auth-badge">
+          已认证 · {{ authUsername || selectedActorId }}
+        </span>
+        <button v-if="healthDetails?.auth_enabled" type="button" class="secondary-button" @click="logout">
+          退出登录
+        </button>
         <button type="button" @click="refreshIndex" :disabled="!can('manage_project')">重新索引当前项目</button>
         <span class="health-badge" :class="`health-${backendHealth}`" aria-live="polite">
           后端：{{ backendHealth === "checking" ? "检查中" : backendHealth === "online" ? "在线" : "离线" }}
@@ -486,6 +573,53 @@ onMounted(async () => {
             </small>
             <pre>{{ pendingPreview.diff.unified_diff.join("\n") }}</pre>
           </div>
+        </article>
+
+        <article class="issue-writeback-card">
+          <div class="result-meta">
+            <strong>External Issue preview and approval</strong>
+            <span v-if="pendingIssuePreview" class="status-pill">{{ pendingIssuePreview.status }}</span>
+          </div>
+          <p class="approval-hint">
+            先把当前排查结果整理成 Issue 草稿；预览不会联网，只有 operator 审批后才会尝试发送到外部平台。
+          </p>
+          <div v-if="!can('issue_write_preview')" class="locked-state">
+            当前角色没有 Issue 写入权限。请切换到 operator，或仅保留检索和阅读。
+          </div>
+          <template v-else>
+            <label class="field-label">
+              Issue title
+              <input v-model="issueTitle" aria-label="Issue title" />
+            </label>
+            <label class="field-label">
+              Labels <span class="field-help">用英文逗号分隔</span>
+              <input v-model="issueLabels" aria-label="Issue labels" />
+            </label>
+            <label class="field-label">
+              Issue body
+              <textarea v-model="issueBody" rows="9" aria-label="Issue body"></textarea>
+            </label>
+            <div class="writeback-actions">
+              <button type="button" @click="createIssuePreview" :disabled="!issueTitle.trim() || !issueBody.trim()">
+                Generate Issue preview
+              </button>
+              <button
+                v-if="pendingIssuePreview && pendingIssuePreview.status === 'pending'"
+                type="button"
+                @click="approveIssue"
+                :disabled="!can('issue_write_approve')"
+              >
+                Approve and submit
+              </button>
+            </div>
+            <small v-if="issueWriteStatus" class="writeback-status">{{ issueWriteStatus }}</small>
+            <div v-if="pendingIssuePreview" class="issue-preview-summary">
+              <span>状态：{{ pendingIssuePreview.status }}</span>
+              <a v-if="pendingIssuePreview.remote_url" :href="pendingIssuePreview.remote_url" target="_blank" rel="noreferrer noopener">
+                打开远程 Issue #{{ pendingIssuePreview.remote_number }}
+              </a>
+            </div>
+          </template>
         </article>
 
         <article class="code-writeback-card">
@@ -608,6 +742,8 @@ h1 { margin: 12px 0; font-size: clamp(2rem, 5vw, 3.6rem); line-height: 1.05; }
 select { border: 1px solid #cbd6e2; border-radius: 10px; padding: 10px 12px; color: #26384f; background: #ffffff; font: inherit; }
 .index-count { margin-left: auto; color: #7890aa; }
 .capability-badge { border-radius: 999px; padding: 5px 9px; color: #5b4b82; background: #f0ebff; font-weight: 700; }
+.auth-badge { border-radius: 999px; padding: 5px 9px; color: #24664b; background: #e7f6ee; font-weight: 700; }
+.secondary-button { color: #416b98; background: #edf4fb; border: 1px solid #c7d9eb; }
 .health-badge { border-radius: 999px; padding: 5px 9px; font-weight: 700; }
 .health-checking { color: #765b00; background: #fff4c2; }
 .health-online { color: #276749; background: #e8f7ee; }
@@ -623,6 +759,7 @@ input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; p
 .report-card { border: 1px solid #b9d8c5; background: #f3fbf5; }
 .writeback-card { border: 1px solid #d6c38e; background: #fffaf0; }
 .code-writeback-card { border: 1px solid #c5b6dd; background: #faf7ff; }
+.issue-writeback-card { border: 1px solid #b7c9e5; background: #f4f8ff; }
 .result-meta { justify-content: space-between; flex-wrap: wrap; color: #416b98; font-size: 0.85rem; }
 .result-card p, .report-card p { white-space: pre-wrap; line-height: 1.6; }
 .markdown-content { color: #24354d; line-height: 1.75; }
@@ -648,6 +785,11 @@ input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; p
 .next-steps { margin-top: 16px; }
 .approval-hint { color: #665b7d; line-height: 1.5; }
 .writeback-hint { margin: 10px 0; color: #76652b; font-size: 0.88rem; line-height: 1.5; }
+.field-help { color: #8b98a8; font-size: 0.78rem; font-weight: 400; }
+.locked-state { margin: 14px 0; padding: 12px 14px; border-radius: 10px; color: #6e5b2a; background: #fff7dc; line-height: 1.5; }
+.status-pill { border-radius: 999px; padding: 4px 8px; color: #315e8c; background: #dcecf9; font-size: 0.78rem; font-weight: 700; }
+.issue-preview-summary { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; color: #526176; font-size: 0.88rem; }
+.issue-preview-summary a { color: #1f65a6; font-weight: 700; }
 .field-label { display: grid; gap: 6px; margin-top: 12px; color: #526176; font-size: 0.88rem; font-weight: 600; }
 .field-label textarea { resize: vertical; border: 1px solid #cbd6e2; border-radius: 10px; padding: 12px 14px; font: inherit; line-height: 1.5; }
 .writeback-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }

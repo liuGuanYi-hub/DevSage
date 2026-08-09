@@ -160,6 +160,17 @@ export interface CodeChangePreview {
   status: string;
 }
 
+export interface IssueWritePreview {
+  preview_id: string;
+  project_id: string | null;
+  title: string;
+  body: string;
+  labels: string[];
+  status: string;
+  remote_number: string | null;
+  remote_url: string | null;
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 let authToken = "";
 
@@ -307,6 +318,25 @@ export function previewCodeChange(
 
 export function approveCodeChange(previewId: string, actorId?: string): Promise<CodeChangePreview> {
   return request<CodeChangePreview>(`/api/code-changes/${previewId}/approve`, {
+    method: "POST",
+  }, actorId);
+}
+
+export function previewIssueWrite(
+  title: string,
+  body: string,
+  labels: string[],
+  projectId?: string,
+  actorId?: string,
+): Promise<IssueWritePreview> {
+  return request<IssueWritePreview>("/api/issues/preview", {
+    method: "POST",
+    body: JSON.stringify({ title, body, labels, project_id: projectId }),
+  }, actorId);
+}
+
+export function approveIssueWrite(previewId: string, actorId?: string): Promise<IssueWritePreview> {
+  return request<IssueWritePreview>(`/api/issues/${previewId}/approve`, {
     method: "POST",
   }, actorId);
 }
