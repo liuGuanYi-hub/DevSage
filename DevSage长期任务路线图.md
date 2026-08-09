@@ -111,6 +111,7 @@
 - [x] 引入并完善 Pytest 测试运行入口（`pytest.ini`，backend/evaluation 共 129 项：127 passed、2 skipped）；
 - [x] 增加默认只读的 Compose 配置校验和显式执行 smoke 脚本；
 - [x] 增加只读环境预检入口，报告本地工具、依赖和 Docker daemon 状态；
+- [x] 增加只读交付合同审计，校验关键文件、50 条数据集、报告 schema 和数据集 Hash；
 - [x] 硬化 Compose 镜像构建边界并声明后端容器健康检查；
 - [ ] 完善 Docker Compose 部署。
 

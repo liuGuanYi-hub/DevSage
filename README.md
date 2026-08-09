@@ -54,7 +54,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-docker.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-offline.ps1
 ```
 
-该入口会串行执行数据集、评估、离线 JSON/Markdown 评估报告、backend unittest、pytest、MCP、可选 LangGraph、前端构建、一键演示启动、本地 HTTP smoke、actor capability smoke 和 Compose dry-run；当前环境输出 `steps=18`，不会安装依赖，也不会执行 Docker `-Execute`。
+该入口会串行执行交付合同审计、数据集、评估、离线 JSON/Markdown 评估报告、backend unittest、pytest、MCP、可选 LangGraph、前端构建、一键演示启动、本地 HTTP smoke、actor capability smoke 和 Compose dry-run；当前环境输出 `steps=19`，不会安装依赖，也不会执行 Docker `-Execute`。
 
 每次门禁也会确定性更新 [evaluation/reports/offline-baseline.md](evaluation/reports/offline-baseline.md) 和对应 JSON，记录数据集 SHA-256、检索策略对比、Agent grounding、工具覆盖和上下文质量代理指标。
 

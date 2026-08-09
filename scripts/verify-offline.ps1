@@ -27,6 +27,12 @@ $python = (Get-Command python -ErrorAction Stop).Source
 $powershell = (Get-Command powershell -ErrorAction Stop).Source
 $stepCount = 0
 
+Invoke-CheckedCommand "delivery contract audit" $powershell @(
+    "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+    (Join-Path $projectRoot "scripts\check-delivery-contract.ps1")
+)
+$stepCount++
+
 Invoke-CheckedCommand "dataset validation" $python @("evaluation/scripts/validate_mvp_dataset.py")
 $stepCount++
 Invoke-CheckedCommand "agent grounding evaluation" $python @("evaluation/scripts/evaluate_agent_grounding.py")
