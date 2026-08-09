@@ -57,6 +57,13 @@ const loginPassword = ref("");
 const loginStatus = ref("");
 const authUsername = ref("");
 const showExecutionDetails = ref(false);
+const exampleQueries = [
+  { label: "8080 端口占用怎么排查？", query: "8080 端口被占用，应该怎么排查？" },
+  { label: "Spring Boot 用户接口在哪？", query: "示例 Spring Boot 项目的用户接口入口在哪个类？" },
+  { label: "Laravel 任务接口为什么 401？", query: "Laravel 登录成功后访问任务列表为什么返回 401？" },
+  { label: "用户查询涉及哪些文件？", query: "示例 Spring Boot 项目包含哪些与用户查询相关的文件？" },
+  { label: "本地 actor 和正式认证有什么区别？", query: "项目的本地 actor 权限和正式身份认证有什么区别？" },
+];
 
 const requiresLogin = computed(() => Boolean(healthDetails.value?.auth_enabled && !authToken.value));
 
@@ -164,6 +171,10 @@ ${citations}
 
 function toggleExecutionDetails(event: Event): void {
   showExecutionDetails.value = (event.target as HTMLDetailsElement).open;
+}
+
+function chooseExample(exampleQuery: string): void {
+  query.value = exampleQuery;
 }
 
 async function refreshIndex() {
@@ -481,6 +492,24 @@ onMounted(async () => {
         </button>
       </form>
 
+      <section v-if="!requiresLogin" class="example-prompts" aria-label="知识库问题示例">
+        <div class="example-prompts-heading">
+          <strong>从知识库试试</strong>
+          <span>点击示例填入问题，再开始排查</span>
+        </div>
+        <div class="prompt-chip-row">
+          <button
+            v-for="example in exampleQueries"
+            :key="example.query"
+            type="button"
+            class="prompt-chip"
+            @click="chooseExample(example.query)"
+          >
+            {{ example.label }}
+          </button>
+        </div>
+      </section>
+
       <section v-if="answer" class="results" aria-live="polite">
         <article class="answer-card">
           <div class="result-meta">
@@ -752,6 +781,12 @@ select { border: 1px solid #cbd6e2; border-radius: 10px; padding: 10px 12px; col
 button { border: 0; border-radius: 10px; padding: 10px 14px; color: #ffffff; background: #326aa5; cursor: pointer; font: inherit; font-weight: 600; }
 button:disabled { cursor: wait; opacity: 0.6; }
 input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; padding: 12px 14px; font: inherit; }
+.example-prompts { margin: 12px 0 4px; }
+.example-prompts-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; color: #416b98; font-size: 0.86rem; }
+.example-prompts-heading span { color: #7890aa; font-size: 0.78rem; }
+.prompt-chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.prompt-chip { padding: 8px 11px; border: 1px solid #cbdbea; border-radius: 999px; color: #416b98; background: #f1f6fb; font-size: 0.84rem; text-align: left; }
+.prompt-chip:hover { border-color: #8bb5d8; background: #e5f0fa; }
 .results { display: grid; gap: 12px; margin-top: 24px; }
 .result-card, .answer-card, .report-card { padding: 18px; border-radius: 14px; }
 .result-card { border: 1px solid #d7e0ea; background: #f8fbfd; }
