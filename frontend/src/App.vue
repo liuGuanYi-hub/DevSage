@@ -21,6 +21,7 @@ import {
   type Project,
   type SearchHit,
 } from "./api/client";
+import { renderMarkdown, type MarkdownBlock } from "./markdown";
 
 const query = ref("");
 const results = ref<SearchHit[]>([]);
@@ -46,6 +47,7 @@ const authToken = ref(getAuthToken());
 const loginUsername = ref("");
 const loginPassword = ref("");
 const loginStatus = ref("");
+const showExecutionDetails = ref(false);
 
 const requiresLogin = computed(() => Boolean(healthDetails.value?.auth_enabled && !authToken.value));
 
@@ -54,6 +56,18 @@ const currentProject = computed(() =>
 );
 const currentMember = computed(() =>
   currentProject.value?.members.find((member) => member.actor_id === selectedActorId.value),
+);
+
+const answerBlocks = computed<MarkdownBlock[]>(() =>
+  answer.value ? renderMarkdown(answer.value.answer) : [],
+);
+
+const evidenceView = computed(() =>
+  results.value.map((result) => ({
+    ...result,
+    kind: sourceKind(result.source_path),
+    blocks: renderMarkdown(result.content),
+  })),
 );
 
 function can(action: string): boolean {
@@ -74,6 +88,48 @@ function categoryLabel(category: string): string {
     unknown: "待分类",
   };
   return labels[category] ?? category;
+}
+
+function sourceKind(sourcePath: string): string {
+  if (sourcePath.startsWith("issues/") || sourcePath.startsWith("external-issues/")) return "Issue";
+  if (sourcePath.startsWith("git/")) return "Git history";
+  if (sourcePath.includes("/repositories/") || sourcePath.startsWith("repositories/")) return "Code";
+  return "Document";
+}
+
+function buildKnowledgeNote(response: AgentResponse, title: string): string {
+  const citations = response.citations.length
+    ? response.citations.map((citation, index) => `${index + 1}. ${citation}`).join("\n")
+    : "- No direct citation was returned.";
+  const evidence = response.evidence.length
+    ? response.evidence
+        .slice(0, 5)
+        .map((hit) => `### ${sourceKind(hit.source_path)} · ${hit.source_path}\n\n${hit.content.trim()}`)
+        .join("\n\n")
+    : "暂无证据摘要。";
+  const warning = response.warning ?? "请结合来源位置进行最终判断。";
+  return `# ${title}
+
+## 结论
+
+${response.answer.trim()}
+
+## 证据来源
+
+${citations}
+
+## 证据摘要
+
+${evidence}
+
+## 复核提示
+
+${warning}
+`;
+}
+
+function toggleExecutionDetails(event: Event): void {
+  showExecutionDetails.value = (event.target as HTMLDetailsElement).open;
 }
 
 async function refreshIndex() {
@@ -107,8 +163,11 @@ async function search() {
     backendHealth.value = "online";
     answer.value = response;
     results.value = response.evidence;
-    noteContent.value = response.answer;
     noteTitle.value = query.value.trim().slice(0, 80) || "DevSage knowledge note";
+    noteContent.value = buildKnowledgeNote(response, noteTitle.value);
+    pendingPreview.value = null;
+    pendingCodePreview.value = null;
+    showExecutionDetails.value = false;
     status.value = response.evidence_sufficient
       ? `找到 ${response.evidence.length} 条直接证据`
       : "证据不足，页面保留排查线索";
@@ -341,16 +400,30 @@ onMounted(async () => {
             <strong>证据约束回答</strong>
             <span>{{ categoryLabel(answer.category) }} · {{ answer.status }} · 项目 {{ answer.project_id ?? "兼容 source_root" }}</span>
           </div>
-          <p class="answer-text">{{ answer.answer }}</p>
+          <div class="markdown-content answer-markdown">
+            <template v-for="(block, index) in answerBlocks" :key="`answer-block-${index}`">
+              <h3 v-if="block.type === 'heading'" v-html="block.html"></h3>
+              <p v-else-if="block.type === 'paragraph'" v-html="block.html"></p>
+              <blockquote v-else-if="block.type === 'quote'" v-html="block.html"></blockquote>
+              <component v-else-if="block.type === 'list'" :is="block.ordered ? 'ol' : 'ul'">
+                <li v-for="(item, itemIndex) in block.items" :key="`answer-item-${index}-${itemIndex}`" v-html="item"></li>
+              </component>
+              <pre v-else-if="block.type === 'code'"><code>{{ block.code }}</code></pre>
+            </template>
+          </div>
           <small v-if="answer.warning" class="warning">{{ answer.warning }}</small>
-          <small>工具链：{{ answer.tool_calls.join(" · ") || "未调用工具" }}</small>
-          <small>工具重试：{{ answer.tool_retry_count }} 次</small>
-          <small>Token 估算：{{ answer.usage.total_token_estimate }}（查询 {{ answer.usage.query_tokens }} / 证据 {{ answer.usage.evidence_tokens }} / 答案 {{ answer.usage.answer_tokens }}）· {{ answer.usage.runtime_ms }}ms</small>
-          <ol class="agent-steps">
-            <li v-for="step in answer.steps" :key="`${step.name}-${step.status}`">
-              <strong>{{ step.name }}</strong> · {{ step.status }} · {{ step.detail }}
-            </li>
-          </ol>
+          <details class="execution-details" :open="showExecutionDetails" @toggle="toggleExecutionDetails">
+            <summary>执行详情 · {{ answer.tool_calls.length }} 个工具 · {{ answer.steps.length }} 个步骤</summary>
+            <div class="tool-tags">
+              <span v-for="tool in answer.tool_calls" :key="tool" class="tool-tag">{{ tool }}</span>
+            </div>
+            <small>工具重试：{{ answer.tool_retry_count }} 次 · Token 估算：{{ answer.usage.total_token_estimate }} · {{ answer.usage.runtime_ms }}ms</small>
+            <ol class="agent-steps">
+              <li v-for="step in answer.steps" :key="`${step.name}-${step.status}`">
+                <strong>{{ step.name }}</strong> · {{ step.status }} · {{ step.detail }}
+              </li>
+            </ol>
+          </details>
         </article>
 
         <article v-if="answer.report" class="report-card">
@@ -380,6 +453,7 @@ onMounted(async () => {
             <strong>Knowledge note preview and approval</strong>
             <span v-if="pendingPreview">{{ pendingPreview.status }}</span>
           </div>
+          <p class="writeback-hint">已自动整理为“结论 → 来源 → 证据摘要 → 复核提示”，你可以在审批前继续编辑。</p>
           <label class="field-label">
             Title
             <input v-model="noteTitle" aria-label="Knowledge note title" />
@@ -452,14 +526,37 @@ onMounted(async () => {
           </div>
         </article>
 
-        <article v-for="result in results" :key="result.citation" class="result-card">
-          <div class="result-meta">
-            <strong>{{ result.source_path }}</strong>
-            <span>{{ result.citation }} · {{ result.score.toFixed(4) }}</span>
+        <section class="evidence-section" aria-labelledby="evidence-heading">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">Grounding</span>
+              <h2 id="evidence-heading">证据来源</h2>
+            </div>
+            <span>{{ evidenceView.length }} 条直接证据</span>
           </div>
-          <p>{{ result.content }}</p>
-          <small>匹配：{{ result.matched_terms.join("、") || "向量候选" }}</small>
-        </article>
+          <div class="evidence-grid">
+            <article v-for="evidence in evidenceView" :key="evidence.citation" class="evidence-card">
+              <div class="evidence-card-head">
+                <span class="source-kind">{{ evidence.kind }}</span>
+                <span class="evidence-score">{{ evidence.score.toFixed(3) }}</span>
+              </div>
+              <strong class="evidence-path">{{ evidence.source_path }}</strong>
+              <small class="evidence-citation">{{ evidence.citation }}</small>
+              <div class="markdown-content evidence-markdown">
+                <template v-for="(block, index) in evidence.blocks" :key="`evidence-block-${index}`">
+                  <h4 v-if="block.type === 'heading'" v-html="block.html"></h4>
+                  <p v-else-if="block.type === 'paragraph'" v-html="block.html"></p>
+                  <blockquote v-else-if="block.type === 'quote'" v-html="block.html"></blockquote>
+                  <component v-else-if="block.type === 'list'" :is="block.ordered ? 'ol' : 'ul'">
+                    <li v-for="(item, itemIndex) in block.items" :key="`evidence-item-${index}-${itemIndex}`" v-html="item"></li>
+                  </component>
+                  <pre v-else-if="block.type === 'code'"><code>{{ block.code }}</code></pre>
+                </template>
+              </div>
+              <small class="matched-terms">匹配：{{ evidence.matched_terms.join("、") || "向量候选" }}</small>
+            </article>
+          </div>
+        </section>
       </section>
       <p v-else class="empty-state">输入问题后查看带来源引用的检索证据。</p>
     </section>
@@ -484,7 +581,7 @@ body { margin: 0; }
 }
 
 .hero-card {
-  width: min(860px, 100%);
+  width: min(1040px, 100%);
   padding: clamp(24px, 5vw, 48px);
   border: 1px solid #d7e0ea;
   border-radius: 24px;
@@ -528,13 +625,29 @@ input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; p
 .code-writeback-card { border: 1px solid #c5b6dd; background: #faf7ff; }
 .result-meta { justify-content: space-between; flex-wrap: wrap; color: #416b98; font-size: 0.85rem; }
 .result-card p, .report-card p { white-space: pre-wrap; line-height: 1.6; }
-.answer-text { white-space: pre-wrap; line-height: 1.7; font-size: 1.05rem; }
+.markdown-content { color: #24354d; line-height: 1.75; }
+.markdown-content p { margin: 10px 0; }
+.markdown-content h3, .markdown-content h4 { margin: 16px 0 8px; color: #1d3555; }
+.markdown-content h3:first-child, .markdown-content h4:first-child { margin-top: 0; }
+.markdown-content ul, .markdown-content ol { margin: 10px 0; padding-left: 24px; }
+.markdown-content li { margin: 5px 0; }
+.markdown-content blockquote { margin: 12px 0; padding: 8px 14px; border-left: 3px solid #76a4cc; color: #526176; background: rgba(255,255,255,0.55); }
+.markdown-content code { padding: 2px 5px; border-radius: 5px; color: #6e3c12; background: #fff0d5; font: 0.9em/1.4 "SFMono-Regular", Consolas, monospace; }
+.markdown-content pre { margin: 14px 0; overflow-x: auto; padding: 14px 16px; border-radius: 10px; background: #172033; color: #edf4ff; white-space: pre; font: 0.86rem/1.6 "SFMono-Regular", Consolas, monospace; }
+.markdown-content pre code { padding: 0; color: inherit; background: transparent; }
+.markdown-content a { color: #1f65a6; }
+.answer-markdown { font-size: 1.05rem; }
 .warning { display: block; color: #9a6700; margin-bottom: 8px; }
+.execution-details { margin-top: 16px; border-top: 1px solid #c8deef; padding-top: 12px; color: #526176; font-size: 0.88rem; }
+.execution-details summary { cursor: pointer; color: #416b98; font-weight: 700; }
+.tool-tags { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 8px; }
+.tool-tag, .source-kind { display: inline-flex; width: fit-content; border-radius: 999px; padding: 4px 8px; color: #315e8c; background: #dcecf9; font-size: 0.78rem; font-weight: 700; }
 .agent-steps { margin: 14px 0 0; padding-left: 20px; color: #526176; font-size: 0.88rem; line-height: 1.7; }
 .finding { margin-top: 14px; padding-top: 10px; border-top: 1px solid #d6eadb; }
 .finding ul, .next-steps ol { margin-bottom: 0; padding-left: 20px; line-height: 1.6; }
 .next-steps { margin-top: 16px; }
 .approval-hint { color: #665b7d; line-height: 1.5; }
+.writeback-hint { margin: 10px 0; color: #76652b; font-size: 0.88rem; line-height: 1.5; }
 .field-label { display: grid; gap: 6px; margin-top: 12px; color: #526176; font-size: 0.88rem; font-weight: 600; }
 .field-label textarea { resize: vertical; border: 1px solid #cbd6e2; border-radius: 10px; padding: 12px 14px; font: inherit; line-height: 1.5; }
 .writeback-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
@@ -543,11 +656,26 @@ input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; p
 .diff-summary { margin-top: 14px; }
 .diff-summary pre { max-height: 240px; overflow: auto; padding: 12px; border-radius: 10px; background: #29261f; color: #f8edc7; white-space: pre-wrap; font: 0.82rem/1.5 "SFMono-Regular", Consolas, monospace; }
 .empty-state { color: #6c7b8f; text-align: center; }
+.evidence-section { margin-top: 8px; }
+.section-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin: 18px 0 10px; color: #6c7b8f; }
+.section-heading h2 { margin: 3px 0 0; color: #1d3555; font-size: 1.35rem; }
+.section-heading .eyebrow { margin: 0; font-size: 0.72rem; }
+.evidence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.evidence-card { min-width: 0; padding: 16px; border: 1px solid #d7e0ea; border-radius: 14px; background: #f8fbfd; }
+.evidence-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.evidence-score { color: #6b7f95; font: 0.8rem "SFMono-Regular", Consolas, monospace; }
+.evidence-path { display: block; margin-top: 12px; color: #294a70; overflow-wrap: anywhere; }
+.evidence-citation { display: block; margin-top: 4px; color: #7890aa; }
+.evidence-markdown { margin-top: 10px; font-size: 0.92rem; }
+.evidence-markdown pre { max-height: 220px; }
+.matched-terms { display: block; margin-top: 12px; color: #7890aa; }
 li { margin: 8px 0; line-height: 1.5; }
 
 @media (max-width: 640px) {
   .search-box { align-items: stretch; flex-direction: column; }
   .search-box button { width: 100%; }
   .index-count { margin-left: 0; width: 100%; }
+  .evidence-grid { grid-template-columns: 1fr; }
+  .section-heading { align-items: start; flex-direction: column; }
 }
 </style>
