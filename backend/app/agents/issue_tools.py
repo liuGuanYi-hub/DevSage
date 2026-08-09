@@ -69,6 +69,24 @@ def load_external_issue_config() -> ExternalIssueConfig | None:
     )
 
 
+def load_external_issue_write_config() -> ExternalIssueConfig:
+    """Load write configuration and fail closed unless explicitly enabled."""
+
+    if os.getenv("DEVSAGE_EXTERNAL_ISSUE_WRITE_ENABLED", "").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        raise IssueToolError("external Issue write is disabled")
+    config = load_external_issue_config()
+    if config is None:
+        raise IssueToolError("external Issue platform is not configured")
+    if not os.getenv(config.token_env, "").strip():
+        raise IssueToolError("external Issue write token is not configured")
+    return config
+
+
 def _default_external_open(request: Request, timeout: float):
     return urlopen(request, timeout=timeout)
 

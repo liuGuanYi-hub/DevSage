@@ -5,7 +5,7 @@ import json
 import logging
 import os
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 
 from .schemas.search import (
@@ -33,12 +33,21 @@ from .schemas.code_changes import (
     CodeChangeDiffResponse,
     CodeChangePreviewRequest,
     CodeChangePreviewResponse,
+    IssueWritePreviewRequest,
+    IssueWritePreviewResponse,
 )
+from .schemas.auth import LoginRequest, LoginResponse, MeResponse
+from .auth import AuthError, authenticate, decode_token, issue_token, resolve_actor_id
 from .agents.runner import AgentRunner
 from .services.index_service import IndexService, SourceRootError
 from .services.answer_service import AnswerDraft, compose_routed_answer
 from .services.knowledge_writeback import KnowledgeWritebackService, WritebackPolicyError
 from .services.code_writeback import CodeChangePolicyError, CodeChangeWritebackService
+from .services.issue_writeback import (
+    ExternalIssueWritebackService,
+    IssueWritePolicyError,
+)
+from .services.cache import CacheError, CacheBackend, cache_key, create_cache_backend
 from .services.project_registry import (
     DEFAULT_ACTOR_ID,
     ProjectRegistry,
@@ -70,8 +79,74 @@ index_service = IndexService()
 agent_runner = AgentRunner(index_service)
 writeback_service = KnowledgeWritebackService(PROJECT_ROOT / "data" / "approved-notes")
 code_writeback_service = CodeChangeWritebackService(PROJECT_ROOT)
+issue_writeback_service = ExternalIssueWritebackService()
 project_registry = ProjectRegistry.from_environment(PROJECT_ROOT)
 approval_logger = logging.getLogger("devsage.approval")
+
+
+def _create_response_cache() -> CacheBackend:
+    try:
+        return create_cache_backend()
+    except CacheError as exc:
+        logging.getLogger("devsage.cache").warning(
+            "cache_disabled_due_to_configuration backend_error=%s", str(exc)
+        )
+        return create_cache_backend_from_disabled()
+
+
+def create_cache_backend_from_disabled() -> CacheBackend:
+    from .services.cache import NullCache
+
+    return NullCache()
+
+
+response_cache = _create_response_cache()
+
+
+def _cache_get(key: str) -> str | None:
+    try:
+        return response_cache.get(key)
+    except Exception as exc:  # cache outage must not take down retrieval
+        logging.getLogger("devsage.cache").warning(
+            "cache_read_unavailable backend=%s error_type=%s",
+            response_cache.name,
+            type(exc).__name__,
+        )
+        return None
+
+
+def _cache_set(key: str, value: str, ttl_seconds: int) -> None:
+    try:
+        response_cache.set(key, value, ttl_seconds)
+    except Exception as exc:  # cache outage must not take down retrieval
+        logging.getLogger("devsage.cache").warning(
+            "cache_write_unavailable backend=%s error_type=%s",
+            response_cache.name,
+            type(exc).__name__,
+        )
+
+
+def _cache_delete_prefix(prefix: str) -> None:
+    try:
+        response_cache.delete_prefix(prefix)
+    except Exception as exc:
+        logging.getLogger("devsage.cache").warning(
+            "cache_invalidation_unavailable backend=%s error_type=%s",
+            response_cache.name,
+            type(exc).__name__,
+        )
+
+
+def _model_json(model) -> str:
+    return model.model_dump_json() if hasattr(model, "model_dump_json") else model.json()
+
+
+def _validate_model(model_type, payload):
+    return (
+        model_type.model_validate(payload)
+        if hasattr(model_type, "model_validate")
+        else model_type.parse_obj(payload)
+    )
 
 
 def _create_task_store():
@@ -94,6 +169,16 @@ def health() -> dict[str, str | bool]:
         os.getenv("DEVSAGE_EXTERNAL_ISSUE_URL", "").strip()
         and os.getenv("DEVSAGE_EXTERNAL_ISSUE_REPOSITORY", "").strip()
     )
+    cache_mode = response_cache.name
+    auth_enabled = os.getenv("DEVSAGE_AUTH_ENABLED", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    external_issue_write_enabled = os.getenv(
+        "DEVSAGE_EXTERNAL_ISSUE_WRITE_ENABLED", ""
+    ).strip().lower() in {"1", "true", "yes", "on"}
 
     return {
         "status": "ok",
@@ -101,11 +186,59 @@ def health() -> dict[str, str | bool]:
         "storage": storage_mode,
         "embedding_provider": embedding_provider,
         "external_issue_configured": external_issue_configured,
+        "external_issue_write_enabled": external_issue_write_enabled,
+        "auth_enabled": auth_enabled,
+        "cache": cache_mode,
     }
 
 
+@app.post("/api/auth/login", response_model=LoginResponse, tags=["auth"])
+def login(request: LoginRequest) -> LoginResponse:
+    """Issue a signed Bearer token when formal auth is enabled."""
+
+    if os.getenv("DEVSAGE_AUTH_ENABLED", "").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        raise HTTPException(status_code=404, detail="formal authentication is disabled")
+    try:
+        user = authenticate(request.username, request.password, PROJECT_ROOT)
+        access_token, expires_in = issue_token(user)
+    except AuthError:
+        raise HTTPException(status_code=401, detail="invalid credentials") from None
+    return LoginResponse(
+        access_token=access_token,
+        expires_in=expires_in,
+        username=user.username,
+        actor_id=user.actor_id,
+    )
+
+
+@app.get("/api/auth/me", response_model=MeResponse, tags=["auth"])
+def get_current_user(
+    actor_id: str = Depends(resolve_actor_id),
+    authorization: str | None = Header(default=None),
+) -> MeResponse:
+    """Return the authenticated actor identity without exposing token data."""
+
+    if os.getenv("DEVSAGE_AUTH_ENABLED", "").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        raise HTTPException(status_code=404, detail="formal authentication is disabled")
+    try:
+        token = decode_token((authorization or "")[7:].strip())
+    except AuthError:
+        raise HTTPException(status_code=401, detail="Bearer authentication is invalid") from None
+    return MeResponse(username=token.username, actor_id=actor_id)
+
+
 @app.get("/api/projects", response_model=ProjectListResponse, tags=["projects"])
-def list_projects() -> ProjectListResponse:
+def list_projects(_actor_id: str = Depends(resolve_actor_id)) -> ProjectListResponse:
     """List safe project metadata and local role capability boundaries."""
 
     items = [ProjectResponse(**definition.to_dict()) for definition in project_registry.list_projects()]
@@ -115,7 +248,7 @@ def list_projects() -> ProjectListResponse:
 @app.get("/api/projects/{project_id}", response_model=ProjectResponse, tags=["projects"])
 def get_project(
     project_id: str,
-    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+    actor_id: str = Depends(resolve_actor_id),
 ) -> ProjectResponse:
     """Return one registered project without exposing absolute filesystem paths."""
 
@@ -165,7 +298,7 @@ def _project_id_from_target_path(target_path: str) -> str | None:
 @app.post("/api/index", response_model=IndexResponse, tags=["index"])
 def index_source(
     request: IndexRequest,
-    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+    actor_id: str = Depends(resolve_actor_id),
 ) -> IndexResponse:
     """Build or incrementally update a project-relative source snapshot."""
 
@@ -179,6 +312,8 @@ def index_source(
     except PostgresRepositoryError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     stats = snapshot.stats
+    _cache_delete_prefix("search:")
+    _cache_delete_prefix("answer:")
     return IndexResponse(
         source_root=source_root,
         document_count=len(snapshot.documents),
@@ -193,7 +328,7 @@ def index_source(
 @app.post("/api/search", response_model=SearchResponse, tags=["retrieval"])
 def search_source(
     request: SearchRequest,
-    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+    actor_id: str = Depends(resolve_actor_id),
 ) -> SearchResponse:
     """Return keyword evidence with source citations."""
 
@@ -201,6 +336,17 @@ def search_source(
         if request.project_id:
             _authorize_project(request.project_id, actor_id, "search")
         requested_root = _resolve_request_source_root(request.project_id, request.source_root)
+        cache_key_value = cache_key(
+            "search",
+            request.project_id,
+            requested_root,
+            request.query,
+            request.top_k,
+            os.getenv("EMBEDDING_PROVIDER", "hash"),
+        )
+        cached = _cache_get(cache_key_value)
+        if cached:
+            return _validate_model(SearchResponse, json.loads(cached))
         source_root, results = index_service.search(
             requested_root,
             request.query,
@@ -212,7 +358,9 @@ def search_source(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     hits = [_to_search_hit(result) for result in results]
-    return SearchResponse(query=request.query, source_root=source_root, results=hits)
+    response = SearchResponse(query=request.query, source_root=source_root, results=hits)
+    _cache_set(cache_key_value, _model_json(response), ttl_seconds=60)
+    return response
 
 
 def _to_search_hit(result) -> SearchHit:
@@ -285,7 +433,7 @@ def _troubleshooting_response(report: TroubleshootingReport) -> TroubleshootingR
 @app.post("/api/answer", response_model=AnswerResponse, tags=["answer"])
 def answer_question(
     request: AnswerRequest,
-    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+    actor_id: str = Depends(resolve_actor_id),
 ) -> AnswerResponse:
     """Return a deterministic answer assembled only from direct evidence."""
 
@@ -293,6 +441,17 @@ def answer_question(
         if request.project_id:
             _authorize_project(request.project_id, actor_id, "search")
         requested_root = _resolve_request_source_root(request.project_id, request.source_root)
+        cache_key_value = cache_key(
+            "answer",
+            request.project_id,
+            requested_root,
+            request.query,
+            request.top_k,
+            os.getenv("EMBEDDING_PROVIDER", "hash"),
+        )
+        cached = _cache_get(cache_key_value)
+        if cached:
+            return _validate_model(AnswerResponse, json.loads(cached))
         source_root, results = index_service.search_for_answer(
             requested_root,
             request.query,
@@ -302,17 +461,19 @@ def answer_question(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PostgresRepositoryError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return _answer_response(
+    response = _answer_response(
         request.query,
         source_root,
         compose_routed_answer(request.query, results),
     )
+    _cache_set(cache_key_value, _model_json(response), ttl_seconds=60)
+    return response
 
 
 @app.post("/api/answer/stream", tags=["answer"])
 def stream_answer(
     request: AnswerRequest,
-    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+    actor_id: str = Depends(resolve_actor_id),
 ) -> StreamingResponse:
     """Stream the evidence-grounded answer as Server-Sent Events."""
 
@@ -350,7 +511,7 @@ def stream_answer(
 )
 def create_code_change_preview(
     request: CodeChangePreviewRequest,
-    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+    actor_id: str = Depends(resolve_actor_id),
 ) -> CodeChangePreviewResponse:
     """Preview a bounded code-file update without writing to the project."""
 
@@ -384,7 +545,7 @@ def create_code_change_preview(
 )
 def approve_code_change(
     preview_id: str,
-    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+    actor_id: str = Depends(resolve_actor_id),
 ) -> CodeChangePreviewResponse:
     """Apply a previously previewed code change after a fresh Hash check."""
 
@@ -409,7 +570,7 @@ def approve_code_change(
 @app.post("/api/agent/run", response_model=AgentResponse, tags=["agent"])
 def run_agent(
     request: AgentRequest,
-    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+    actor_id: str = Depends(resolve_actor_id),
 ) -> AgentResponse:
     """Run the bounded offline Agent workflow."""
 
@@ -469,7 +630,7 @@ def _agent_response(state) -> AgentResponse:
 @app.get("/api/agent/tasks/{task_id}", response_model=AgentResponse, tags=["agent"])
 def get_agent_task(
     task_id: str,
-    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+    actor_id: str = Depends(resolve_actor_id),
 ) -> AgentResponse:
     """Load an explicitly persisted Agent task snapshot."""
 
@@ -490,7 +651,7 @@ def get_agent_task(
 def resume_agent_task(
     task_id: str,
     request: AgentResumeRequest,
-    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+    actor_id: str = Depends(resolve_actor_id),
 ) -> AgentResponse:
     """Resume a task stopped by the local tool or graph budget."""
 
@@ -514,7 +675,7 @@ def resume_agent_task(
 @app.post("/api/knowledge-notes/preview", response_model=KnowledgeNotePreviewResponse, tags=["knowledge-notes"])
 def create_knowledge_note_preview(
     request: KnowledgeNotePreviewRequest,
-    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+    actor_id: str = Depends(resolve_actor_id),
 ) -> KnowledgeNotePreviewResponse:
     """Create a pending note preview without writing to disk."""
 
@@ -559,7 +720,7 @@ def create_knowledge_note_preview(
 @app.post("/api/knowledge-notes/{preview_id}/approve", response_model=KnowledgeNotePreviewResponse, tags=["knowledge-notes"])
 def approve_knowledge_note(
     preview_id: str,
-    actor_id: str = Header(default=DEFAULT_ACTOR_ID, alias="X-DevSage-Actor"),
+    actor_id: str = Depends(resolve_actor_id),
 ) -> KnowledgeNotePreviewResponse:
     """Write a previously previewed note into the approved-note staging root."""
 
@@ -596,3 +757,77 @@ def approve_knowledge_note(
         },
         status=preview.status,
     )
+
+
+def _issue_write_response(preview) -> IssueWritePreviewResponse:
+    return IssueWritePreviewResponse(
+        preview_id=preview.preview_id,
+        project_id=preview.project_id,
+        title=preview.title,
+        body=preview.body,
+        labels=list(preview.labels),
+        status=preview.status,
+        remote_number=preview.remote_number,
+        remote_url=preview.remote_url,
+    )
+
+
+@app.post(
+    "/api/issues/preview",
+    response_model=IssueWritePreviewResponse,
+    tags=["issues"],
+)
+def create_issue_write_preview(
+    request: IssueWritePreviewRequest,
+    actor_id: str = Depends(resolve_actor_id),
+) -> IssueWritePreviewResponse:
+    """Create an external Issue payload without making a network request."""
+
+    try:
+        if request.project_id:
+            _authorize_project(request.project_id, actor_id, "issue_write_preview")
+        preview = issue_writeback_service.create_preview(
+            title=request.title,
+            body=request.body,
+            labels=request.labels,
+            project_id=request.project_id,
+        )
+    except (ProjectRegistryError, IssueWritePolicyError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    approval_logger.info(
+        "issue_write_preview_created preview_id=%s actor_id=%s project_id=%s",
+        preview.preview_id,
+        actor_id,
+        preview.project_id,
+    )
+    return _issue_write_response(preview)
+
+
+@app.post(
+    "/api/issues/{preview_id}/approve",
+    response_model=IssueWritePreviewResponse,
+    tags=["issues"],
+)
+def approve_issue_write(
+    preview_id: str,
+    actor_id: str = Depends(resolve_actor_id),
+) -> IssueWritePreviewResponse:
+    """Submit one previously previewed external Issue after capability checks."""
+
+    try:
+        preview = issue_writeback_service.get_preview(preview_id)
+        if preview.project_id:
+            _authorize_project(preview.project_id, actor_id, "issue_write_approve")
+        approved = issue_writeback_service.approve(preview_id)
+    except ProjectRegistryError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except IssueWritePolicyError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    approval_logger.info(
+        "issue_write_approved preview_id=%s actor_id=%s project_id=%s status=%s",
+        approved.preview_id,
+        actor_id,
+        approved.project_id,
+        approved.status,
+    )
+    return _issue_write_response(approved)

@@ -49,15 +49,15 @@
       "source_recall_at_5": 0.98
     },
     "context_quality": {
-      "answer_relevance_proxy_f1": 0.14037572881684415,
+      "answer_relevance_proxy_f1": 0.141018813230934,
       "context_precision_at_5": 0.30950000000000005,
       "context_recall_at_5": 1.0,
       "evidence_sufficient_rate": 1.0,
       "failure_count": 0,
       "failures": [],
-      "faithfulness_proxy_precision": 0.7610605721105528,
+      "faithfulness_proxy_precision": 0.7596762783179649,
       "questions": 50,
-      "reference_term_recall": 0.8615115464216585,
+      "reference_term_recall": 0.8604589148427112,
       "unique_source_precision_at_5": 0.3159047619047619
     },
     "retrieval_strategies": {

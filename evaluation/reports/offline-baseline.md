@@ -18,8 +18,8 @@
 | Fully Covered Case Rate | `0.8400` |
 | Context Precision@5 | `0.3095` |
 | Context Recall@5 | `1.0000` |
-| Answer Relevance Proxy F1 | `0.1404` |
-| Faithfulness Proxy Precision | `0.7611` |
+| Answer Relevance Proxy F1 | `0.1410` |
+| Faithfulness Proxy Precision | `0.7597` |
 
 ## 检索策略
 

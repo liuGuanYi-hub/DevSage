@@ -157,3 +157,13 @@
 ## 当前执行项
 
 > 在不破坏离线模式的前提下，准备真实 LangGraph 运行时和 PostgreSQL/pgvector 的可控集成；先保持当前本地 Graph 契约、显式任务快照、测试和离线运行路径不变。
+
+## 2026-08-09 长程集成增量
+
+- [x] 增加可选 Memory/Redis 缓存边界、TTL 和检索响应失效策略；
+- [x] 增加 PBKDF2 密码哈希、HMAC Bearer Token、登录和认证依赖；
+- [x] 增加远程 Embedding 的批量、超时、维度和响应结构校验；
+- [x] 增加外部 Issue 创建预览与 operator 审批写入适配器，默认关闭远程写入；
+- [ ] 启动真实 Docker PostgreSQL/pgvector/Redis，完成迁移、索引和缓存端到端 smoke；
+- [ ] 使用浏览器自动化完成页面加载、交互和截图基线/差异回归；
+- [ ] 在用户提供测试 Provider、Issue 仓库和凭据环境变量后执行真实远程 smoke。

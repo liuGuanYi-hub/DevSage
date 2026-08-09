@@ -30,3 +30,21 @@ class CodeChangePreviewResponse(BaseModel):
     source_citations: list[str]
     diff: CodeChangeDiffResponse
     status: str
+
+
+class IssueWritePreviewRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1, max_length=10_000)
+    labels: list[str] = Field(default_factory=list, max_length=10)
+    project_id: str | None = Field(default=None, min_length=1)
+
+
+class IssueWritePreviewResponse(BaseModel):
+    preview_id: str
+    project_id: str | None
+    title: str
+    body: str
+    labels: list[str]
+    status: str
+    remote_number: str | None = None
+    remote_url: str | None = None

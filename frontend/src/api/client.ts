@@ -14,6 +14,17 @@ export interface HealthResponse {
   storage?: string;
   embedding_provider?: string;
   external_issue_configured?: boolean;
+  external_issue_write_enabled?: boolean;
+  auth_enabled?: boolean;
+  cache?: string;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  username: string;
+  actor_id: string;
 }
 
 export interface ProjectRole {
@@ -150,12 +161,24 @@ export interface CodeChangePreview {
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+let authToken = "";
+
+export function getAuthToken(): string {
+  return authToken;
+}
+
+export function setAuthToken(token: string): void {
+  authToken = token;
+}
 
 async function request<T>(path: string, options: RequestInit, actorId?: string): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
   if (actorId) {
     headers.set("X-DevSage-Actor", actorId);
+  }
+  if (authToken) {
+    headers.set("Authorization", `Bearer ${authToken}`);
   }
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
@@ -165,6 +188,13 @@ async function request<T>(path: string, options: RequestInit, actorId?: string):
     throw new Error(await response.text());
   }
   return response.json() as Promise<T>;
+}
+
+export function login(username: string, password: string): Promise<LoginResponse> {
+  return request<LoginResponse>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ username, password }),
+  });
 }
 
 export function listProjects(): Promise<ProjectListResponse> {

@@ -26,6 +26,23 @@ class ApiTests(unittest.TestCase):
         self.assertFalse(payload["external_issue_configured"])
         self.assertNotIn("API_KEY", str(payload))
 
+    def test_issue_write_preview_requires_operator_capability_and_does_not_write(self) -> None:
+        payload = {
+            "project_id": "sample-data",
+            "title": "Port binding timeout",
+            "body": "8080 is occupied",
+            "labels": ["bug"],
+        }
+        viewer = self.client.post(
+            "/api/issues/preview",
+            json=payload,
+            headers={"X-DevSage-Actor": "local-viewer"},
+        )
+        self.assertEqual(403, viewer.status_code)
+        operator = self.client.post("/api/issues/preview", json=payload)
+        self.assertEqual(200, operator.status_code)
+        self.assertEqual("pending", operator.json()["status"])
+
     def test_api_validation_rejects_empty_query_and_out_of_range_top_k(self) -> None:
         empty_query_response = self.client.post(
             "/api/search",

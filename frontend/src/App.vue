@@ -5,11 +5,14 @@ import {
   approveCodeChange,
   approveKnowledgeNote,
   getHealth,
+  getAuthToken,
   indexSource,
+  login,
   listProjects,
   previewCodeChange,
   previewKnowledgeNote,
   runAgent,
+  setAuthToken,
   type AgentResponse,
   type CodeChangePreview,
   type HealthResponse,
@@ -39,6 +42,12 @@ const codeTargetPath = ref("repositories/springboot-demo/README.md");
 const codeContent = ref("");
 const pendingCodePreview = ref<CodeChangePreview | null>(null);
 const codeWritebackStatus = ref("");
+const authToken = ref(getAuthToken());
+const loginUsername = ref("");
+const loginPassword = ref("");
+const loginStatus = ref("");
+
+const requiresLogin = computed(() => Boolean(healthDetails.value?.auth_enabled && !authToken.value));
 
 const currentProject = computed(() =>
   projects.value.find((project) => project.project_id === selectedProjectId.value),
@@ -230,8 +239,28 @@ async function checkBackendHealth() {
   }
 }
 
+async function submitLogin() {
+  loginStatus.value = "正在登录…";
+  try {
+    const response = await login(loginUsername.value.trim(), loginPassword.value);
+    setAuthToken(response.access_token);
+    authToken.value = response.access_token;
+    selectedActorId.value = response.actor_id;
+    loginPassword.value = "";
+    loginStatus.value = `已登录 ${response.username}`;
+    await loadProjects();
+    await refreshIndex();
+  } catch (error) {
+    loginStatus.value = `登录失败：${error instanceof Error ? error.message : "未知错误"}`;
+  }
+}
+
 onMounted(async () => {
   await checkBackendHealth();
+  if (requiresLogin.value) {
+    status.value = "后端已启用正式认证，请先登录";
+    return;
+  }
   await loadProjects();
   await refreshIndex();
 });
@@ -249,7 +278,22 @@ onMounted(async () => {
         输入一个研发问题，DevMind 会先判断问题类型，再调用受限工具检索样例代码、Git 历史与 Issue，最后返回带引用的答案和可执行的排查报告。
       </p>
 
-      <div class="toolbar">
+      <form v-if="requiresLogin" class="login-card" @submit.prevent="submitLogin">
+        <strong>Formal authentication</strong>
+        <p>当前后端已开启 Bearer Token 认证，登录后才能访问项目和检索能力。</p>
+        <label class="field-label">
+          Username
+          <input v-model="loginUsername" autocomplete="username" aria-label="Username" required />
+        </label>
+        <label class="field-label">
+          Password
+          <input v-model="loginPassword" type="password" autocomplete="current-password" aria-label="Password" required />
+        </label>
+        <button type="submit">Login</button>
+        <small v-if="loginStatus" class="writeback-status">{{ loginStatus }}</small>
+      </form>
+
+      <div v-if="!requiresLogin" class="toolbar">
         <label class="project-picker">
           项目
           <select v-model="selectedProjectId" @change="handleProjectChange" aria-label="选择项目">
@@ -260,7 +304,7 @@ onMounted(async () => {
         </label>
         <label v-if="currentProject?.members.length" class="actor-picker">
           角色
-          <select v-model="selectedActorId" @change="handleActorChange" aria-label="选择本地角色">
+          <select v-model="selectedActorId" @change="handleActorChange" aria-label="选择本地角色" :disabled="Boolean(healthDetails?.auth_enabled)">
             <option v-for="member in currentProject.members" :key="member.actor_id" :value="member.actor_id">
               {{ member.actor_id }} · {{ member.role }}
             </option>
@@ -280,7 +324,7 @@ onMounted(async () => {
         <span v-if="indexInfo" class="index-count">{{ indexInfo.document_count }} files / {{ indexInfo.chunk_count }} chunks</span>
       </div>
 
-      <form class="search-box" @submit.prevent="search">
+      <form v-if="!requiresLogin" class="search-box" @submit.prevent="search">
         <input
           v-model="query"
           placeholder="例如：8080 端口被占用，应该怎么排查？"
@@ -459,6 +503,8 @@ body { margin: 0; }
 .phase-badge { color: #276749; background: #e8f7ee; border-radius: 999px; padding: 6px 10px; font-size: 0.78rem; font-weight: 700; }
 h1 { margin: 12px 0; font-size: clamp(2rem, 5vw, 3.6rem); line-height: 1.05; }
 .summary { color: #526176; font-size: 1.08rem; line-height: 1.7; }
+.login-card { margin: 24px 0; padding: 18px; border: 1px solid #c8d8ec; border-radius: 16px; background: #f5f9ff; }
+.login-card p { color: #526176; line-height: 1.5; }
 
 .toolbar { margin: 28px 0 16px; color: #526176; font-size: 0.9rem; flex-wrap: wrap; }
 .project-picker, .actor-picker { display: flex; align-items: center; gap: 8px; font-weight: 600; }

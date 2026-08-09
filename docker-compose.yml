@@ -16,6 +16,20 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - devsage-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   backend:
     build:
       context: ./backend
@@ -24,6 +38,15 @@ services:
       DEVSAGE_PROJECT_ROOT: /app
       DEVSAGE_GIT_ROOT: /workspace
       DEVSAGE_STORAGE: postgres
+      DEVSAGE_CACHE: ${DEVSAGE_CACHE:-redis}
+      DEVSAGE_REDIS_URL: redis://redis:6379/0
+      DEVSAGE_AUTH_ENABLED: ${DEVSAGE_AUTH_ENABLED:-false}
+      DEVSAGE_AUTH_SECRET: ${DEVSAGE_AUTH_SECRET:-replace-with-at-least-32-random-characters}
+      DEVSAGE_AUTH_USERS_FILE: ${DEVSAGE_AUTH_USERS_FILE:-config/auth-users.json}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-hash}
+      EMBEDDING_API_URL: ${EMBEDDING_API_URL:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      DEVSAGE_EXTERNAL_ISSUE_WRITE_ENABLED: ${DEVSAGE_EXTERNAL_ISSUE_WRITE_ENABLED:-false}
       SAMPLE_DATA_ROOT: sample-data
     volumes:
       - ./sample-data:/app/sample-data:ro
@@ -40,7 +63,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   devsage-postgres-data:
+  devsage-redis-data:
   devsage-approved-notes:

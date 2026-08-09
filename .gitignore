@@ -16,6 +16,8 @@ output/playwright/
 
 # Local configuration and generated data
 .env
+config/auth-users.json
+config/*.secret.json
 .env.*
 !.env.example
 data/

@@ -118,3 +118,35 @@ MCP 的 `search_documents`、`search_code`、`read_file` 和 `generate_troublesh
 3. 在配置测试仓库后完成外部 Issue 真实平台 smoke，并接入正式 MCP 宿主；
 4. 接入正式用户、项目和权限模型，继续保留当前本地 capability boundary；
 5. 扩充评估集并持续比较检索策略，补齐部署演示与最终交付材料。
+
+## 本轮长程集成状态
+
+- Redis：已提供 Memory/Redis 统一缓存边界，检索响应支持 TTL、命名空间失效和 Redis 故障降级；Compose 已加入 Redis 7 服务，但真实容器 smoke 仍需单独执行。
+- 正式认证：已提供 PBKDF2-SHA256 密码哈希、签名 Bearer Token、登录和 `/api/auth/me`；默认关闭，启用时使用项目外或被忽略的用户文件，不把明文密码写入仓库。
+- 远程 Embedding：已提供 OpenAI-compatible 批量请求、超时、批大小、维度、索引连续性和有限浮点校验；只有显式选择 `EMBEDDING_PROVIDER=remote` 才会联网。
+- 外部 Issue 写入：已提供 Issue 创建预览与 operator 审批接口；预览不联网，审批前必须显式开启写入、配置仓库和 Token，当前未执行真实远程写入。
+
+### 本轮启用配置示例
+
+```powershell
+# Redis 真实服务模式；默认离线开发仍可保持 memory
+$env:DEVSAGE_CACHE = "redis"
+$env:DEVSAGE_REDIS_URL = "redis://127.0.0.1:6379/0"
+
+# 正式认证只使用环境变量中的签名密钥和被忽略的用户文件
+$env:DEVSAGE_AUTH_ENABLED = "true"
+$env:DEVSAGE_AUTH_SECRET = "YOUR_RANDOM_SECRET_AT_LEAST_32_CHARS"
+$env:DEVSAGE_AUTH_USERS_FILE = "config/auth-users.json"
+python scripts/create-auth-users.py --username alice --actor-id local-demo
+
+# 远程 Embedding 仅在用户已配置 Provider 和密钥环境变量后启用
+$env:EMBEDDING_PROVIDER = "remote"
+$env:EMBEDDING_API_URL = "https://YOUR_EMBEDDING_HOST/v1"
+$env:EMBEDDING_MODEL = "YOUR_EMBEDDING_MODEL"
+$env:EMBEDDING_API_KEY_ENV = "YOUR_EMBEDDING_KEY_ENV"
+
+# 外部 Issue 写入必须在预览后由 operator 显式审批
+$env:DEVSAGE_EXTERNAL_ISSUE_WRITE_ENABLED = "true"
+```
+
+真实 Docker/PostgreSQL/Redis 和浏览器视觉回归不会由离线验证脚本自动启动；它们属于有额外磁盘和浏览器运行时成本的独立验证阶段。
