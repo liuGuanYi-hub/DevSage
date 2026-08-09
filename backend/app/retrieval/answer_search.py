@@ -8,7 +8,7 @@ from ..agents.classifier import classify_question
 from ..ingestion.models import ChunkRecord
 from .embeddings import EmbeddingProvider
 from .hybrid_search import search_hybrid
-from .keyword_search import search_keyword
+from .keyword_search import is_relevant_result, search_keyword
 from .models import SearchResult
 from .rrf import reciprocal_rank_fusion, select_source_diverse
 
@@ -85,6 +85,7 @@ def _search_code_location(
         ),
         top_k=top_k,
         max_per_source=1,
+        fill_repeats=False,
     )
 
     document_results: list[SearchResult] = []
@@ -103,9 +104,15 @@ def _search_code_location(
         ][:top_k]
 
     if document_results:
-        return reciprocal_rank_fusion(
+        fused = reciprocal_rank_fusion(
             [code_results, document_results],
             top_k=top_k,
+        )
+        return select_source_diverse(
+            fused,
+            top_k=top_k,
+            max_per_source=1,
+            fill_repeats=False,
         )
     return code_results
 
@@ -122,12 +129,12 @@ def _search_project_summary(
         result
         for result in _run_hybrid(
             document_chunks,
-            query,
+            _expand_project_summary_query(query),
             top_k * 2,
             provider,
             hybrid_search_fn,
         )
-        if _is_document_chunk(result.chunk, query)
+        if _is_document_chunk(result.chunk, query) and is_relevant_result(result, query)
     ]
     code_chunks = [
         chunk
@@ -143,7 +150,12 @@ def _search_project_summary(
         [document_results, code_results],
         top_k=top_k * 4,
     )
-    return select_source_diverse(fused, top_k=top_k, max_per_source=1)
+    return select_source_diverse(
+        [result for result in fused if is_relevant_result(result, query)],
+        top_k=top_k,
+        max_per_source=1,
+        fill_repeats=False,
+    )
 
 
 def _search_security_boundary(
@@ -193,13 +205,27 @@ def _is_document_chunk(chunk: ChunkRecord, query: str = "") -> bool:
     return (
         chunk.file_type == "config"
         and not chunk.source_path.startswith(("issues/", "git/"))
-        and _is_sensitive_config_query(query, chunk)
+        and (
+            _is_configuration_location_query(query)
+            or (
+                chunk.source_path.startswith(".")
+                and _is_sensitive_config_query(query, chunk)
+            )
+        )
     )
 
 
 def _is_code_chunk(chunk: ChunkRecord, query: str) -> bool:
     """Avoid ranking a root environment template for unrelated code questions."""
 
+    if chunk.file_type == "config" and not (
+        _is_configuration_location_query(query)
+        or (
+            chunk.source_path.startswith(".")
+            and _is_sensitive_config_query(query, chunk)
+        )
+    ):
+        return False
     return (
         chunk.file_type in {"code", "config"}
         and not chunk.source_path.startswith(("issues/", "git/"))
@@ -228,6 +254,24 @@ def _is_sensitive_config_query(query: str, chunk: ChunkRecord) -> bool:
             "不能",
             "不应该",
             "真实",
+        )
+    )
+
+
+def _is_configuration_location_query(query: str) -> bool:
+    """Keep config files only when the question explicitly asks for config."""
+
+    normalized = query.lower()
+    return any(
+        term in normalized
+        for term in (
+            "配置",
+            "端口",
+            "server.port",
+            "application.yml",
+            "application.yaml",
+            ".env",
+            "环境变量",
         )
     )
 
@@ -287,10 +331,24 @@ def _expand_supporting_document_query(query: str) -> str:
         "下游": "客户端 反向代理 部署",
     }
     normalized_query = query.lower()
+    troubleshooting = classify_question(query) == "troubleshooting"
     added_terms = " ".join(
-        value for term, value in expansions.items() if term.lower() in normalized_query
+        value
+        for term, value in expansions.items()
+        if term.lower() in normalized_query
+        and not (troubleshooting and term in {"配置", "端口"})
     )
     return f"{query} {added_terms}".strip()
+
+
+def _expand_project_summary_query(query: str) -> str:
+    """Add stable config vocabulary for file-responsibility summaries."""
+
+    normalized = query.lower()
+    additions: list[str] = []
+    if any(term in normalized for term in ("端口", "配置", "application.yml", "server.port")):
+        additions.append("application.yml server.port")
+    return f"{query} {' '.join(additions)}".strip()
 
 
 def _expand_code_query(query: str) -> str:
@@ -310,6 +368,8 @@ def _expand_code_query(query: str) -> str:
         "任务列表": "task tasks api.php auth:sanctum",
         "登录路由": "api.php AuthController login",
         "token 类型": "token_type Bearer AuthController",
+        "authorization": "Authenticate Authorization Bearer",
+        "请求头": "Authenticate Authorization Bearer",
         "返回什么类型": "UserDto UserController getUser",
         "配置": "application.yml server.port",
         "端口": "application.yml server.port",

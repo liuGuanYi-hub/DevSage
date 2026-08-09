@@ -50,13 +50,15 @@ def select_source_diverse(
     ranked_results: Iterable[SearchResult],
     top_k: int = 5,
     max_per_source: int = 1,
+    fill_repeats: bool = True,
 ) -> list[SearchResult]:
     """Prefer distinct source files while preserving fused rank order.
 
     Retrieval candidates are often split into several Chunks from one file.
     Keeping one high-ranked Chunk per source first improves multi-source
-    questions without discarding lower-ranked candidates when fewer sources
-    are available than ``top_k``.
+    questions. ``fill_repeats`` preserves the historical behavior of filling
+    ``top_k`` with lower-ranked same-source Chunks when needed; answer-facing
+    code-location retrieval can disable it to avoid repeated file evidence.
     """
 
     if top_k <= 0:
@@ -81,10 +83,11 @@ def select_source_diverse(
         else:
             deferred.append(result)
 
-    for result in deferred:
-        if result.chunk.chunk_id in selected_ids:
-            continue
-        selected.append(result)
-        if len(selected) >= top_k:
-            break
+    if fill_repeats:
+        for result in deferred:
+            if result.chunk.chunk_id in selected_ids:
+                continue
+            selected.append(result)
+            if len(selected) >= top_k:
+                break
     return selected[:top_k]

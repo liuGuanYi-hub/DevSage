@@ -43,6 +43,57 @@ class AnswerServiceTests(unittest.TestCase):
         self.assertEqual((), draft.citations)
         self.assertIn("没有检索到足够的直接证据", draft.answer)
 
+    def test_code_location_starts_with_a_direct_controller_conclusion(self) -> None:
+        results = [
+            SearchResult(
+                chunk=ChunkRecord(
+                    chunk_id="controller-1",
+                    source_path="repositories/demo/UserController.java",
+                    file_type="code",
+                    content="public class UserController {\n    private final UserService userService;\n}",
+                    start_line=4,
+                    end_line=7,
+                ),
+                score=1.0,
+                matched_terms=("usercontroller", "userservice"),
+            ),
+            SearchResult(
+                chunk=ChunkRecord(
+                    chunk_id="service-1",
+                    source_path="repositories/demo/UserService.java",
+                    file_type="code",
+                    content="public class UserService { public UserController.UserDto findUser(long id) { } }",
+                    start_line=4,
+                    end_line=6,
+                ),
+                score=0.9,
+                matched_terms=("userservice", "finduser"),
+            ),
+            SearchResult(
+                chunk=ChunkRecord(
+                    chunk_id="controller-2",
+                    source_path="repositories/demo/UserController.java",
+                    file_type="code",
+                    content="public UserDto getUser(long id) { return userService.findUser(id); }",
+                    start_line=9,
+                    end_line=11,
+                ),
+                score=0.8,
+                matched_terms=("getuser", "finduser"),
+            ),
+        ]
+
+        draft = compose_evidence_answer(
+            "示例项目的用户接口入口在哪个类？",
+            results,
+        )
+
+        self.assertIn("直接结论", draft.answer)
+        self.assertIn("UserController", draft.answer)
+        self.assertIn("UserService.findUser", draft.answer)
+        self.assertEqual(2, len(draft.evidence))
+        self.assertEqual(2, len(draft.citations))
+
     def test_project_summary_groups_code_and_document_evidence(self) -> None:
         results = [
             SearchResult(
@@ -72,8 +123,9 @@ class AnswerServiceTests(unittest.TestCase):
         ]
         draft = compose_project_summary("总结用户接口", results)
         self.assertTrue(draft.evidence_sufficient)
-        self.assertIn("文档与配置证据", draft.answer)
-        self.assertIn("代码证据", draft.answer)
+        self.assertIn("文件职责", draft.answer)
+        self.assertIn("知识说明文档", draft.answer)
+        self.assertIn("用户接口入口", draft.answer)
         self.assertEqual(2, len(draft.citations))
 
 

@@ -10,6 +10,7 @@ from ..ingestion.indexer import IndexSnapshot, build_index
 from ..ingestion.models import ChunkRecord
 from ..retrieval.answer_search import (
     _expand_code_query,
+    _expand_project_summary_query,
     _is_code_chunk,
     _is_document_chunk,
     search_answer_chunks,
@@ -211,7 +212,12 @@ class IndexService:
             expanded_query,
             top_k=max(top_k * 4, 10),
         )
-        return select_source_diverse(candidates, top_k=top_k, max_per_source=1)
+        return select_source_diverse(
+            candidates,
+            top_k=top_k,
+            max_per_source=1,
+            fill_repeats=False,
+        )
 
     def search_project(self, source_root: str, query: str, top_k: int) -> list[SearchResult]:
         relative_root, snapshot = self.get_or_build(source_root)
@@ -221,7 +227,11 @@ class IndexService:
             for chunk in chunks
             if _is_document_chunk(chunk, query)
         ]
-        document_results = search_hybrid(document_chunks, query, top_k=top_k * 2)
+        document_results = search_hybrid(
+            document_chunks,
+            _expand_project_summary_query(query),
+            top_k=top_k * 2,
+        )
         code_chunks = [
             chunk
             for chunk in chunks

@@ -30,6 +30,11 @@ class AnswerSearchTests(unittest.TestCase):
             sources,
         )
         self.assertNotIn(".env.example", sources)
+        self.assertNotIn(
+            "repositories/springboot-demo/src/main/resources/application.yml",
+            sources,
+        )
+        self.assertEqual(len(results), len(sources))
 
     def test_project_summary_keeps_multiple_expected_sources(self) -> None:
         category, results = search_answer_chunks(

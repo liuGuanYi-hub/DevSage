@@ -2,7 +2,8 @@ import unittest
 from pathlib import Path
 
 from backend.app.ingestion.indexer import build_index
-from backend.app.retrieval.keyword_search import search_keyword
+from backend.app.retrieval.keyword_search import is_relevant_result, search_keyword, tokenize
+from backend.app.retrieval.models import SearchResult
 from backend.app.retrieval.rrf import reciprocal_rank_fusion, select_source_diverse
 
 
@@ -38,12 +39,46 @@ class RetrievalTests(unittest.TestCase):
         sources = [result.chunk.source_path for result in selected]
         self.assertEqual(len(sources), len(set(sources)))
 
+    def test_source_diverse_can_keep_only_one_chunk_per_source(self) -> None:
+        first = search_keyword(self.chunks, "8080", top_k=5)
+        selected = select_source_diverse(
+            first,
+            top_k=5,
+            max_per_source=1,
+            fill_repeats=False,
+        )
+
+        sources = [result.chunk.source_path for result in selected]
+        self.assertEqual(len(sources), len(set(sources)))
+
     def test_keyword_search_boosts_named_source_paths(self) -> None:
         results = search_keyword(self.chunks, "application.yml server.port", top_k=1)
 
         self.assertEqual(
             "repositories/springboot-demo/src/main/resources/application.yml",
             results[0].chunk.source_path,
+        )
+
+    def test_chinese_tokenization_keeps_phrases_and_drops_stopwords(self) -> None:
+        tokens = tokenize("示例项目的用户查询相关文件")
+
+        self.assertIn("用户", tokens)
+        self.assertIn("查询", tokens)
+        self.assertNotIn("的", tokens)
+        self.assertNotIn("用", tokens)
+
+    def test_relevance_filter_rejects_wrong_stack_code_evidence(self) -> None:
+        result = SearchResult(
+            chunk=self.chunks[0],
+            score=1.0,
+            matched_terms=("用户", "项目"),
+        )
+
+        self.assertFalse(
+            is_relevant_result(
+                result,
+                "示例 Spring Boot 项目包含哪些与用户查询相关的文件？",
+            )
         )
 
 

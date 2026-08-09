@@ -75,15 +75,15 @@ const exampleGroups: ExampleGroup[] = [
     label: "故障排查",
     icon: "!",
     tone: "troubleshooting",
-    examples: [{ label: "8080 端口占用怎么排查？", query: "8080 端口被占用，应该怎么排查？" }],
+    examples: [{ label: "8080 端口占用怎么排查？", query: "8080 端口被占用，应该怎么排查？", projectId: "sample-data" }],
   },
   {
     label: "代码定位",
     icon: "</>",
     tone: "code",
     examples: [
-      { label: "Spring Boot 用户接口在哪？", query: "示例 Spring Boot 项目的用户接口入口在哪个类？" },
-      { label: "用户查询涉及哪些文件？", query: "示例 Spring Boot 项目包含哪些与用户查询相关的文件？" },
+      { label: "Spring Boot 用户接口在哪？", query: "示例 Spring Boot 项目的用户接口入口在哪个类？", projectId: "sample-data" },
+      { label: "用户查询涉及哪些文件？", query: "示例 Spring Boot 项目包含哪些与用户查询相关的文件？", projectId: "sample-data" },
     ],
   },
   {
@@ -91,8 +91,8 @@ const exampleGroups: ExampleGroup[] = [
     icon: "✓",
     tone: "auth",
     examples: [
-      { label: "Laravel 任务接口为什么 401？", query: "Laravel 登录成功后访问任务列表为什么返回 401？" },
-      { label: "本地 actor 和正式认证有什么区别？", query: "项目的本地 actor 权限和正式身份认证有什么区别？" },
+      { label: "Laravel 任务接口为什么 401？", query: "Laravel 登录成功后访问任务列表为什么返回 401？", projectId: "sample-data" },
+      { label: "本地 actor 和正式认证有什么区别？", query: "项目的本地 actor 权限和正式身份认证有什么区别？", projectId: "sample-data" },
     ],
   },
   {
@@ -143,12 +143,42 @@ const currentMember = computed(() =>
   currentProject.value?.members.find((member) => member.actor_id === selectedActorId.value),
 );
 
+const canIssueWrite = computed(() => can("issue_write_preview") || can("issue_write_approve"));
+const canCodeWrite = computed(() => can("code_write_preview") || can("code_write_approve"));
+
+const projectMismatch = computed(() => {
+  const suggestedProjectId = inferProjectId(query.value);
+  if (!suggestedProjectId || !currentProject.value || suggestedProjectId === currentProject.value.project_id) {
+    return null;
+  }
+  const suggestedProject = projects.value.find((project) => project.project_id === suggestedProjectId);
+  if (!suggestedProject) return null;
+  return { suggestedProjectId, suggestedProject };
+});
+
 const answerBlocks = computed<MarkdownBlock[]>(() =>
   answer.value ? renderMarkdown(answer.value.answer) : [],
 );
 
+function uniqueEvidence(hits: SearchHit[], limit = Number.MAX_SAFE_INTEGER): SearchHit[] {
+  const seenSources = new Set<string>();
+  return hits.filter((hit) => {
+    if (seenSources.has(hit.source_path) || seenSources.size >= limit) return false;
+    seenSources.add(hit.source_path);
+    return true;
+  });
+}
+
+function evidenceForResponse(response: AgentResponse): SearchHit[] {
+  if (response.category !== "project_summary" || !response.citations.length) {
+    return response.evidence;
+  }
+  const cited = response.evidence.filter((hit) => response.citations.includes(hit.citation));
+  return cited.length ? cited : response.evidence;
+}
+
 const evidenceView = computed(() =>
-  results.value.map((result) => ({
+  uniqueEvidence(results.value).map((result) => ({
     ...result,
     kind: sourceKind(result.source_path),
     blocks: renderMarkdown(result.content),
@@ -186,13 +216,25 @@ function sourceKind(sourcePath: string): string {
   return "Document";
 }
 
+function inferProjectId(value: string): string | null {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  if (/(spring\s*boot|laravel|8080|sanctum|任务接口|端口占用|本地 actor)/i.test(normalized)) {
+    return "sample-data";
+  }
+  if (/(obsidian|vault|inbox|research|topic index|agent evaluation|个人 ai 工作流)/i.test(normalized)) {
+    return "obsidian-vault";
+  }
+  return null;
+}
+
 function buildKnowledgeNote(response: AgentResponse, title: string): string {
+  const sourceEvidence = uniqueEvidence(evidenceForResponse(response));
   const citations = response.citations.length
-    ? response.citations.map((citation, index) => `${index + 1}. ${citation}`).join("\n")
+    ? [...new Set(response.citations)].map((citation, index) => `${index + 1}. ${citation}`).join("\n")
     : "- No direct citation was returned.";
-  const evidence = response.evidence.length
-    ? response.evidence
-        .slice(0, 5)
+  const evidence = sourceEvidence.length
+    ? sourceEvidence
         .map((hit) => `### ${sourceKind(hit.source_path)} · ${hit.source_path}\n\n${hit.content.trim()}`)
         .join("\n\n")
     : "暂无证据摘要。";
@@ -219,7 +261,7 @@ ${warning}
 
 function buildIssueBody(response: AgentResponse): string {
   const citations = response.citations.length
-    ? response.citations.map((citation) => `- ${citation}`).join("\n")
+    ? [...new Set(response.citations)].map((citation) => `- ${citation}`).join("\n")
     : "- 暂无直接引用";
   const nextSteps = response.report?.next_steps.length
     ? response.report.next_steps.map((step) => `- ${step}`).join("\n")
@@ -248,10 +290,18 @@ function toggleExecutionDetails(event: Event): void {
 
 async function chooseExample(exampleQuery: string, projectId?: string): Promise<void> {
   query.value = exampleQuery;
-  if (projectId && projectId !== selectedProjectId.value) {
-    selectedProjectId.value = projectId;
+  const targetProjectId = projectId ?? "sample-data";
+  if (targetProjectId !== selectedProjectId.value) {
+    selectedProjectId.value = targetProjectId;
     await handleProjectChange();
   }
+}
+
+async function switchToSuggestedProject(): Promise<void> {
+  const targetProjectId = projectMismatch.value?.suggestedProjectId;
+  if (!targetProjectId) return;
+  selectedProjectId.value = targetProjectId;
+  await handleProjectChange();
 }
 
 async function refreshIndex() {
@@ -272,6 +322,10 @@ async function refreshIndex() {
 
 async function search() {
   if (!query.value.trim()) return;
+  if (projectMismatch.value) {
+    status.value = `当前项目与问题不匹配，请先切换到${projectMismatch.value.suggestedProject.name}。`;
+    return;
+  }
   isLoading.value = true;
   status.value = "Agent 正在分类、检索并组织证据…";
   try {
@@ -284,7 +338,8 @@ async function search() {
     );
     backendHealth.value = "online";
     answer.value = response;
-    results.value = response.evidence;
+    const visibleEvidence = evidenceForResponse(response);
+    results.value = visibleEvidence;
     noteTitle.value = query.value.trim().slice(0, 80) || "DevSage knowledge note";
     noteContent.value = buildKnowledgeNote(response, noteTitle.value);
     issueTitle.value = `[${categoryLabel(response.category)}] ${query.value.trim()}`.slice(0, 200);
@@ -295,7 +350,7 @@ async function search() {
     issueWriteStatus.value = "";
     showExecutionDetails.value = false;
     status.value = response.evidence_sufficient
-      ? `找到 ${response.evidence.length} 条直接证据`
+      ? `找到 ${uniqueEvidence(visibleEvidence).length} 个来源的直接证据`
       : "证据不足，页面保留排查线索";
   } catch (error) {
     backendHealth.value = "offline";
@@ -572,10 +627,20 @@ onMounted(async () => {
         </button>
       </form>
 
+      <div v-if="projectMismatch" class="project-mismatch" role="alert">
+        <div>
+          <strong>检索范围提醒</strong>
+          <span>当前项目是“{{ currentProject?.name }}”，但这个问题更像属于“{{ projectMismatch.suggestedProject.name }}”。</span>
+        </div>
+        <button type="button" class="secondary-button" @click="switchToSuggestedProject">
+          切换到{{ projectMismatch.suggestedProject.name }}
+        </button>
+      </div>
+
       <section v-if="!requiresLogin" class="example-prompts" aria-label="知识库问题示例">
         <div class="example-prompts-heading">
           <strong>从知识库试试</strong>
-          <span>点击示例填入问题；Vault 案例会自动切换只读项目</span>
+          <span>点击示例会自动切换到对应项目，再点击“开始排查”</span>
         </div>
         <div class="example-group-list">
           <div v-for="group in exampleGroups" :key="group.label" class="example-group">
@@ -618,7 +683,7 @@ onMounted(async () => {
       <section v-if="answer" class="results" aria-live="polite">
         <article class="answer-card">
           <div class="result-meta">
-            <strong>证据约束回答</strong>
+            <strong>直接回答</strong>
             <span>{{ categoryLabel(answer.category) }} · {{ answer.status }} · 项目 {{ answer.project_id ?? "兼容 source_root" }}</span>
           </div>
           <div class="markdown-content answer-markdown">
@@ -709,6 +774,7 @@ onMounted(async () => {
           </div>
         </article>
 
+        <template v-if="canIssueWrite">
         <article class="issue-writeback-card">
           <div class="result-meta">
             <strong>External Issue preview and approval</strong>
@@ -756,6 +822,15 @@ onMounted(async () => {
           </template>
         </article>
 
+        </template>
+        <details v-else class="locked-writeback-card">
+          <summary>External Issue 写回（当前角色不可用）</summary>
+          <div class="locked-state">
+            当前角色没有 Issue 写入权限；只保留检索和阅读，不会向外部 Issue 平台发送内容。
+          </div>
+        </details>
+
+        <template v-if="canCodeWrite">
         <article class="code-writeback-card">
           <div class="result-meta">
             <strong>Code change preview and approval</strong>
@@ -793,6 +868,14 @@ onMounted(async () => {
             <pre>{{ pendingCodePreview.diff.unified_diff.join("\n") }}</pre>
           </div>
         </article>
+
+        </template>
+        <details v-else class="locked-writeback-card">
+          <summary>代码修改写回（当前角色不可用）</summary>
+          <div class="locked-state">
+            当前角色没有代码写入权限；只读项目不会修改源文件或 Vault 内容。
+          </div>
+        </details>
 
         <section class="evidence-section" aria-labelledby="evidence-heading">
           <div class="section-heading">
@@ -879,6 +962,9 @@ select { border: 1px solid #cbd6e2; border-radius: 10px; padding: 10px 12px; col
 .readonly-badge { border-radius: 999px; padding: 5px 9px; color: #315e8c; background: #e3f0fb; font-weight: 700; }
 .auth-badge { border-radius: 999px; padding: 5px 9px; color: #24664b; background: #e7f6ee; font-weight: 700; }
 .secondary-button { color: #416b98; background: #edf4fb; border: 1px solid #c7d9eb; }
+.project-mismatch { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding: 12px 14px; border: 1px solid #e4c46d; border-radius: 12px; color: #6e5520; background: #fff8df; line-height: 1.5; }
+.project-mismatch div { display: grid; gap: 2px; }
+.project-mismatch span { font-size: 0.88rem; }
 .health-badge { border-radius: 999px; padding: 5px 9px; font-weight: 700; }
 .health-checking { color: #765b00; background: #fff4c2; }
 .health-online { color: #276749; background: #e8f7ee; }
@@ -942,6 +1028,8 @@ input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; p
 .writeback-hint { margin: 10px 0; color: #76652b; font-size: 0.88rem; line-height: 1.5; }
 .field-help { color: #8b98a8; font-size: 0.78rem; font-weight: 400; }
 .locked-state { margin: 14px 0; padding: 12px 14px; border-radius: 10px; color: #6e5b2a; background: #fff7dc; line-height: 1.5; }
+.locked-writeback-card { padding: 14px 16px; border: 1px dashed #b7c9e5; border-radius: 14px; color: #526176; background: #f7faff; }
+.locked-writeback-card summary { cursor: pointer; font-weight: 700; color: #416b98; }
 .status-pill { border-radius: 999px; padding: 4px 8px; color: #315e8c; background: #dcecf9; font-size: 0.78rem; font-weight: 700; }
 .issue-preview-summary { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; color: #526176; font-size: 0.88rem; }
 .issue-preview-summary a { color: #1f65a6; font-weight: 700; }
@@ -971,6 +1059,7 @@ li { margin: 8px 0; line-height: 1.5; }
 @media (max-width: 640px) {
   .search-box { align-items: stretch; flex-direction: column; }
   .search-box button { width: 100%; }
+  .project-mismatch { align-items: stretch; flex-direction: column; }
   .index-count { margin-left: 0; width: 100%; }
   .evidence-grid { grid-template-columns: 1fr; }
   .section-heading { align-items: start; flex-direction: column; }

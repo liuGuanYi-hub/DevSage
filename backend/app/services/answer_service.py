@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 from ..retrieval.models import SearchResult
 
@@ -25,6 +26,110 @@ def _compact_snippet(content: str, limit: int = 360) -> str:
     return compact[: limit - 1].rstrip() + "…"
 
 
+def _unique_source_results(
+    results: list[SearchResult],
+    max_sources: int,
+) -> list[SearchResult]:
+    """Keep the highest-ranked result for each source file."""
+
+    selected: list[SearchResult] = []
+    seen_sources: set[str] = set()
+    seen_chunks: set[str] = set()
+    for result in results:
+        source_path = result.chunk.source_path
+        chunk_id = result.chunk.chunk_id
+        if source_path in seen_sources or chunk_id in seen_chunks:
+            continue
+        selected.append(result)
+        seen_sources.add(source_path)
+        seen_chunks.add(chunk_id)
+        if len(selected) >= max_sources:
+            break
+    return selected
+
+
+def _class_name(result: SearchResult) -> str | None:
+    """Extract a class name from a source path or the visible code chunk."""
+
+    path_match = re.search(r"(?:^|/)([A-Za-z_]\w*Controller)\.[A-Za-z0-9]+$", result.chunk.source_path)
+    if path_match:
+        return path_match.group(1)
+    content_match = re.search(r"\bclass\s+([A-Za-z_]\w*)", result.chunk.content)
+    return content_match.group(1) if content_match else None
+
+
+def _compose_code_location_conclusion(
+    results: list[SearchResult],
+) -> str:
+    """Answer code-location questions with the strongest supported path."""
+
+    controller = next(
+        (
+            result
+            for result in results
+            if "controller" in result.chunk.source_path.lower()
+            or "controller" in result.chunk.content.lower()
+        ),
+        None,
+    )
+    if controller is None:
+        first = results[0]
+        return (
+            f"直接结论：当前证据还不能确认具体入口类，最相关的来源是 "
+            f"`{first.citation}`。"
+        )
+
+    class_name = _class_name(controller) or "控制器类"
+    service = next(
+        (
+            result
+            for result in results
+            if "service" in result.chunk.source_path.lower()
+            and "finduser" in result.chunk.content.lower()
+        ),
+        None,
+    )
+    conclusion = (
+        f"直接结论：用户接口入口是 `{class_name}` 类，文件为 "
+        f"`{controller.chunk.source_path}`（入口证据：`{controller.citation}`）。"
+    )
+    if service is not None:
+        conclusion += (
+            f"该类的用户查询业务由 `UserService.findUser` 负责，"
+            f"相关证据：`{service.citation}`。"
+        )
+    return conclusion
+
+
+def _compose_direct_conclusion(
+    query: str,
+    results: list[SearchResult],
+) -> str:
+    """Create a concise deterministic conclusion before rendering evidence."""
+
+    from ..agents.classifier import classify_question
+
+    category = classify_question(query)
+    if category == "code_location":
+        return _compose_code_location_conclusion(results)
+    first = results[0]
+    if category == "troubleshooting":
+        first = next(
+            (
+                result
+                for result in results
+                if result.chunk.file_type == "issue"
+                or result.chunk.source_path.startswith("docs/")
+                or "error" in result.chunk.source_path.lower()
+            ),
+            first,
+        )
+    return (
+        f"直接结论：当前最相关的知识证据是“{_compact_snippet(first.chunk.content, 240)}”，"
+        f"来源：`{first.citation}`。"
+    )
+
+
 def compose_evidence_answer(
     query: str,
     results: list[SearchResult],
@@ -37,7 +142,10 @@ def compose_evidence_answer(
     configured.
     """
 
-    direct_results = [result for result in results if result.matched_terms][:max_sources]
+    direct_results = _unique_source_results(
+        [result for result in results if result.matched_terms],
+        max_sources,
+    )
     if not direct_results:
         return AnswerDraft(
             answer=(
@@ -45,20 +153,12 @@ def compose_evidence_answer(
                 "请补充更具体的关键词、项目范围或错误信息。"
             ),
             citations=(),
-            evidence=tuple(results[:max_sources]),
+            evidence=(),
             evidence_sufficient=False,
             warning="没有找到包含查询关键词的直接来源。",
         )
 
-    evidence_lines = [
-        f"- {result.citation}：{_compact_snippet(result.chunk.content)}"
-        for result in direct_results
-    ]
-    answer = (
-        f"针对“{query}”，当前知识库检索到以下直接证据：\n\n"
-        + "\n".join(evidence_lines)
-        + "\n\n以上内容均来自当前索引文件，请结合来源位置进行最终判断。"
-    )
+    answer = _compose_direct_conclusion(query, direct_results)
     citations = tuple(result.citation for result in direct_results)
     warning = None
     if len(direct_results) == 1:
@@ -66,7 +166,7 @@ def compose_evidence_answer(
     return AnswerDraft(
         answer=answer,
         citations=citations,
-        evidence=tuple(results[:max_sources]),
+        evidence=tuple(direct_results),
         evidence_sufficient=True,
         warning=warning,
     )
