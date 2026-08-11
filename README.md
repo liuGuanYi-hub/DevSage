@@ -111,6 +111,8 @@ $env:DEVSAGE_OBSIDIAN_VAULT_PATH = "D:\zzd_project\cursor\life\Obsidian Vault"
 
 执行 Docker Compose 前必须先准备本地环境变量，并确认数据库数据目录和端口范围。不要把真实密码、Token 或 `.env` 文件提交到仓库。
 
+当前 Compose 会把 DevSage 的 PostgreSQL 和 Redis 数据绑定到项目 D 盘目录：`data/docker/postgres/` 和 `data/docker/redis/`；Docker Desktop 自身的镜像缓存仍由 Docker Desktop 管理，不会迁移或覆盖已有数据。
+
 外部 Issue 默认不联网。需要启用时，在当前 PowerShell 会话设置 `DEVSAGE_EXTERNAL_ISSUE_URL`、`DEVSAGE_EXTERNAL_ISSUE_REPOSITORY`，并可通过 `DEVSAGE_EXTERNAL_ISSUE_TOKEN_ENV` 指定 Token 环境变量；适配器只执行查询，不执行创建、修改或关闭 Issue。
 
 `scripts/smoke-docker.ps1` 默认只运行 `docker compose config --quiet`，不会创建镜像、容器或卷；后端镜像已声明 `/health` 健康检查，构建上下文会排除测试、缓存、数据目录和环境文件。确认 C 盘占用并获得许可后，才可在当前 PowerShell 会话设置 `POSTGRES_PASSWORD`、`DATABASE_URL`，再使用 `-Execute` 运行健康检查、索引写入和 Agent 查询 smoke。

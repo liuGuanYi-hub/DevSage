@@ -120,7 +120,7 @@ try {
 } finally {
     if ($started -and -not $KeepResources) {
         Invoke-Compose @("down")
-        Write-Output "Compose services stopped; named volumes were preserved."
+        Write-Output "Compose services stopped; D-drive bind directories and named volumes were preserved."
     } elseif ($started) {
         Write-Output "Compose services remain running because -KeepResources was supplied."
     }

@@ -9,7 +9,7 @@ services:
     ports:
       - "${POSTGRES_PORT:-5433}:5432"
     volumes:
-      - devsage-postgres-data:/var/lib/postgresql/data
+      - ./data/docker/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-devsage} -d ${POSTGRES_DB:-devsage}"]
       interval: 5s
@@ -23,7 +23,7 @@ services:
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
-      - devsage-redis-data:/data
+      - ./data/docker/redis:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -67,6 +67,4 @@ services:
         condition: service_healthy
 
 volumes:
-  devsage-postgres-data:
-  devsage-redis-data:
   devsage-approved-notes:
