@@ -97,14 +97,15 @@ def render_markdown(report: dict[str, Any]) -> str:
         "",
         "## 检索策略",
         "",
-        "| 策略 | Case Recall@5 | Source Recall@5 | MRR |",
-        "|---|---:|---:|---:|",
+        "| 策略 | Case Recall@5 | Source Recall@5 | MRR | Alias Recall@5 |",
+        "|---|---:|---:|---:|---:|",
     ]
     for name, values in retrieval.items():
         lines.append(
             f"| {name} | `{_format_metric(values['case_recall_at_5'])}` | "
             f"`{_format_metric(values['source_recall_at_5'])}` | "
-            f"`{_format_metric(values['mrr'])}` |"
+            f"`{_format_metric(values['mrr'])}` | "
+            f"`{_format_metric(values.get('expected_alias_recall_at_5', 0.0))}` |"
         )
 
     grounding_failures = grounding.get("failures", [])

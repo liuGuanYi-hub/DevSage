@@ -11,21 +11,34 @@ def reciprocal_rank_fusion(
     ranked_lists: Iterable[Iterable[SearchResult]],
     top_k: int = 5,
     smoothing: int = 60,
+    weights: Iterable[float] | None = None,
 ) -> list[SearchResult]:
-    """Fuse ranked lists by Chunk ID while preserving source metadata."""
+    """Fuse ranked lists by Chunk ID while preserving source metadata.
+
+    A weighted variant lets production retrieval prefer exact keyword signals
+    such as error codes and identifiers while retaining local-vector recall.
+    Omitting ``weights`` preserves the original unweighted RRF behavior.
+    """
 
     if top_k <= 0:
         return []
     if smoothing <= 0:
         raise ValueError("smoothing must be positive")
 
+    ranked_items = list(ranked_lists)
+    rank_weights = list(weights) if weights is not None else [1.0] * len(ranked_items)
+    if len(rank_weights) != len(ranked_items) or any(weight <= 0 for weight in rank_weights):
+        raise ValueError("weights must contain one positive value per ranked list")
+
     scores: dict[str, float] = {}
     representatives: dict[str, SearchResult] = {}
     matched_terms: dict[str, set[str]] = {}
-    for ranked_list in ranked_lists:
+    for list_index, ranked_list in enumerate(ranked_items):
         for rank, result in enumerate(ranked_list, start=1):
             chunk_id = result.chunk.chunk_id
-            scores[chunk_id] = scores.get(chunk_id, 0.0) + 1 / (smoothing + rank)
+            scores[chunk_id] = scores.get(chunk_id, 0.0) + rank_weights[list_index] / (
+                smoothing + rank
+            )
             representatives.setdefault(chunk_id, result)
             matched_terms.setdefault(chunk_id, set()).update(result.matched_terms)
 

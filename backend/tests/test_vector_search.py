@@ -4,7 +4,7 @@ from pathlib import Path
 from backend.app.ingestion.indexer import build_index
 from backend.app.retrieval.embeddings import HashEmbeddingProvider
 from backend.app.retrieval.hybrid_search import search_hybrid
-from backend.app.retrieval.vector_search import cosine_similarity, search_vector
+from backend.app.retrieval.vector_search import cosine_similarity, embedding_text, search_vector
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -34,7 +34,14 @@ class VectorSearchTests(unittest.TestCase):
         self.assertTrue(results)
         self.assertTrue(all(result.citation for result in results))
 
+    def test_vector_embedding_text_includes_source_responsibility_metadata(self) -> None:
+        controller = next(
+            chunk for chunk in self.chunks if chunk.source_path.endswith("UserController.java")
+        )
+        text = embedding_text(controller)
+        self.assertIn("document_role: api-entry", text)
+        self.assertIn("source: repositories/springboot-demo", text)
+
 
 if __name__ == "__main__":
     unittest.main()
-

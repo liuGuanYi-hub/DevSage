@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .chunkers import split_document
+from .chunkers import CHUNK_METADATA_VERSION, split_document
 from .loaders import load_documents
 from .models import ChunkRecord, DocumentRecord
 
@@ -56,7 +56,14 @@ def build_index(
         if old_document is None:
             added += 1
             chunks.extend(split_document(document))
-        elif old_document.content_hash == document.content_hash:
+        elif (
+            old_document.content_hash == document.content_hash
+            and previous_chunks.get(document.source_path)
+            and all(
+                chunk.metadata.get("metadata_version") == CHUNK_METADATA_VERSION
+                for chunk in previous_chunks[document.source_path]
+            )
+        ):
             unchanged += 1
             chunks.extend(previous_chunks.get(document.source_path, []))
         else:

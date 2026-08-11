@@ -36,7 +36,10 @@ def evaluate() -> dict[str, object]:
         state = runner.run(str(case["question"]), "sample-data")
         expected = {
             normalize_expected_source(str(source))
-            for source in case.get("expected_sources", [])
+            for source in case.get(
+                "agent_expected_sources",
+                case.get("expected_sources", []),
+            )
         }
         actual = {result.chunk.source_path for result in state.evidence}
         recall = len(expected.intersection(actual)) / len(expected) if expected else 1.0

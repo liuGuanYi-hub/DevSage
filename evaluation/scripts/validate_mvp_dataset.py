@@ -46,12 +46,20 @@ def validate_dataset() -> list[dict[str, object]]:
             if not isinstance(case[field], str) or not case[field].strip():
                 raise ValueError(f"case {case_id} has an empty {field}")
 
-        for field in ("expected_sources", "expected_tools"):
+        for field in ("expected_sources", "expected_tools", "agent_expected_sources"):
+            if field == "agent_expected_sources" and field not in case:
+                continue
             values = case[field]
             if not isinstance(values, list) or not values:
                 raise ValueError(f"case {case_id} must have a non-empty {field} list")
             if not all(isinstance(value, str) and value for value in values):
                 raise ValueError(f"case {case_id} has invalid values in {field}")
+
+        expected_aliases = case.get("expected_aliases", [])
+        if not isinstance(expected_aliases, list) or not all(
+            isinstance(value, str) and value for value in expected_aliases
+        ):
+            raise ValueError(f"case {case_id} has invalid expected_aliases")
 
         for source in case["expected_sources"]:
             source_path = PROJECT_ROOT / source
@@ -73,4 +81,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

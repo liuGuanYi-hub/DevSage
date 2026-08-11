@@ -1,8 +1,8 @@
 {
   "dataset": {
     "path": "evaluation/datasets/devmind_mvp_questions.json",
-    "questions": 50,
-    "sha256": "373098066a7811288aa694ad91a90e95020aec0b88c4756139ecc1f6bb21a6ad"
+    "questions": 75,
+    "sha256": "4ab682d0712389900dc17f851a3a351a4ace6b95b8a456f6b71f078add0e9916"
   },
   "interpretation": {
     "embedding": "offline Hash baseline",
@@ -11,8 +11,38 @@
   },
   "metrics": {
     "agent_grounding": {
-      "failure_count": 2,
+      "failure_count": 4,
       "failures": [
+        {
+          "category": "troubleshooting",
+          "id": "mvp-012",
+          "missing_sources": [
+            "docs/springboot-errors.md"
+          ],
+          "retrieved_sources": [
+            "git/0381573114df31c1f01dae27ace7cf45e8a5d551",
+            "git/1da1f40035f21d55323703cdf2b4d4bdad709053",
+            "issues/ISSUE-001",
+            "issues/ISSUE-002",
+            "repositories/springboot-demo/src/main/resources/application.yml"
+          ],
+          "source_recall": 0.0
+        },
+        {
+          "category": "code_location",
+          "id": "mvp-018",
+          "missing_sources": [
+            "repositories/springboot-demo/README.md"
+          ],
+          "retrieved_sources": [
+            "README.md",
+            "docs/knowledge-writing-policy.md",
+            "docs/laravel-auth.md",
+            "docs/springboot-errors.md",
+            "repositories/laravel-task-api/README.md"
+          ],
+          "source_recall": 0.5
+        },
         {
           "category": "knowledge_qa",
           "id": "mvp-020",
@@ -36,7 +66,7 @@
           ],
           "retrieved_sources": [
             "README.md",
-            "docs/knowledge-writing-policy.md",
+            "docs/laravel-auth.md",
             "docs/springboot-errors.md",
             "repositories/laravel-task-api/README.md",
             "repositories/springboot-demo/README.md"
@@ -44,52 +74,918 @@
           "source_recall": 0.5
         }
       ],
-      "full_source_case_rate": 0.96,
-      "questions": 50,
-      "source_recall_at_5": 0.98
+      "full_source_case_rate": 0.9466666666666667,
+      "questions": 75,
+      "source_recall_at_5": 0.9666666666666667
     },
     "context_quality": {
-      "answer_relevance_proxy_f1": 0.141018813230934,
-      "context_precision_at_5": 0.30950000000000005,
-      "context_recall_at_5": 1.0,
+      "answer_relevance_proxy_f1": 0.1627860072940175,
+      "context_precision_at_5": 0.37033333333333335,
+      "context_recall_at_5": 0.9533333333333334,
       "evidence_sufficient_rate": 1.0,
-      "failure_count": 0,
-      "failures": [],
-      "faithfulness_proxy_precision": 0.7596762783179649,
-      "questions": 50,
-      "reference_term_recall": 0.8604589148427112,
-      "unique_source_precision_at_5": 0.3159047619047619
+      "failure_count": 52,
+      "failures": [
+        {
+          "answer_relevance_proxy": 0.0,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/springboot-demo/src/main/resources/application.yml"
+          ],
+          "id": "mvp-002",
+          "reference_term_recall": 0.0,
+          "retrieved_sources": [
+            "repositories/springboot-demo/src/main/resources/application.yml",
+            "docs/springboot-errors.md",
+            "repositories/springboot-demo/README.md",
+            "README.md",
+            "docs/laravel-auth.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.1818,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java"
+          ],
+          "id": "mvp-004",
+          "reference_term_recall": 0.4444,
+          "retrieved_sources": [
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+            "repositories/laravel-task-api/routes/api.php"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.1714,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php"
+          ],
+          "id": "mvp-007",
+          "reference_term_recall": 0.3,
+          "retrieved_sources": [
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+            "repositories/laravel-task-api/routes/api.php",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php"
+          ],
+          "id": "mvp-008",
+          "reference_term_recall": 0.0,
+          "retrieved_sources": [
+            ".env.example",
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+            "repositories/laravel-task-api/README.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.1143,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/laravel-task-api/routes/api.php"
+          ],
+          "id": "mvp-009",
+          "reference_term_recall": 0.1429,
+          "retrieved_sources": [
+            "repositories/laravel-task-api/README.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/routes/api.php",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.1176,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/routes/api.php"
+          ],
+          "id": "mvp-010",
+          "reference_term_recall": 0.1538,
+          "retrieved_sources": [
+            "repositories/laravel-task-api/README.md",
+            "repositories/laravel-task-api/routes/api.php",
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "README.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php"
+          ],
+          "id": "mvp-011",
+          "reference_term_recall": 0.0,
+          "retrieved_sources": [
+            ".env.example",
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "repositories/laravel-task-api/README.md",
+            "repositories/laravel-task-api/routes/api.php"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.1607,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/springboot-errors.md"
+          ],
+          "id": "mvp-012",
+          "reference_term_recall": 0.2308,
+          "retrieved_sources": [
+            "repositories/springboot-demo/src/main/resources/application.yml",
+            "issues/issues.json",
+            "docs/springboot-errors.md",
+            "repositories/laravel-task-api/README.md",
+            "repositories/springboot-demo/README.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0964,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/knowledge-writing-policy.md"
+          ],
+          "id": "mvp-014",
+          "reference_term_recall": 0.1379,
+          "retrieved_sources": [
+            ".env.example",
+            "docs/springboot-errors.md",
+            "docs/knowledge-writing-policy.md",
+            "repositories/laravel-task-api/README.md",
+            "docs/laravel-auth.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.2393,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+            "repositories/laravel-task-api/routes/api.php"
+          ],
+          "id": "mvp-016",
+          "reference_term_recall": 0.4,
+          "retrieved_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/routes/api.php",
+            "repositories/laravel-task-api/README.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "README.md",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.1364,
+          "context_recall": 0.5,
+          "expected_sources": [
+            "docs/laravel-auth.md",
+            "repositories/springboot-demo/README.md"
+          ],
+          "id": "mvp-018",
+          "reference_term_recall": 0.12,
+          "retrieved_sources": [
+            "README.md",
+            "docs/laravel-auth.md",
+            "docs/springboot-errors.md",
+            "docs/knowledge-writing-policy.md",
+            "repositories/laravel-task-api/README.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.2857,
+          "context_recall": 1.0,
+          "expected_sources": [
+            ".env.example",
+            "README.md"
+          ],
+          "id": "mvp-020",
+          "reference_term_recall": 0.4,
+          "retrieved_sources": [
+            "README.md",
+            ".env.example",
+            "repositories/laravel-task-api/README.md",
+            "docs/laravel-auth.md",
+            "docs/springboot-errors.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/springboot-errors.md",
+            "repositories/springboot-demo/src/main/resources/application.yml"
+          ],
+          "id": "mvp-023",
+          "reference_term_recall": 0.0,
+          "retrieved_sources": [
+            "repositories/springboot-demo/src/main/resources/application.yml",
+            "docs/springboot-errors.md",
+            "repositories/springboot-demo/README.md",
+            "README.md",
+            "docs/knowledge-writing-policy.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/springboot-demo/src/main/resources/application.yml"
+          ],
+          "id": "mvp-025",
+          "reference_term_recall": 0.0,
+          "retrieved_sources": [
+            "repositories/springboot-demo/src/main/resources/application.yml",
+            "docs/springboot-errors.md",
+            "repositories/springboot-demo/README.md",
+            "README.md",
+            ".env.example"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.1212,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/springboot-demo/src/main/resources/application.yml"
+          ],
+          "id": "mvp-026",
+          "reference_term_recall": 0.3333,
+          "retrieved_sources": [
+            "repositories/springboot-demo/src/main/resources/application.yml"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java"
+          ],
+          "id": "mvp-027",
+          "reference_term_recall": 0.0,
+          "retrieved_sources": [
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+            "repositories/laravel-task-api/routes/api.php"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.1143,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java"
+          ],
+          "id": "mvp-028",
+          "reference_term_recall": 0.25,
+          "retrieved_sources": [
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+            "docs/laravel-auth.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0488,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/springboot-demo/README.md"
+          ],
+          "id": "mvp-029",
+          "reference_term_recall": 0.1667,
+          "retrieved_sources": [
+            "repositories/springboot-demo/README.md",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+            "docs/springboot-errors.md",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java",
+            "repositories/laravel-task-api/README.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/springboot-demo/README.md"
+          ],
+          "id": "mvp-030",
+          "reference_term_recall": 0.0,
+          "retrieved_sources": [
+            "repositories/springboot-demo/README.md",
+            "docs/springboot-errors.md",
+            "repositories/laravel-task-api/README.md",
+            "issues/issues.json",
+            "docs/laravel-auth.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php"
+          ],
+          "id": "mvp-032",
+          "reference_term_recall": 0.0,
+          "retrieved_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+            "repositories/laravel-task-api/README.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "repositories/laravel-task-api/routes/api.php"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "repositories/laravel-task-api/routes/api.php"
+          ],
+          "id": "mvp-033",
+          "reference_term_recall": 0.0,
+          "retrieved_sources": [
+            "repositories/laravel-task-api/README.md",
+            "repositories/laravel-task-api/routes/api.php",
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "README.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.1333,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/laravel-task-api/routes/api.php"
+          ],
+          "id": "mvp-034",
+          "reference_term_recall": 0.1818,
+          "retrieved_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/routes/api.php",
+            "repositories/laravel-task-api/README.md",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+            "README.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php"
+          ],
+          "id": "mvp-035",
+          "reference_term_recall": 0.0,
+          "retrieved_sources": [
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+            "repositories/laravel-task-api/routes/api.php",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php"
+          ],
+          "id": "mvp-036",
+          "reference_term_recall": 0.0,
+          "retrieved_sources": [
+            ".env.example",
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "repositories/laravel-task-api/README.md",
+            "repositories/laravel-task-api/routes/api.php"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0667,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php"
+          ],
+          "id": "mvp-037",
+          "reference_term_recall": 0.0909,
+          "retrieved_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+            "repositories/laravel-task-api/README.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "README.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php"
+          ],
+          "id": "mvp-038",
+          "reference_term_recall": 0.0,
+          "retrieved_sources": [
+            ".env.example",
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+            "repositories/laravel-task-api/README.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.1,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "README.md"
+          ],
+          "id": "mvp-039",
+          "reference_term_recall": 0.2,
+          "retrieved_sources": [
+            "README.md",
+            "docs/springboot-errors.md",
+            "docs/knowledge-writing-policy.md",
+            "docs/laravel-auth.md",
+            "repositories/springboot-demo/README.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.1613,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/knowledge-writing-policy.md"
+          ],
+          "id": "mvp-042",
+          "reference_term_recall": 0.3333,
+          "retrieved_sources": [
+            "docs/knowledge-writing-policy.md",
+            "docs/springboot-errors.md",
+            "docs/laravel-auth.md",
+            "README.md",
+            "issues/issues.json"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/knowledge-writing-policy.md"
+          ],
+          "id": "mvp-044",
+          "reference_term_recall": 0.0,
+          "retrieved_sources": [
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java",
+            "docs/springboot-errors.md",
+            "docs/knowledge-writing-policy.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.1124,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/springboot-demo/README.md",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java"
+          ],
+          "id": "mvp-045",
+          "reference_term_recall": 0.4167,
+          "retrieved_sources": [
+            "repositories/springboot-demo/README.md",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.1786,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+            "repositories/laravel-task-api/routes/api.php"
+          ],
+          "id": "mvp-046",
+          "reference_term_recall": 0.3704,
+          "retrieved_sources": [
+            "repositories/laravel-task-api/README.md",
+            "repositories/laravel-task-api/routes/api.php",
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "README.md",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/springboot-demo/README.md",
+            "repositories/springboot-demo/src/main/resources/application.yml"
+          ],
+          "id": "mvp-048",
+          "reference_term_recall": 0.0,
+          "retrieved_sources": [
+            "repositories/springboot-demo/src/main/resources/application.yml",
+            "docs/springboot-errors.md",
+            "repositories/springboot-demo/README.md",
+            "README.md",
+            "docs/knowledge-writing-policy.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.2857,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "README.md",
+            "docs/knowledge-writing-policy.md"
+          ],
+          "id": "mvp-049",
+          "reference_term_recall": 0.3125,
+          "retrieved_sources": [
+            "README.md",
+            "docs/laravel-auth.md",
+            "docs/springboot-errors.md",
+            "docs/knowledge-writing-policy.md",
+            "repositories/springboot-demo/README.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.2222,
+          "context_recall": 0.6667,
+          "expected_sources": [
+            "README.md",
+            "repositories/laravel-task-api/README.md",
+            "repositories/springboot-demo/README.md"
+          ],
+          "id": "mvp-050",
+          "reference_term_recall": 0.5,
+          "retrieved_sources": [
+            "repositories/springboot-demo/README.md",
+            "README.md",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.2247,
+          "context_recall": 0.6667,
+          "expected_sources": [
+            "docs/laravel-auth.md",
+            "issues/issues.json",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php"
+          ],
+          "id": "mvp-053",
+          "reference_term_recall": 0.4762,
+          "retrieved_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/README.md",
+            "issues/issues.json",
+            "repositories/laravel-task-api/routes/api.php",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/springboot-errors.md",
+            "repositories/springboot-demo/src/main/resources/application.yml"
+          ],
+          "id": "mvp-055",
+          "reference_term_recall": 0.0,
+          "retrieved_sources": [
+            "repositories/springboot-demo/src/main/resources/application.yml",
+            "docs/springboot-errors.md",
+            "repositories/springboot-demo/README.md",
+            "README.md",
+            ".env.example"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.2169,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php"
+          ],
+          "id": "mvp-056",
+          "reference_term_recall": 0.3,
+          "retrieved_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+            "issues/issues.json",
+            "repositories/laravel-task-api/README.md",
+            "docs/springboot-errors.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.25,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/laravel-task-api/routes/api.php"
+          ],
+          "id": "mvp-057",
+          "reference_term_recall": 0.2632,
+          "retrieved_sources": [
+            "repositories/laravel-task-api/README.md",
+            "repositories/laravel-task-api/routes/api.php",
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "README.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0526,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php"
+          ],
+          "id": "mvp-059",
+          "reference_term_recall": 0.0769,
+          "retrieved_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+            "repositories/laravel-task-api/README.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "README.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php"
+          ],
+          "id": "mvp-060",
+          "reference_term_recall": 0.0,
+          "retrieved_sources": [
+            ".env.example",
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+            "repositories/laravel-task-api/README.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.2051,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "repositories/laravel-task-api/routes/api.php"
+          ],
+          "id": "mvp-061",
+          "reference_term_recall": 0.2222,
+          "retrieved_sources": [
+            "repositories/laravel-task-api/README.md",
+            "repositories/laravel-task-api/routes/api.php",
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "README.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.2745,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/springboot-demo/README.md",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java"
+          ],
+          "id": "mvp-062",
+          "reference_term_recall": 0.4667,
+          "retrieved_sources": [
+            "repositories/springboot-demo/README.md",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+            "repositories/laravel-task-api/README.md",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java",
+            "docs/springboot-errors.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.1667,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java"
+          ],
+          "id": "mvp-063",
+          "reference_term_recall": 0.3077,
+          "retrieved_sources": [
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+            "docs/laravel-auth.md",
+            "issues/issues.json",
+            "repositories/springboot-demo/README.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0,
+          "context_recall": 0.5,
+          "expected_sources": [
+            "repositories/springboot-demo/README.md",
+            "repositories/springboot-demo/src/main/resources/application.yml"
+          ],
+          "id": "mvp-064",
+          "reference_term_recall": 0.0,
+          "retrieved_sources": [
+            "repositories/springboot-demo/src/main/resources/application.yml"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0851,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "repositories/springboot-demo/README.md",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java"
+          ],
+          "id": "mvp-065",
+          "reference_term_recall": 0.1667,
+          "retrieved_sources": [
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserService.java",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+            "docs/knowledge-writing-policy.md",
+            "repositories/springboot-demo/README.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.2,
+          "context_recall": 0.3333,
+          "expected_sources": [
+            "README.md",
+            "docs/knowledge-writing-policy.md",
+            "issues/issues.json"
+          ],
+          "id": "mvp-066",
+          "reference_term_recall": 0.4783,
+          "retrieved_sources": [
+            "docs/springboot-errors.md",
+            "docs/knowledge-writing-policy.md",
+            "repositories/springboot-demo/README.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0256,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/knowledge-writing-policy.md"
+          ],
+          "id": "mvp-067",
+          "reference_term_recall": 0.0417,
+          "retrieved_sources": [
+            ".env.example",
+            "docs/knowledge-writing-policy.md",
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/README.md",
+            "README.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0233,
+          "context_recall": 0.5,
+          "expected_sources": [
+            "docs/knowledge-writing-policy.md",
+            "issues/issues.json"
+          ],
+          "id": "mvp-068",
+          "reference_term_recall": 0.0455,
+          "retrieved_sources": [
+            "repositories/laravel-task-api/README.md",
+            ".env.example",
+            "README.md",
+            "repositories/springboot-demo/README.md",
+            "docs/knowledge-writing-policy.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.1356,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "README.md",
+            "repositories/laravel-task-api/README.md",
+            "repositories/springboot-demo/README.md"
+          ],
+          "id": "mvp-070",
+          "reference_term_recall": 0.2857,
+          "retrieved_sources": [
+            "README.md",
+            "docs/springboot-errors.md",
+            "repositories/laravel-task-api/README.md",
+            "repositories/springboot-demo/README.md",
+            "docs/laravel-auth.md"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.2316,
+          "context_recall": 0.6667,
+          "expected_sources": [
+            "README.md",
+            "repositories/laravel-task-api/README.md",
+            "repositories/springboot-demo/README.md"
+          ],
+          "id": "mvp-072",
+          "reference_term_recall": 0.55,
+          "retrieved_sources": [
+            "repositories/springboot-demo/README.md",
+            "README.md",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.0455,
+          "context_recall": 1.0,
+          "expected_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php"
+          ],
+          "id": "mvp-074",
+          "reference_term_recall": 0.0526,
+          "retrieved_sources": [
+            ".env.example",
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "repositories/laravel-task-api/README.md",
+            "repositories/laravel-task-api/routes/api.php"
+          ]
+        },
+        {
+          "answer_relevance_proxy": 0.087,
+          "context_recall": 0.6667,
+          "expected_sources": [
+            "docs/laravel-auth.md",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "repositories/laravel-task-api/routes/api.php"
+          ],
+          "id": "mvp-075",
+          "reference_term_recall": 0.08,
+          "retrieved_sources": [
+            "repositories/laravel-task-api/routes/api.php",
+            "repositories/laravel-task-api/app/Http/Controllers/AuthController.php",
+            "repositories/laravel-task-api/app/Http/Middleware/Authenticate.php",
+            "repositories/springboot-demo/src/main/java/com/example/devsage/UserController.java",
+            ".env.example"
+          ]
+        }
+      ],
+      "faithfulness_proxy_precision": 0.527124745349968,
+      "questions": 75,
+      "reference_term_recall": 0.35909554415110845,
+      "unique_source_precision_at_5": 0.37033333333333335
     },
     "retrieval_strategies": {
       "hybrid_raw_rrf": {
-        "case_recall_at_5": 0.74,
-        "mrr": 0.654,
-        "questions": 50,
-        "source_recall_at_5": 0.5716666666666667
+        "case_recall_at_5": 0.88,
+        "expected_alias_recall_at_5": 0.875,
+        "mrr": 0.778888888888889,
+        "questions": 75,
+        "source_recall_at_5": 0.7077777777777776
       },
       "hybrid_source_diverse": {
-        "case_recall_at_5": 0.82,
-        "mrr": 0.6753333333333333,
-        "questions": 50,
-        "source_recall_at_5": 0.6783333333333332
+        "case_recall_at_5": 0.96,
+        "expected_alias_recall_at_5": 1.0,
+        "mrr": 0.8048888888888889,
+        "questions": 75,
+        "source_recall_at_5": 0.88
       },
       "keyword": {
-        "case_recall_at_5": 0.72,
-        "mrr": 0.4346666666666666,
-        "questions": 50,
-        "source_recall_at_5": 0.545
+        "case_recall_at_5": 0.88,
+        "expected_alias_recall_at_5": 1.0,
+        "mrr": 0.7588888888888888,
+        "questions": 75,
+        "source_recall_at_5": 0.72
       },
       "vector": {
-        "case_recall_at_5": 0.78,
-        "mrr": 0.6806666666666666,
-        "questions": 50,
-        "source_recall_at_5": 0.6283333333333333
+        "case_recall_at_5": 0.88,
+        "expected_alias_recall_at_5": 0.0,
+        "mrr": 0.7364444444444445,
+        "questions": 75,
+        "source_recall_at_5": 0.6833333333333333
       }
     },
     "tool_call_accuracy": {
-      "expected_tool_coverage": 0.9333333333333331,
-      "fully_covered_case_rate": 0.84,
-      "questions": 50
+      "expected_tool_coverage": 0.908888888888889,
+      "fully_covered_case_rate": 0.76,
+      "questions": 75
     }
   },
   "report_kind": "devsage-offline-mvp-baseline",

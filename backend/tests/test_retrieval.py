@@ -51,6 +51,17 @@ class RetrievalTests(unittest.TestCase):
         sources = [result.chunk.source_path for result in selected]
         self.assertEqual(len(sources), len(set(sources)))
 
+    def test_weighted_rrf_can_prefer_keyword_rank(self) -> None:
+        keyword_results = search_keyword(self.chunks, "8080", top_k=5)
+        vector_results = search_keyword(self.chunks, "端口", top_k=5)
+        fused = reciprocal_rank_fusion(
+            [keyword_results, vector_results],
+            top_k=5,
+            weights=(2.0, 0.5),
+        )
+        self.assertTrue(fused)
+        self.assertEqual(keyword_results[0].chunk.chunk_id, fused[0].chunk.chunk_id)
+
     def test_keyword_search_boosts_named_source_paths(self) -> None:
         results = search_keyword(self.chunks, "application.yml server.port", top_k=1)
 

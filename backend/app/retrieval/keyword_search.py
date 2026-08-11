@@ -56,11 +56,18 @@ CJK_PHRASES = tuple(
             "入口",
             "端口",
             "占用",
+            "端口被占用",
+            "端口冲突",
+            "端口绑定失败",
             "排查",
             "故障",
             "问题",
             "错误",
             "认证",
+            "未认证",
+            "未授权",
+            "认证失败",
+            "鉴权",
             "权限",
             "登录",
             "任务",
@@ -99,6 +106,108 @@ CJK_STOPWORDS = frozenset(
     "哪什怎么如何应该被把让将已还又呢吗吧啊哦中间各并且如果因为所以关于通过"
 )
 
+# Query and document aliases are deliberately small and explicit.  They make
+# the offline retriever understand common Chinese/English ways of describing
+# the same development incident without requiring a tokenizer dependency or
+# an external model.
+TERM_SYNONYMS: dict[str, tuple[str, ...]] = {
+    "端口": ("监听端口", "服务端口", "port"),
+    "排查": ("诊断", "故障定位", "troubleshooting", "debug"),
+    "认证": ("鉴权", "身份校验", "authentication", "auth"),
+    "权限": ("授权", "访问控制", "authorization", "permission"),
+    "接口": ("api", "endpoint"),
+    "配置": ("设置", "参数", "config", "configuration"),
+    "任务": ("作业", "task", "jobs"),
+    "调用链": ("执行链路", "请求链路", "调用路径", "controller", "service"),
+    "登录": ("signin", "sign-in", "login"),
+}
+
+ERROR_ALIASES: dict[str, tuple[str, ...]] = {
+    "alias:port-conflict": (
+        "端口被占用",
+        "端口占用",
+        "端口冲突",
+        "端口绑定失败",
+        "端口已被占用",
+        "已经被占用",
+        "已被占用",
+        "端口撞车",
+        "端口故障",
+        "端口启动故障",
+        "服务启动失败",
+        "监听端口失败",
+        "address already in use",
+        "port was already in use",
+        "web server failed to start",
+    ),
+    "alias:http-401": (
+        "401",
+        "未认证",
+        "未授权",
+        "认证失败",
+        "unauthenticated",
+        "unauthorized",
+        "authentication failed",
+    ),
+    "alias:http-403": (
+        "403",
+        "禁止访问",
+        "权限不足",
+        "无权限",
+        "forbidden",
+        "access denied",
+    ),
+    "alias:http-404": (
+        "404",
+        "资源不存在",
+        "接口不存在",
+        "找不到接口",
+        "not found",
+    ),
+    "alias:http-500": (
+        "500",
+        "服务器内部错误",
+        "服务端异常",
+        "internal server error",
+    ),
+    "alias:token-auth": (
+        "token",
+        "令牌",
+        "bearer",
+        "authorization",
+        "auth:sanctum",
+        "sanctum",
+    ),
+    "alias:code-location": (
+        "代码定位",
+        "文件路径",
+        "行号",
+        "哪个文件",
+        "入口在哪",
+        "入口",
+        "路由文件",
+        "哪个类",
+    ),
+}
+
+
+def _contains_alias(normalized: str, alias: str) -> bool:
+    """Match aliases as phrases while keeping identifiers case-insensitive."""
+
+    return alias.lower() in normalized
+
+
+def _derived_alias_terms(value: str) -> set[str]:
+    normalized = value.lower().strip()
+    derived: set[str] = set()
+    for canonical, variants in TERM_SYNONYMS.items():
+        if any(_contains_alias(normalized, variant) for variant in (canonical, *variants)):
+            derived.add(canonical)
+    for canonical, variants in ERROR_ALIASES.items():
+        if any(_contains_alias(normalized, variant) for variant in variants):
+            derived.add(canonical)
+    return derived
+
 
 def tokenize(value: str) -> list[str]:
     """Tokenize identifiers and useful Chinese phrases without stopwords."""
@@ -112,6 +221,7 @@ def tokenize(value: str) -> list[str]:
             continue
         tokens.append(token)
     tokens.extend(phrases)
+    tokens.extend(sorted(_derived_alias_terms(normalized)))
     return tokens
 
 
@@ -211,7 +321,10 @@ def search_keyword(
     results: list[SearchResult] = []
     for chunk in chunks:
         content_text = chunk.content.lower()
-        content_terms = Counter(tokenize(chunk.content))
+        metadata_text = " ".join(
+            f"{key} {value}" for key, value in chunk.metadata.items()
+        ).lower()
+        content_terms = Counter(tokenize(f"{chunk.content}\n{metadata_text}"))
         matched_terms = tuple(sorted({term for term in query_terms if term in content_terms}))
         if not matched_terms:
             continue
@@ -219,6 +332,8 @@ def search_keyword(
             continue
 
         score = sum(min(content_terms[term], 3) for term in matched_terms)
+        score += 2 * sum(term.startswith("alias:") for term in matched_terms)
+        score += 5 * sum(term.startswith("alias:http-") or term == "alias:port-conflict" for term in matched_terms)
         if query_text and query_text in content_text:
             score += 2
         path_terms = set(tokenize(chunk.source_path))
@@ -227,6 +342,10 @@ def search_keyword(
             score += min(len(path_matches) * 2, 4)
         if query_text and query_text in chunk.source_path.lower():
             score += 1
+        metadata_terms = set(tokenize(metadata_text))
+        metadata_matches = set(query_terms).intersection(metadata_terms)
+        if metadata_matches:
+            score += min(len(metadata_matches) * 2, 6)
         if len(unique_query_terms) >= 3 and score < 2:
             continue
         results.append(SearchResult(chunk, float(score), matched_terms))

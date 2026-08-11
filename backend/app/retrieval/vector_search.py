@@ -22,6 +22,15 @@ def cosine_similarity(first: list[float], second: list[float]) -> float:
     return sum(a * b for a, b in zip(first, second)) / (first_norm * second_norm)
 
 
+def embedding_text(chunk: ChunkRecord) -> str:
+    """Embed content together with stable source and responsibility metadata."""
+
+    metadata = " ".join(
+        f"{key}: {value}" for key, value in sorted(chunk.metadata.items())
+    )
+    return f"source: {chunk.source_path} {metadata}\n{chunk.content}".strip()
+
+
 def search_vector(
     chunks: Iterable[ChunkRecord],
     query: str,
@@ -38,7 +47,7 @@ def search_vector(
         return []
 
     query_vector = embedding_provider.embed([query])[0]
-    chunk_vectors = embedding_provider.embed([chunk.content for chunk in chunk_list])
+    chunk_vectors = embedding_provider.embed([embedding_text(chunk) for chunk in chunk_list])
     results = [
         SearchResult(
             chunk=chunk,
@@ -51,4 +60,3 @@ def search_vector(
         key=lambda result: (-result.score, result.chunk.source_path, result.chunk.start_line)
     )
     return results[:top_k]
-

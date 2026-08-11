@@ -20,6 +20,7 @@ from ..retrieval.keyword_search import search_keyword
 from ..retrieval.models import SearchResult
 from ..retrieval.rrf import reciprocal_rank_fusion, select_source_diverse
 from ..retrieval.provider_factory import create_embedding_provider
+from ..retrieval.vector_search import embedding_text
 from ..storage.postgres_repository import PostgresIndexRepository
 from .index_snapshot_store import FileIndexSnapshotStore
 
@@ -108,7 +109,9 @@ class IndexService:
         if not self._persistence_initialized:
             self.persistence.initialize()
             self._persistence_initialized = True
-        embeddings = self.embedding_provider.embed([chunk.content for chunk in snapshot.chunks])
+        embeddings = self.embedding_provider.embed(
+            [embedding_text(chunk) for chunk in snapshot.chunks]
+        )
         self.persistence.save_snapshot(
             project_name=relative_root,
             repository_path=str(resolved_root),

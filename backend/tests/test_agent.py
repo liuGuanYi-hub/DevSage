@@ -27,6 +27,9 @@ class AgentTests(unittest.TestCase):
         self.assertEqual("knowledge_write", classify_question("整理成一篇笔记"))
         self.assertEqual("git_history", classify_question("最近一次提交是什么"))
         self.assertEqual("issue_search", classify_question("这个历史故障之前出现过吗"))
+        self.assertEqual("troubleshooting", classify_question("接口返回 401 Unauthenticated 怎么排查"))
+        self.assertEqual("troubleshooting", classify_question("启动时报 address already in use"))
+        self.assertEqual("project_summary", classify_question("比较两个示例项目的职责差异"))
 
     def test_classifier_routes_code_details_before_generic_troubleshooting(self) -> None:
         self.assertEqual(

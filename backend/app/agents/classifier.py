@@ -23,11 +23,40 @@ def classify_question(query: str) -> str:
         return "knowledge_write"
     if any(
         word in text
-        for word in ("总结", "项目知识", "技术点", "调用链", "包含哪些", "哪些文件", "主要文件")
+        for word in (
+            "总结",
+            "项目知识",
+            "技术点",
+            "调用链",
+            "包含哪些",
+            "哪些文件",
+            "主要文件",
+            "比较",
+            "差异",
+            "职责",
+        )
     ):
         return "project_summary"
-    if any(word in text for word in ("历史故障", "故障记录")):
+    if "端口" in text and "故障" in text:
+        return "troubleshooting"
+    if any(word in text for word in ("历史故障", "故障记录", "之前出现过", "是否出现过")):
         return "issue_search"
+    if any(
+        word in text
+        for word in (
+            "401",
+            "403",
+            "404",
+            "500",
+            "unauthenticated",
+            "forbidden",
+            "not found",
+            "internal server error",
+            "address already in use",
+            "web server failed to start",
+        )
+    ):
+        return "troubleshooting"
     if any(
         word in text
         for word in (

@@ -45,6 +45,7 @@ def _hybrid_candidates(
     return reciprocal_rank_fusion(
         [keyword_results, vector_results],
         top_k=candidate_k,
+        weights=(1.25, 0.75),
     )
 
 
@@ -65,6 +66,8 @@ def evaluate_strategy(
     case_hits = 0
     source_recall_total = 0.0
     reciprocal_rank_total = 0.0
+    alias_expected = 0
+    alias_hits = 0
 
     for case in cases:
         expected = {
@@ -73,6 +76,13 @@ def evaluate_strategy(
         }
         results = strategy(chunks, case["question"], top_k)
         retrieved = [result.chunk.source_path for result in results]
+        expected_aliases = set(case.get("expected_aliases", []))
+        if expected_aliases:
+            alias_expected += len(expected_aliases)
+            matched = {
+                term for result in results for term in result.matched_terms
+            }
+            alias_hits += len(expected_aliases.intersection(matched))
         hits = [
             index + 1
             for index, source in enumerate(retrieved)
@@ -84,12 +94,15 @@ def evaluate_strategy(
         source_recall_total += len(expected.intersection(retrieved)) / len(expected)
 
     count = len(cases)
-    return {
+    metrics: dict[str, float | int] = {
         "questions": count,
         "case_recall_at_5": case_hits / count,
         "source_recall_at_5": source_recall_total / count,
         "mrr": reciprocal_rank_total / count,
     }
+    if alias_expected:
+        metrics["expected_alias_recall_at_5"] = alias_hits / alias_expected
+    return metrics
 
 
 def evaluate(top_k: int = 5) -> dict[str, dict[str, float | int]]:
@@ -127,12 +140,15 @@ def evaluate(top_k: int = 5) -> dict[str, dict[str, float | int]]:
 def main() -> None:
     metrics = evaluate()
     print("retrieval_strategy_metrics")
-    print("strategy | case_recall_at_5 | source_recall_at_5 | mrr")
+    metric_names = ["case_recall_at_5", "source_recall_at_5", "mrr"]
+    if any("expected_alias_recall_at_5" in values for values in metrics.values()):
+        metric_names.append("expected_alias_recall_at_5")
+    print("strategy | " + " | ".join(metric_names))
     for name, values in metrics.items():
-        print(
-            f"{name} | {values['case_recall_at_5']:.4f} | "
-            f"{values['source_recall_at_5']:.4f} | {values['mrr']:.4f}"
-        )
+        rendered = [
+            f"{float(values[metric_name]):.4f}" for metric_name in metric_names
+        ]
+        print(f"{name} | " + " | ".join(rendered))
 
 
 if __name__ == "__main__":

@@ -150,7 +150,7 @@ python evaluation/scripts/smoke_mcp.py
 
 MCP 的文档检索、代码检索、文件读取和故障报告工具也支持可选 `project_id`。例如将 `search_code` 的 arguments 写成 `{"query":"UserController getUser","project_id":"sample-data","top_k":5}`；`project_id` 会由项目注册器解析并优先于 `source_root`，未知项目会被拒绝。`get_git_history` 不接受项目 ID，继续要求调用方显式提供只读 `repository_path`。
 
-通用 hybrid 查询会先应用现有的确定性代码词扩展，再进入关键词与离线向量融合；这样可以让“用户接口”“登录”“配置”等自然语言问题更容易命中类名、控制器、路由和配置文件。raw RRF 仍保留在策略评估中作为不带业务扩展的基线。
+通用 hybrid 查询会先应用中文同义词、错误码归一化和确定性代码词扩展，再进入关键词与本地向量融合；关键词信号使用更高的加权 RRF 权重，向量输入同时包含文件路径、文件职责、标题、符号和行号元数据。这样可以让“端口撞车”“未认证”“用户接口”等自然语言问题更容易命中类名、控制器、路由和配置文件。raw RRF 仍保留在策略评估中作为不带业务扩展的基线。
 
 LangGraph 适配是可选运行时，离线默认环境不安装也不影响本地 Agent。若使用项目自带虚拟环境，可运行 `.\\backend\\.venv\\Scripts\\python.exe evaluation/scripts/smoke_langgraph.py`；该 smoke 会验证四节点图完成、返回来源引用，并通过 `MemorySaver + thread_id` 读取已保存状态。未安装时脚本只报告 skipped，不会自动下载依赖。
 
@@ -162,7 +162,7 @@ python -m unittest backend.tests.test_postgres_repository
 
 该测试使用内存 fake connection 验证迁移 SQL、事务提交、项目快照写入、关键词查询、向量查询和混合检索返回结构；它不代表真实 PostgreSQL 已启动，也不会拉取 Docker 镜像。
 
-启用 PostgreSQL 存储后，答案路由会读取已持久化 Chunk；普通问答的混合检索通过仓储适配器进入 pgvector，代码定位和项目总结会在数据库候选上继续执行来源类型过滤。该应用层合同仍需通过真实 Docker smoke 验证网络、扩展、索引和卷恢复。
+启用 PostgreSQL 存储后，答案路由会读取已持久化 Chunk；普通问答的混合检索通过仓储适配器进入 pgvector，代码定位和项目总结会在数据库候选上继续执行来源类型过滤。当前真实 Docker smoke 已验证网络、pgvector 扩展、索引写入、D 盘绑定数据目录、重启恢复和并发检索。
 
 ## 5. Docker / PostgreSQL smoke 边界
 

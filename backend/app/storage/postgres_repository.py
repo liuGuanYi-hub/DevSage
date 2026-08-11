@@ -190,6 +190,7 @@ class PostgresIndexRepository:
                 self.search_vector(project_name, query, candidate_k, provider),
             ],
             top_k=candidate_k,
+            weights=(1.25, 0.75),
         )
         return select_source_diverse(fused, top_k=top_k, max_per_source=1)
 

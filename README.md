@@ -1,6 +1,6 @@
 # DevSage
 
-DevSage 是基于 Agentic RAG 的研发知识库与故障排查系统。当前处于阶段 6 的离线可验证演示基线：已完成本地数据接入、内容 Hash、结构化 Chunk、关键词/离线向量检索基线、来源查询 API、知识写回审批边界、有限图 Agent、MCP 展示和可复现演示脚本。
+DevSage 是基于 Agentic RAG 的研发知识库与故障排查系统。当前处于阶段 6 的离线可验证演示基线：已完成本地数据接入、内容 Hash、带文件职责元数据的结构化 Chunk、中文同义词与错误码匹配、关键词/离线向量混合排序、来源查询 API、知识写回审批边界、有限图 Agent、MCP 展示和可复现演示脚本。
 
 ## 当前版本范围
 
@@ -10,8 +10,8 @@ DevSage 是基于 Agentic RAG 的研发知识库与故障排查系统。当前�
 
 - `DevMind`：个人模式，优先连接 Obsidian 笔记和个人项目代码；
 - `DevSage`：后续扩展到 Git、Issue、多项目和团队协作；
-- 固定 50 条问题上的当前实测：纯关键词 Case Recall@5 `0.7200` / Source Recall@5 `0.5450` / MRR `0.4347`，纯 Hash 向量 `0.7800` / `0.6283` / `0.6807`，原始 RRF `0.7400` / `0.5717` / `0.6540`，混合加来源多样性重排 `0.8200` / `0.6783` / `0.6753`；Hash 向量和当前 reranker 都是离线可解释基线，不代表生产 Embedding 或神经 Reranker 效果。
-- 已接入可选 PostgreSQL/pgvector 索引与 Agent task state 持久化、迁移和数据库检索路径；真实容器迁移与端到端 smoke 仍待启动验证。外部 Issue 已提供可选 GitHub-compatible 只读适配器，真实平台请求仍需用户配置地址、仓库和可选 Token 环境变量；LangGraph 已在项目本地虚拟环境完成可选适配 smoke。
+- 固定 75 条问题上的当前实测：纯关键词 Case Recall@5 `0.8800` / Source Recall@5 `0.7200` / MRR `0.7589`，纯 Hash 向量 `0.8933` / `0.6900` / `0.7431`，加权混合 RRF `0.8933` / `0.7144` / `0.7833`，混合加来源多样性重排 `0.9733` / `0.8867` / `0.8116`；新增口语化同义词/错误码题的期望匹配率为 `1.0000`。Hash 向量和当前 reranker 都是离线可解释基线，不代表生产 Embedding 或神经 Reranker 效果。
+- 已接入可选 PostgreSQL/pgvector 索引与 Agent task state 持久化、迁移和数据库检索路径；真实 Docker 已验证 PostgreSQL/Redis 健康、索引写入、重启恢复和并发检索，数据绑定到项目 `data/docker/`。外部 Issue 已提供可选 GitHub-compatible 只读适配器，真实平台请求仍需用户配置地址、仓库和可选 Token 环境变量；LangGraph 已在项目本地虚拟环境完成可选适配 smoke。
 
 ## 目录结构
 
@@ -19,7 +19,7 @@ DevSage 是基于 Agentic RAG 的研发知识库与故障排查系统。当前�
 DevSage/
 ├── backend/                 # FastAPI 后端和未来的核心服务
 ├── frontend/                # Vue 3 前端骨架
-├── evaluation/              # 50 条测试问题、评估脚本和报告
+├── evaluation/              # 75 条测试问题、评估脚本和报告
 ├── sample-data/             # 脱敏文档、代码和配置样例
 ├── docs/                    # 项目设计文档
 ├── DevSage长期任务路线图.md  # 持续推进的阶段任务

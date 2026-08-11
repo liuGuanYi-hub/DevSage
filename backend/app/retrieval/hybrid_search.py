@@ -18,7 +18,7 @@ def search_hybrid(
     top_k: int = 5,
     provider: EmbeddingProvider | None = None,
 ) -> list[SearchResult]:
-    """Fuse keyword and vector candidates with RRF."""
+    """Fuse keyword and local-vector candidates with keyword-first RRF."""
 
     chunk_list = list(chunks)
     candidate_k = max(top_k * 4, 10)
@@ -32,5 +32,6 @@ def search_hybrid(
     fused = reciprocal_rank_fusion(
         [keyword_results, vector_results],
         top_k=candidate_k,
+        weights=(1.25, 0.75),
     )
     return select_source_diverse(fused, top_k=top_k, max_per_source=1)

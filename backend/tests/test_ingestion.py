@@ -1,4 +1,5 @@
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -39,6 +40,22 @@ class IngestionTests(unittest.TestCase):
         ]
         self.assertTrue(any(chunk.metadata.get("heading") == "8080 端口被占用" for chunk in chunks))
         self.assertTrue(all(chunk.start_line <= chunk.end_line for chunk in chunks))
+        port_chunk = next(chunk for chunk in chunks if chunk.metadata.get("heading") == "8080 端口被占用")
+        self.assertEqual("knowledge-document", port_chunk.metadata["document_role"])
+        self.assertEqual("markdown-section", port_chunk.metadata["chunk_role"])
+        self.assertIn("8080 端口被占用", port_chunk.metadata["heading_path"])
+        self.assertRegex(port_chunk.metadata["line_range"], r"^\d+-\d+$")
+
+    def test_code_chunk_exposes_symbol_and_file_responsibility_metadata(self) -> None:
+        controller = next(
+            chunk
+            for chunk in self.snapshot.chunks
+            if chunk.source_path.endswith("UserController.java")
+            and chunk.metadata.get("symbol") == "UserController"
+        )
+        self.assertEqual("api-entry", controller.metadata["document_role"])
+        self.assertEqual("class", controller.metadata["symbol_kind"])
+        self.assertEqual("code-structure", controller.metadata["chunk_role"])
 
     def test_code_search_returns_expected_source(self) -> None:
         results = search_keyword(self.snapshot.chunks, "UserController getUser", top_k=5)
@@ -54,6 +71,22 @@ class IngestionTests(unittest.TestCase):
         self.assertTrue(
             any(result.chunk.source_path.endswith("springboot-errors.md") for result in results)
         )
+
+    def test_keyword_search_normalizes_chinese_incident_aliases(self) -> None:
+        results = search_keyword(self.snapshot.chunks, "服务启动失败，8080 已经被占用", top_k=5)
+        self.assertTrue(results)
+        self.assertTrue(
+            any(result.chunk.source_path.endswith("springboot-errors.md") for result in results)
+        )
+        self.assertTrue(any("alias:port-conflict" in result.matched_terms for result in results))
+
+    def test_keyword_search_matches_http_error_code_aliases(self) -> None:
+        results = search_keyword(self.snapshot.chunks, "登录成功后接口返回未认证 401", top_k=5)
+        self.assertTrue(results)
+        self.assertTrue(
+            any(result.chunk.source_path.endswith("issues.json") for result in results)
+        )
+        self.assertTrue(any("alias:http-401" in result.matched_terms for result in results))
 
     def test_loader_rejects_file_outside_source_root(self) -> None:
         with self.assertRaises(ValueError):
@@ -110,6 +143,20 @@ class IngestionTests(unittest.TestCase):
             self.assertEqual(1, second.stats.unchanged_documents)
             self.assertEqual(0, second.stats.changed_documents)
             self.assertEqual(first.chunks[0].chunk_id, second.chunks[0].chunk_id)
+
+    def test_incremental_index_refreshes_legacy_chunk_metadata(self) -> None:
+        legacy = replace(
+            self.snapshot,
+            chunks=tuple(replace(chunk, metadata={}) for chunk in self.snapshot.chunks),
+        )
+
+        refreshed = build_index(SAMPLE_ROOT, previous=legacy)
+
+        assert refreshed.stats is not None
+        self.assertGreater(refreshed.stats.changed_documents, 0)
+        self.assertTrue(
+            all(chunk.metadata.get("metadata_version") == "2" for chunk in refreshed.chunks)
+        )
 
 
 if __name__ == "__main__":

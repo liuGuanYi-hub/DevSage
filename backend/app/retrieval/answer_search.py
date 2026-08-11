@@ -300,8 +300,9 @@ def _is_security_boundary_query(query: str) -> bool:
 def _code_location_needs_documents(query: str) -> bool:
     """Identify code-location questions that need README or policy evidence."""
 
-    return any(
-        term in query.lower()
+    normalized = query.lower()
+    if any(
+        term in normalized
         for term in (
             "来源",
             "文件路径",
@@ -315,6 +316,10 @@ def _code_location_needs_documents(query: str) -> bool:
             "端口",
             "下游",
         )
+    ):
+        return True
+    return ("api" in normalized and "入口" in normalized) or any(
+        term in normalized for term in ("bearer", "令牌")
     )
 
 
