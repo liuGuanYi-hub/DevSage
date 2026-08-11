@@ -105,6 +105,7 @@ class ProviderAdapterTests(unittest.TestCase):
                 "LOCAL_EMBEDDING_DEVICE": "cpu",
                 "LOCAL_EMBEDDING_BATCH_SIZE": "8",
                 "LOCAL_EMBEDDING_BACKEND": "onnx",
+                "LOCAL_EMBEDDING_EXECUTION_PROVIDER": "CUDAExecutionProvider",
             },
             clear=False,
         ):
@@ -114,6 +115,7 @@ class ProviderAdapterTests(unittest.TestCase):
         self.assertEqual("D:/devsage-models", provider.cache_folder)
         self.assertEqual(8, provider.batch_size)
         self.assertEqual("onnx", provider.backend)
+        self.assertEqual("CUDAExecutionProvider", provider.execution_provider)
         self.assertIsNone(provider._model)
 
     def test_local_provider_validates_and_caches_model_output_without_importing_runtime(self) -> None:

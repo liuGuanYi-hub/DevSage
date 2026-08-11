@@ -33,6 +33,10 @@ services:
   backend:
     build:
       context: ./backend
+      args:
+        INSTALL_LOCAL_EMBEDDING: ${INSTALL_LOCAL_EMBEDDING:-true}
+        LOCAL_EMBEDDING_RUNTIME: ${LOCAL_EMBEDDING_RUNTIME:-cpu}
+    gpus: ${DOCKER_GPUS:-}
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL before starting Docker Compose}
       DEVSAGE_PROJECT_ROOT: /app
@@ -46,11 +50,18 @@ services:
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-hash}
       EMBEDDING_API_URL: ${EMBEDDING_API_URL:-}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      LOCAL_EMBEDDING_MODEL: ${LOCAL_EMBEDDING_MODEL:-/models/multilingual-e5-large-qint8}
+      LOCAL_EMBEDDING_CACHE: ${LOCAL_EMBEDDING_CACHE:-/models/cache}
+      LOCAL_EMBEDDING_BACKEND: ${LOCAL_EMBEDDING_BACKEND:-onnx}
+      LOCAL_EMBEDDING_FILE_NAME: ${LOCAL_EMBEDDING_FILE_NAME:-model_qint8_avx512_vnni.onnx}
+      LOCAL_EMBEDDING_BATCH_SIZE: ${LOCAL_EMBEDDING_BATCH_SIZE:-16}
+      LOCAL_EMBEDDING_EXECUTION_PROVIDER: ${LOCAL_EMBEDDING_EXECUTION_PROVIDER:-}
       DEVSAGE_EXTERNAL_ISSUE_WRITE_ENABLED: ${DEVSAGE_EXTERNAL_ISSUE_WRITE_ENABLED:-false}
       SAMPLE_DATA_ROOT: sample-data
     volumes:
       - ./sample-data:/app/sample-data:ro
       - ./.git:/workspace/.git:ro
+      - ./data/manual-models/multilingual-e5-large-qint8:/models/multilingual-e5-large-qint8:ro
       - devsage-approved-notes:/app/data/approved-notes
     ports:
       - "${BACKEND_PORT:-8000}:8000"

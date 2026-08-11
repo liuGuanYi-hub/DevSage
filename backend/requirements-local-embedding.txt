@@ -1,5 +1,8 @@
 # Optional local BGE/E5-style embedding runtime.
 # Install this file only when EMBEDDING_PROVIDER=local is required.
 sentence-transformers>=3.0,<6.0
+# Prevent pip from pulling the multi-GB CUDA build into the CPU-only backend image.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.13.0+cpu
 onnxruntime>=1.17,<2.0
 optimum[onnxruntime]>=1.20,<3.0

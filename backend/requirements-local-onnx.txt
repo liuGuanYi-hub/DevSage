@@ -1,0 +1,20 @@
+# Minimal Docker runtime for the local E5 ONNX provider.
+# Torch is installed separately from the CPU-only PyTorch index in Dockerfile.
+filelock>=3.12,<4.0
+fsspec>=2023.6,<2027.0
+Jinja2>=3.1,<4.0
+mpmath>=1.1,<2.0
+networkx>=2.8,<4.0
+sympy>=1.12,<2.0
+typing_extensions>=4.8,<5.0
+numpy>=1.26,<3.0
+Pillow>=10,<13
+scikit-learn>=1.5,<2.0
+scipy>=1.12,<2.0
+tqdm>=4.66,<5.0
+transformers>=4.57,<5.0
+tokenizers>=0.22,<1.0
+huggingface-hub>=0.36,<1.0
+safetensors>=0.8,<1.0
+onnx>=1.17,<2.0
+onnxruntime>=1.17,<2.0

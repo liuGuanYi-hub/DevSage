@@ -108,6 +108,7 @@ class LocalSentenceTransformerEmbeddingProvider:
     normalize_embeddings: bool = True
     backend: str = "torch"
     file_name: str | None = None
+    execution_provider: str | None = None
     query_prefix: str = ""
     document_prefix: str = ""
     dimension: int | None = None
@@ -146,6 +147,9 @@ class LocalSentenceTransformerEmbeddingProvider:
         device = os.getenv("LOCAL_EMBEDDING_DEVICE", "cpu").strip() or "cpu"
         backend = os.getenv("LOCAL_EMBEDDING_BACKEND", "torch").strip().lower() or "torch"
         file_name = os.getenv("LOCAL_EMBEDDING_FILE_NAME", "").strip() or None
+        execution_provider = (
+            os.getenv("LOCAL_EMBEDDING_EXECUTION_PROVIDER", "").strip() or None
+        )
         try:
             batch_size = int(os.getenv("LOCAL_EMBEDDING_BATCH_SIZE", "16"))
         except ValueError as exc:
@@ -177,6 +181,7 @@ class LocalSentenceTransformerEmbeddingProvider:
                 normalize_embeddings=normalize_embeddings,
                 backend=backend,
                 file_name=file_name,
+                execution_provider=execution_provider,
                 query_prefix=query_prefix,
                 document_prefix=document_prefix,
             )
@@ -205,6 +210,8 @@ class LocalSentenceTransformerEmbeddingProvider:
                     if "/" in self.file_name or "\\" in self.file_name
                     else f"onnx/{self.file_name}"
                 )
+            if self.execution_provider:
+                model_kwargs["provider"] = self.execution_provider
             self._model = SentenceTransformer(
                 self.model_name,
                 cache_folder=cache_path,
