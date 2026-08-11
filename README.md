@@ -154,7 +154,7 @@ $env:DATABASE_URL = "postgresql://devsage:YOUR_PASSWORD@127.0.0.1:5433/devsage"
 
 `BAAI/bge-m3` 同样是 1024 维候选，但本轮下载其 PyTorch 权重时未能完整拉取，因此没有把未验证的 BGE-M3 结果写成正式结论。当前正式可用候选是 E5 ONNX qint8；Hash 仍作为离线降级方案。
 
-真实数据库可用后，在同一个 PowerShell 会话设置 `DATABASE_URL`（不要把真实密码写入仓库），再运行下面的 smoke。它会用 E5 生成 1024 维文档向量写入 PostgreSQL，并用 `query:` 向量执行 pgvector 混合检索：
+真实数据库可用后，把项目根目录 `.env` 中的 `YOUR_PASSWORD` 替换为本机 Docker PostgreSQL 密码，再运行下面的 smoke。由于 Docker Compose 在容器内使用 `db:5432`，宿主机 E5 smoke 使用 `HOST_DATABASE_URL` 的 `127.0.0.1:5433`；`.env` 已被 Git 忽略，不要提交真实密码。它会用 E5 生成 1024 维文档向量写入 PostgreSQL，并用 `query:` 向量执行 pgvector 混合检索：
 
 ```powershell
 .\scripts\smoke-local-embedding-postgres.ps1

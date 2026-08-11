@@ -168,7 +168,7 @@ $env:DATABASE_URL = "postgresql://devsage:YOUR_PASSWORD@127.0.0.1:5433/devsage"
 
 评测报告为 [local-embedding-1024-comparison.md](../evaluation/reports/local-embedding-1024-comparison.md)。`BAAI/bge-m3` 也是 1024 维候选，但本轮未完成其 PyTorch 权重下载，因此没有把 BGE-M3 作为已验证生产模型；Hash 仍保留为离线降级路径。
 
-真实 PostgreSQL 可用后，在当前 PowerShell 会话配置 `DATABASE_URL`，再运行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-local-embedding-postgres.ps1`。该 smoke 会加载 D 盘 E5 ONNX qint8 模型，调用现有迁移、写入 1024 维 Chunk 向量，再通过 pgvector 执行混合查询；脚本不会打印数据库连接串，也不会修改 Vault。
+真实 PostgreSQL 可用后，将项目根目录 `.env` 中的 `YOUR_PASSWORD` 替换为本机密码，再运行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-local-embedding-postgres.ps1`。Compose 使用 `DATABASE_URL=db:5432`，宿主机 E5 smoke 自动读取 `HOST_DATABASE_URL=127.0.0.1:5433`；`.env` 已被 Git 忽略。该 smoke 会加载 D 盘 E5 ONNX qint8 模型，调用现有迁移、写入 1024 维 Chunk 向量，再通过 pgvector 执行混合查询；脚本不会打印数据库连接串，也不会修改 Vault。
 
 LangGraph 适配是可选运行时，离线默认环境不安装也不影响本地 Agent。若使用项目自带虚拟环境，可运行 `.\\backend\\.venv\\Scripts\\python.exe evaluation/scripts/smoke_langgraph.py`；该 smoke 会验证四节点图完成、返回来源引用，并通过 `MemorySaver + thread_id` 读取已保存状态。未安装时脚本只报告 skipped，不会自动下载依赖。
 

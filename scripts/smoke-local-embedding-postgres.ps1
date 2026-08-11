@@ -12,8 +12,34 @@ $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $projectRoot
 
+function Get-LocalEnvValue {
+    param([Parameter(Mandatory = $true)][string]$Name)
+
+    $envPath = Join-Path $projectRoot ".env"
+    if (-not (Test-Path -LiteralPath $envPath)) {
+        return $null
+    }
+    foreach ($line in Get-Content -LiteralPath $envPath -Encoding utf8) {
+        $trimmed = $line.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith("#")) {
+            continue
+        }
+        $parts = $trimmed.Split("=", 2)
+        if ($parts.Count -eq 2 -and $parts[0].Trim() -eq $Name) {
+            return $parts[1].Trim().Trim('"').Trim("'")
+        }
+    }
+    return $null
+}
+
 if ([string]::IsNullOrWhiteSpace($env:DATABASE_URL)) {
-    throw "DATABASE_URL must be configured in the current PowerShell session; the value is never printed"
+    $hostDatabaseUrl = Get-LocalEnvValue -Name "HOST_DATABASE_URL"
+    if (-not [string]::IsNullOrWhiteSpace($hostDatabaseUrl)) {
+        $env:DATABASE_URL = $hostDatabaseUrl
+    }
+}
+if ([string]::IsNullOrWhiteSpace($env:DATABASE_URL)) {
+    throw "DATABASE_URL or HOST_DATABASE_URL in .env must be configured; the value is never printed"
 }
 
 $resolvedModelPath = (Resolve-Path $ModelPath -ErrorAction Stop).Path
