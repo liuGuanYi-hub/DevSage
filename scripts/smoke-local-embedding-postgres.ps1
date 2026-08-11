@@ -83,7 +83,11 @@ print(
 )
 '@
 
-& $python -c $script
+$encodedScript = [Convert]::ToBase64String(
+    [Text.Encoding]::UTF8.GetBytes($script)
+)
+$runner = "import base64; exec(base64.b64decode('$encodedScript'))"
+& $python -c $runner
 if ($LASTEXITCODE -ne 0) {
     throw "local embedding PostgreSQL smoke failed with exit code $LASTEXITCODE"
 }

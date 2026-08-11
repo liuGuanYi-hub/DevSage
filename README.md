@@ -154,7 +154,7 @@ $env:DATABASE_URL = "postgresql://devsage:YOUR_PASSWORD@127.0.0.1:5433/devsage"
 
 `BAAI/bge-m3` 同样是 1024 维候选，但本轮下载其 PyTorch 权重时未能完整拉取，因此没有把未验证的 BGE-M3 结果写成正式结论。当前正式可用候选是 E5 ONNX qint8；Hash 仍作为离线降级方案。
 
-真实数据库可用后，把项目根目录 `.env` 中的 `YOUR_PASSWORD` 替换为本机 Docker PostgreSQL 密码，再运行下面的 smoke。由于 Docker Compose 在容器内使用 `db:5432`，宿主机 E5 smoke 使用 `HOST_DATABASE_URL` 的 `127.0.0.1:5433`；`.env` 已被 Git 忽略，不要提交真实密码。它会用 E5 生成 1024 维文档向量写入 PostgreSQL，并用 `query:` 向量执行 pgvector 混合检索：
+本轮已在真实 Docker PostgreSQL 上完成 E5 smoke：13 个文档、35 个 Chunk 成功写入，数据库中向量维度为 `1024`，空向量数为 `0`，pgvector 查询返回 5 条结果。由于 Docker Compose 在容器内使用 `db:5432`，宿主机 E5 smoke 使用 `HOST_DATABASE_URL` 的 `127.0.0.1:5433`；`.env` 已被 Git 忽略，不要提交真实密码。后续重建索引时仍可运行：
 
 ```powershell
 .\scripts\smoke-local-embedding-postgres.ps1
@@ -174,11 +174,10 @@ MCP 的 `search_documents`、`search_code`、`read_file` 和 `generate_troublesh
 
 ## 下一步
 
-1. 在 Docker Desktop 可用且数据库凭据已配置后，执行 `scripts/smoke-local-embedding-postgres.ps1` 完成 1024 维 E5 的 PostgreSQL 迁移、索引写入和数据库检索端到端 smoke；
-2. 继续补充 BGE-M3 的可复现权重来源，再和当前 E5 报告做同数据集对比；
-3. 在配置测试仓库后完成外部 Issue 真实平台 smoke，并接入正式 MCP 宿主；
-4. 接入正式用户、项目和权限模型，继续保留当前本地 capability boundary；
-5. 扩充评估集并持续比较检索策略，补齐部署演示与最终交付材料。
+1. 继续补充 BGE-M3 的可复现权重来源，再和当前 E5 报告做同数据集对比；
+2. 在配置测试仓库后完成外部 Issue 真实平台 smoke，并接入正式 MCP 宿主；
+3. 接入正式用户、项目和权限模型，继续保留当前本地 capability boundary；
+4. 扩充评估集并持续比较检索策略，补齐部署演示与最终交付材料。
 
 ## 本轮长程集成状态
 
