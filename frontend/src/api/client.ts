@@ -176,6 +176,10 @@ export interface IssueWritePreview {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 let authToken = "";
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+const INDEX_REQUEST_TIMEOUT_MS = 60_000;
+const AGENT_REQUEST_TIMEOUT_MS = 45_000;
+
 export function getAuthToken(): string {
   return authToken;
 }
@@ -184,7 +188,12 @@ export function setAuthToken(token: string): void {
   authToken = token;
 }
 
-async function request<T>(path: string, options: RequestInit, actorId?: string): Promise<T> {
+async function request<T>(
+  path: string,
+  options: RequestInit,
+  actorId?: string,
+  timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
   if (actorId) {
@@ -193,14 +202,34 @@ async function request<T>(path: string, options: RequestInit, actorId?: string):
   if (authToken) {
     headers.set("Authorization", `Bearer ${authToken}`);
   }
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
-  if (!response.ok) {
-    throw new Error(await response.text());
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const responseText = await response.text();
+      let detail = responseText.trim();
+      try {
+        const payload = JSON.parse(responseText) as { detail?: string; message?: string };
+        detail = payload.detail ?? payload.message ?? detail;
+      } catch {
+        // Keep the plain response text when the server did not return JSON.
+      }
+      throw new Error(detail || `请求失败（HTTP ${response.status}）`);
+    }
+    return response.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(`请求超时（${Math.round(timeoutMs / 1000)} 秒），请检查后端服务后重试`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutHandle);
   }
-  return response.json() as Promise<T>;
 }
 
 export function login(username: string, password: string): Promise<LoginResponse> {
@@ -230,7 +259,7 @@ export function indexSource(
   return request<IndexResponse>("/api/index", {
     method: "POST",
     body: JSON.stringify({ source_root: sourceRoot, project_id: projectId }),
-  }, actorId);
+  }, actorId, INDEX_REQUEST_TIMEOUT_MS);
 }
 
 export function searchEvidence(
@@ -269,7 +298,7 @@ export function runAgent(
   return request<AgentResponse>("/api/agent/run", {
     method: "POST",
     body: JSON.stringify({ query, source_root: sourceRoot, top_k: topK, project_id: projectId }),
-  }, actorId);
+  }, actorId, AGENT_REQUEST_TIMEOUT_MS);
 }
 
 export function previewKnowledgeNote(

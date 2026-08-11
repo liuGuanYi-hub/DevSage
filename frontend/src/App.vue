@@ -37,6 +37,9 @@ const status = ref("等待连接后端");
 const backendHealth = ref<"checking" | "online" | "offline">("checking");
 const healthDetails = ref<HealthResponse | null>(null);
 const isLoading = ref(false);
+const isIndexing = ref(false);
+const requestError = ref("");
+const retryAction = ref<"bootstrap" | "search" | "index" | null>(null);
 const noteTitle = ref("DevSage knowledge note");
 const noteContent = ref("");
 const noteTargetPath = ref("DevMind/answer.md");
@@ -228,6 +231,21 @@ function inferProjectId(value: string): string | null {
   return null;
 }
 
+function readableError(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return "请求没有完成，请确认后端服务仍在运行。";
+}
+
+function clearRequestError(): void {
+  requestError.value = "";
+  retryAction.value = null;
+}
+
+function setRequestError(error: unknown, action: "bootstrap" | "search" | "index"): void {
+  requestError.value = readableError(error);
+  retryAction.value = action;
+}
+
 function buildKnowledgeNote(response: AgentResponse, title: string): string {
   const sourceEvidence = uniqueEvidence(evidenceForResponse(response));
   const citations = response.citations.length
@@ -305,6 +323,9 @@ async function switchToSuggestedProject(): Promise<void> {
 }
 
 async function refreshIndex() {
+  if (isIndexing.value) return;
+  isIndexing.value = true;
+  clearRequestError();
   status.value = "正在建立当前项目索引…";
   try {
     indexInfo.value = await indexSource(
@@ -313,19 +334,24 @@ async function refreshIndex() {
       selectedActorId.value || undefined,
     );
     backendHealth.value = "online";
+    clearRequestError();
     status.value = `已索引 ${indexInfo.value.document_count} 个文件、${indexInfo.value.chunk_count} 个 Chunk`;
   } catch (error) {
     backendHealth.value = "offline";
-    status.value = `后端未连接：${error instanceof Error ? error.message : "未知错误"}`;
+    setRequestError(error, "index");
+    status.value = `后端未连接：${readableError(error)}`;
+  } finally {
+    isIndexing.value = false;
   }
 }
 
 async function search() {
-  if (!query.value.trim()) return;
+  if (!query.value.trim() || isLoading.value || isIndexing.value) return;
   if (projectMismatch.value) {
     status.value = `当前项目与问题不匹配，请先切换到${projectMismatch.value.suggestedProject.name}。`;
     return;
   }
+  clearRequestError();
   isLoading.value = true;
   status.value = "Agent 正在分类、检索并组织证据…";
   try {
@@ -349,14 +375,33 @@ async function search() {
     pendingIssuePreview.value = null;
     issueWriteStatus.value = "";
     showExecutionDetails.value = false;
+    clearRequestError();
     status.value = response.evidence_sufficient
       ? `找到 ${uniqueEvidence(visibleEvidence).length} 个来源的直接证据`
       : "证据不足，页面保留排查线索";
   } catch (error) {
     backendHealth.value = "offline";
-    status.value = `检索失败：${error instanceof Error ? error.message : "未知错误"}`;
+    setRequestError(error, "search");
+    status.value = `检索失败：${readableError(error)}`;
   } finally {
     isLoading.value = false;
+  }
+}
+
+async function retryLastRequest(): Promise<void> {
+  if (retryAction.value === "search") {
+    await search();
+    return;
+  }
+  if (retryAction.value === "index") {
+    await refreshIndex();
+    return;
+  }
+  if (retryAction.value === "bootstrap") {
+    clearRequestError();
+    await checkBackendHealth();
+    const loaded = await loadProjects();
+    if (loaded) await refreshIndex();
   }
 }
 
@@ -455,7 +500,7 @@ async function approveIssue() {
   }
 }
 
-async function loadProjects() {
+async function loadProjects(): Promise<boolean> {
   try {
     const response = await listProjects();
     backendHealth.value = "online";
@@ -467,9 +512,13 @@ async function loadProjects() {
     if (project && !project.members.some((member) => member.actor_id === selectedActorId.value)) {
       selectedActorId.value = project.members[0]?.actor_id ?? "local-demo";
     }
+    clearRequestError();
+    return true;
   } catch (error) {
     backendHealth.value = "offline";
-    status.value = `项目列表未连接：${error instanceof Error ? error.message : "未知错误"}`;
+    setRequestError(error, "bootstrap");
+    status.value = `项目列表未连接：${readableError(error)}`;
+    return false;
   }
 }
 
@@ -491,12 +540,14 @@ async function handleProjectChange() {
     selectedActorId.value = project.members[0]?.actor_id ?? "local-demo";
   }
   resetScopeState();
+  clearRequestError();
   status.value = "正在切换项目并清理旧证据…";
   await refreshIndex();
 }
 
 async function handleActorChange() {
   resetScopeState();
+  clearRequestError();
   status.value = "正在切换本地角色并重新检查能力…";
   await refreshIndex();
 }
@@ -522,10 +573,10 @@ async function submitLogin() {
     authUsername.value = response.username;
     loginPassword.value = "";
     loginStatus.value = `已登录 ${response.username}`;
-    await loadProjects();
-    await refreshIndex();
+    const loaded = await loadProjects();
+    if (loaded) await refreshIndex();
   } catch (error) {
-    loginStatus.value = `登录失败：${error instanceof Error ? error.message : "未知错误"}`;
+    loginStatus.value = `登录失败：${readableError(error)}`;
   }
 }
 
@@ -544,8 +595,8 @@ onMounted(async () => {
     status.value = "后端已启用正式认证，请先登录";
     return;
   }
-  await loadProjects();
-  await refreshIndex();
+  const loaded = await loadProjects();
+  if (loaded) await refreshIndex();
 });
 </script>
 
@@ -605,7 +656,9 @@ onMounted(async () => {
         <button v-if="healthDetails?.auth_enabled" type="button" class="secondary-button" @click="logout">
           退出登录
         </button>
-        <button type="button" @click="refreshIndex" :disabled="!canIndex()">重新索引当前项目</button>
+        <button type="button" @click="refreshIndex" :disabled="!canIndex() || isIndexing">
+          {{ isIndexing ? "索引中…" : "重新索引当前项目" }}
+        </button>
         <span class="health-badge" :class="`health-${backendHealth}`" aria-live="polite">
           后端：{{ backendHealth === "checking" ? "检查中" : backendHealth === "online" ? "在线" : "离线" }}
         </span>
@@ -622,10 +675,25 @@ onMounted(async () => {
           placeholder="例如：8080 端口被占用，应该怎么排查？"
           aria-label="研发问题"
         />
-        <button type="submit" :disabled="isLoading">
-          {{ isLoading ? "检索中…" : "开始排查" }}
+        <button type="submit" :disabled="isLoading || isIndexing">
+          {{ isIndexing ? "索引中…" : isLoading ? "检索中…" : "开始排查" }}
         </button>
       </form>
+
+      <div v-if="requestError" class="request-error" role="alert">
+        <div>
+          <strong>{{ retryAction === "search" ? "检索没有完成" : "后端连接没有完成" }}</strong>
+          <span>{{ requestError }}</span>
+        </div>
+        <button
+          type="button"
+          class="secondary-button"
+          :disabled="isLoading || isIndexing"
+          @click="retryLastRequest"
+        >
+          重新尝试
+        </button>
+      </div>
 
       <div v-if="projectMismatch" class="project-mismatch" role="alert">
         <div>
@@ -962,6 +1030,9 @@ select { border: 1px solid #cbd6e2; border-radius: 10px; padding: 10px 12px; col
 .readonly-badge { border-radius: 999px; padding: 5px 9px; color: #315e8c; background: #e3f0fb; font-weight: 700; }
 .auth-badge { border-radius: 999px; padding: 5px 9px; color: #24664b; background: #e7f6ee; font-weight: 700; }
 .secondary-button { color: #416b98; background: #edf4fb; border: 1px solid #c7d9eb; }
+.request-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding: 12px 14px; border: 1px solid #e0a0a0; border-radius: 12px; color: #8b3030; background: #fff1f1; line-height: 1.5; }
+.request-error div { display: grid; gap: 2px; }
+.request-error span { font-size: 0.88rem; overflow-wrap: anywhere; }
 .project-mismatch { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding: 12px 14px; border: 1px solid #e4c46d; border-radius: 12px; color: #6e5520; background: #fff8df; line-height: 1.5; }
 .project-mismatch div { display: grid; gap: 2px; }
 .project-mismatch span { font-size: 0.88rem; }
@@ -1059,6 +1130,7 @@ li { margin: 8px 0; line-height: 1.5; }
 @media (max-width: 640px) {
   .search-box { align-items: stretch; flex-direction: column; }
   .search-box button { width: 100%; }
+  .request-error { align-items: stretch; flex-direction: column; }
   .project-mismatch { align-items: stretch; flex-direction: column; }
   .index-count { margin-left: 0; width: 100%; }
   .evidence-grid { grid-template-columns: 1fr; }
