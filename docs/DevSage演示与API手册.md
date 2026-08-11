@@ -152,6 +152,10 @@ MCP 的文档检索、代码检索、文件读取和故障报告工具也支持�
 
 通用 hybrid 查询会先应用中文同义词、错误码归一化和确定性代码词扩展，再进入关键词与本地向量融合；关键词信号使用更高的加权 RRF 权重，向量输入同时包含文件路径、文件职责、标题、符号和行号元数据。这样可以让“端口撞车”“未认证”“用户接口”等自然语言问题更容易命中类名、控制器、路由和配置文件。raw RRF 仍保留在策略评估中作为不带业务扩展的基线。
 
+本地语义 Embedding 通过可选的 `SentenceTransformers` Provider 接入。安装 `backend/requirements-local-embedding.txt` 后，设置 `EMBEDDING_PROVIDER=local` 即可加载 `BAAI/bge-small-zh-v1.5`，模型缓存建议放在 DevSage 的 `data/models/`；不设置时仍使用确定性的 Hash Provider。`evaluation/scripts/compare_embedding_providers.py` 会对同一批 75 道问题同时计算关键词、Hash 向量/混合和本地 BGE 向量/混合的 Case Recall@5、Source Recall@5、MRR 与错误码别名召回率。
+
+当前评测模型输出 512 维，现有 PostgreSQL/pgvector 迁移的 `embedding vector(1024)` 不兼容，因此对比脚本在内存中运行本地模型，不会自动覆盖数据库索引。要将本地模型用于持久化检索，需要后续单独完成 1024 维模型选择或数据库迁移，并重新索引全部 Chunk。
+
 LangGraph 适配是可选运行时，离线默认环境不安装也不影响本地 Agent。若使用项目自带虚拟环境，可运行 `.\\backend\\.venv\\Scripts\\python.exe evaluation/scripts/smoke_langgraph.py`；该 smoke 会验证四节点图完成、返回来源引用，并通过 `MemorySaver + thread_id` 读取已保存状态。未安装时脚本只报告 skipped，不会自动下载依赖。
 
 在启动真实数据库前，可以运行无外部服务的 PostgreSQL/pgvector 合同测试：

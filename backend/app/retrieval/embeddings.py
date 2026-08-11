@@ -6,10 +6,12 @@ import hashlib
 import json
 import math
 import os
+from collections import OrderedDict
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
 from .keyword_search import tokenize
@@ -58,6 +60,154 @@ class HashEmbeddingProvider:
 
 class EmbeddingProviderError(RuntimeError):
     """Raised when a configured remote Embedding provider cannot be used."""
+
+
+@dataclass
+class LocalSentenceTransformerEmbeddingProvider:
+    """Lazy local BGE/E5-style embedding provider.
+
+    The optional ``sentence-transformers`` dependency is imported only when
+    the first embedding request is made. This keeps the default Hash provider
+    lightweight and preserves the offline MVP test path. Model files are
+    stored in the caller-provided cache folder rather than an implicit user
+    cache location.
+    """
+
+    model_name: str = "BAAI/bge-small-zh-v1.5"
+    cache_folder: str | None = "data/models"
+    device: str = "cpu"
+    batch_size: int = 16
+    normalize_embeddings: bool = True
+    dimension: int | None = None
+    _model: Any = field(init=False, default=None, repr=False)
+    _cache: OrderedDict[tuple[str, ...], list[list[float]]] = field(
+        init=False, default_factory=OrderedDict, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        if not self.model_name.strip():
+            raise ValueError("model_name must not be empty")
+        if not 1 <= self.batch_size <= 256:
+            raise ValueError("batch_size must be between 1 and 256")
+
+    @classmethod
+    def from_env(cls) -> "LocalSentenceTransformerEmbeddingProvider":
+        """Build a local provider from non-secret environment variables."""
+
+        model_name = os.getenv(
+            "LOCAL_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5"
+        ).strip()
+        cache_folder = os.getenv(
+            "LOCAL_EMBEDDING_CACHE", "data/models"
+        ).strip() or None
+        device = os.getenv("LOCAL_EMBEDDING_DEVICE", "cpu").strip() or "cpu"
+        try:
+            batch_size = int(os.getenv("LOCAL_EMBEDDING_BATCH_SIZE", "16"))
+        except ValueError as exc:
+            raise EmbeddingProviderError(
+                "LOCAL_EMBEDDING_BATCH_SIZE must be an integer"
+            ) from exc
+        normalize_value = os.getenv("LOCAL_EMBEDDING_NORMALIZE", "true")
+        normalize_embeddings = normalize_value.strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        try:
+            return cls(
+                model_name=model_name,
+                cache_folder=cache_folder,
+                device=device,
+                batch_size=batch_size,
+                normalize_embeddings=normalize_embeddings,
+            )
+        except ValueError as exc:
+            raise EmbeddingProviderError(
+                "local embedding configuration is invalid"
+            ) from exc
+
+    def _load_model(self) -> Any:
+        if self._model is not None:
+            return self._model
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as exc:
+            raise EmbeddingProviderError(
+                "local embedding requires sentence-transformers; "
+                "install backend/requirements-local-embedding.txt"
+            ) from exc
+
+        cache_path = str(Path(self.cache_folder).expanduser()) if self.cache_folder else None
+        try:
+            self._model = SentenceTransformer(
+                self.model_name,
+                cache_folder=cache_path,
+                device=self.device,
+                trust_remote_code=False,
+            )
+            dimension_getter = getattr(self._model, "get_embedding_dimension", None)
+            if not callable(dimension_getter):
+                dimension_getter = self._model.get_sentence_embedding_dimension
+            self.dimension = int(dimension_getter())
+        except Exception as exc:
+            raise EmbeddingProviderError(
+                "local embedding model could not be loaded"
+            ) from exc
+        if self.dimension < 1:
+            raise EmbeddingProviderError("local embedding model returned an invalid dimension")
+        return self._model
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        cache_key = tuple(texts)
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            self._cache.move_to_end(cache_key)
+            return [vector[:] for vector in cached]
+
+        model = self._load_model()
+        try:
+            encoded = model.encode(
+                list(texts),
+                batch_size=self.batch_size,
+                show_progress_bar=False,
+                convert_to_numpy=True,
+                normalize_embeddings=self.normalize_embeddings,
+            )
+        except Exception as exc:
+            raise EmbeddingProviderError("local embedding inference failed") from exc
+
+        vectors: list[list[float]] = []
+        try:
+            for vector in encoded:
+                numeric_vector = [float(value) for value in vector]
+                if not numeric_vector or not all(
+                    math.isfinite(value) for value in numeric_vector
+                ):
+                    raise EmbeddingProviderError(
+                        "local embedding returned an invalid vector"
+                    )
+                if self.dimension != len(numeric_vector):
+                    raise EmbeddingProviderError(
+                        "local embedding returned mixed dimensions"
+                    )
+                vectors.append(numeric_vector)
+        except TypeError as exc:
+            raise EmbeddingProviderError(
+                "local embedding returned an invalid batch"
+            ) from exc
+        if len(vectors) != len(texts):
+            raise EmbeddingProviderError(
+                "local embedding returned an invalid vector count"
+            )
+
+        self._cache[cache_key] = vectors
+        self._cache.move_to_end(cache_key)
+        while len(self._cache) > 512:
+            self._cache.popitem(last=False)
+        return [vector[:] for vector in vectors]
 
 
 @dataclass

@@ -10,7 +10,8 @@ DevSage 是基于 Agentic RAG 的研发知识库与故障排查系统。当前�
 
 - `DevMind`：个人模式，优先连接 Obsidian 笔记和个人项目代码；
 - `DevSage`：后续扩展到 Git、Issue、多项目和团队协作；
-- 固定 75 条问题上的当前实测：纯关键词 Case Recall@5 `0.8800` / Source Recall@5 `0.7200` / MRR `0.7589`，纯 Hash 向量 `0.8933` / `0.6900` / `0.7431`，加权混合 RRF `0.8933` / `0.7144` / `0.7833`，混合加来源多样性重排 `0.9733` / `0.8867` / `0.8116`；新增口语化同义词/错误码题的期望匹配率为 `1.0000`。Hash 向量和当前 reranker 都是离线可解释基线，不代表生产 Embedding 或神经 Reranker 效果。
+- 固定 75 条问题上的当前实测：纯关键词 Case Recall@5 `0.8800` / Source Recall@5 `0.7200` / MRR `0.7589`，Hash 混合加来源多样性重排 `0.9600` / `0.8800` / `0.8049`；新增口语化同义词/错误码题的期望匹配率为 `1.0000`。Hash 向量和当前 reranker 都是离线可解释基线，不代表生产 Embedding 或神经 Reranker 效果。
+- 已接入可选的真实本地 SentenceTransformers Provider，默认评测模型为中文 `BAAI/bge-small-zh-v1.5`。在同一批 75 道问题上，BGE 混合 Source Recall@5 为 `0.8867`、Case Recall@5 为 `0.9600`、MRR 为 `0.7960`；对比报告见 [local-embedding-comparison.md](evaluation/reports/local-embedding-comparison.md)。
 - 已接入可选 PostgreSQL/pgvector 索引与 Agent task state 持久化、迁移和数据库检索路径；真实 Docker 已验证 PostgreSQL/Redis 健康、索引写入、重启恢复和并发检索，数据绑定到项目 `data/docker/`。外部 Issue 已提供可选 GitHub-compatible 只读适配器，真实平台请求仍需用户配置地址、仓库和可选 Token 环境变量；LangGraph 已在项目本地虚拟环境完成可选适配 smoke。
 
 ## 目录结构
@@ -119,7 +120,21 @@ $env:DEVSAGE_OBSIDIAN_VAULT_PATH = "D:\zzd_project\cursor\life\Obsidian Vault"
 
 ## 当前正在做
 
-当前 API 已支持项目注册发现、索引 `sample-data`、关键词/混合证据查询、分类答案检索路由、项目总结结构化回答、证据约束回答、SSE 流式输出、有限图多工具 Agent、脱敏或可选外部 Issue 查询、本地 Git 历史和 Commit Diff 只读查询、结构化故障排查报告、来源行号、索引变化统计、知识笔记审批写回，以及项目内代码变更的 Diff 预览和 operator 批准写入。离线模式默认把索引快照写入被忽略的 `data/index-snapshots/`，服务重启后仍可按内容 Hash 复用未变化文档；PostgreSQL 模式使用数据库持久化。Agent 状态可生成 JSON 快照，API 还返回不含查询正文的完成 usage：离线 token 估算、工具调用/重试次数和运行时；这些 token 不是供应商账单。工具调用、图步骤和总运行时有硬上限。Embedding 默认使用离线 Hash；显式配置远程 Provider 后才会发起请求。另提供无第三方依赖的 MCP-compatible stdio Server。
+当前 API 已支持项目注册发现、索引 `sample-data`、关键词/混合证据查询、分类答案检索路由、项目总结结构化回答、证据约束回答、SSE 流式输出、有限图多工具 Agent、脱敏或可选外部 Issue 查询、本地 Git 历史和 Commit Diff 只读查询、结构化故障排查报告、来源行号、索引变化统计、知识笔记审批写回，以及项目内代码变更的 Diff 预览和 operator 批准写入。离线模式默认把索引快照写入被忽略的 `data/index-snapshots/`，服务重启后仍可按内容 Hash 复用未变化文档；PostgreSQL 模式使用数据库持久化。Agent 状态可生成 JSON 快照，API 还返回不含查询正文的完成 usage：离线 token 估算、工具调用/重试次数和运行时；这些 token 不是供应商账单。工具调用、图步骤和总运行时有硬上限。Embedding 默认使用离线 Hash；显式配置 `EMBEDDING_PROVIDER=remote` 后才会联网，显式配置 `EMBEDDING_PROVIDER=local` 才会加载本地 BGE/E5 类模型。另提供无第三方依赖的 MCP-compatible stdio Server。
+
+### 本地 BGE / E5 类 Embedding 对比
+
+本地模型运行时是可选依赖，不会进入默认离线环境。使用项目 D 盘虚拟环境安装并把模型缓存放到项目 `data/`：
+
+```powershell
+& backend/.venv/Scripts/python.exe -m pip install -r backend/requirements-local-embedding.txt
+$env:EMBEDDING_PROVIDER = "local"
+$env:LOCAL_EMBEDDING_MODEL = "BAAI/bge-small-zh-v1.5"
+$env:LOCAL_EMBEDDING_CACHE = "D:\zzd_project\cursor\hanshi  senior\DevSage\data\models"
+& backend/.venv/Scripts/python.exe evaluation/scripts/compare_embedding_providers.py
+```
+
+Provider 采用懒加载、批量编码和进程内文本缓存；Hash 基线仍保留，方便离线回归。当前 `bge-small-zh-v1.5` 输出 512 维，而 PostgreSQL/pgvector 迁移固定为 1024 维，因此本轮本地模型用于真实内存召回对比，不会自动写入现有 PostgreSQL 索引。若要持久化本地向量，需要单独选择 1024 维模型（例如 BGE-M3）或设计数据库迁移，不能把不同维度的向量混写。
 
 ## MCP 演示
 
@@ -136,7 +151,7 @@ MCP 的 `search_documents`、`search_code`、`read_file` 和 `generate_troublesh
 ## 下一步
 
 1. 在获得磁盘授权后启动 PostgreSQL/pgvector，完成迁移、索引写入和数据库检索端到端 smoke；
-2. 选择真实 Embedding Provider 并替换 Hash 测试替身；
+2. 根据 [local-embedding-comparison.md](evaluation/reports/local-embedding-comparison.md) 决定是否采用 512 维 BGE 作为内存检索模型，或另行评估 1024 维模型后接入 pgvector；
 3. 在配置测试仓库后完成外部 Issue 真实平台 smoke，并接入正式 MCP 宿主；
 4. 接入正式用户、项目和权限模型，继续保留当前本地 capability boundary；
 5. 扩充评估集并持续比较检索策略，补齐部署演示与最终交付材料。
@@ -146,6 +161,7 @@ MCP 的 `search_documents`、`search_code`、`read_file` 和 `generate_troublesh
 - Redis：已提供 Memory/Redis 统一缓存边界，检索响应支持 TTL、命名空间失效和 Redis 故障降级；Compose 已加入 Redis 7 服务，但真实容器 smoke 仍需单独执行。
 - 正式认证：已提供 PBKDF2-SHA256 密码哈希、签名 Bearer Token、登录和 `/api/auth/me`；默认关闭，启用时使用项目外或被忽略的用户文件，不把明文密码写入仓库。
 - 远程 Embedding：已提供 OpenAI-compatible 批量请求、超时、批大小、维度、索引连续性和有限浮点校验；只有显式选择 `EMBEDDING_PROVIDER=remote` 才会联网。
+- 本地 Embedding：已提供可选 SentenceTransformers Provider、D 盘模型缓存、懒加载、批量编码、有限浮点校验和 Hash 对比脚本；当前 BGE small 仅用于内存召回评测，PostgreSQL 仍要求 1024 维。
 - 外部 Issue 写入：已提供 Issue 创建预览与 operator 审批接口；预览不联网，审批前必须显式开启写入、配置仓库和 Token，当前未执行真实远程写入。
 
 ### 本轮启用配置示例

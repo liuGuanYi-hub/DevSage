@@ -1,0 +1,44 @@
+{
+  "model": "BAAI/bge-small-zh-v1.5",
+  "questions": 75,
+  "chunk_count": 36,
+  "top_k": 5,
+  "local_dimension": 512,
+  "metrics": {
+    "keyword": {
+      "questions": 75,
+      "case_recall_at_5": 0.88,
+      "source_recall_at_5": 0.72,
+      "mrr": 0.7588888888888888,
+      "expected_alias_recall_at_5": 1.0
+    },
+    "hash_vector": {
+      "questions": 75,
+      "case_recall_at_5": 0.88,
+      "source_recall_at_5": 0.6833333333333333,
+      "mrr": 0.7364444444444445,
+      "expected_alias_recall_at_5": 0.0
+    },
+    "hash_hybrid_source_diverse": {
+      "questions": 75,
+      "case_recall_at_5": 0.96,
+      "source_recall_at_5": 0.88,
+      "mrr": 0.8048888888888889,
+      "expected_alias_recall_at_5": 1.0
+    },
+    "local_bge_vector": {
+      "questions": 75,
+      "case_recall_at_5": 0.84,
+      "source_recall_at_5": 0.7166666666666667,
+      "mrr": 0.7544444444444445,
+      "expected_alias_recall_at_5": 0.0
+    },
+    "local_bge_hybrid_source_diverse": {
+      "questions": 75,
+      "case_recall_at_5": 0.96,
+      "source_recall_at_5": 0.8866666666666667,
+      "mrr": 0.7959999999999999,
+      "expected_alias_recall_at_5": 1.0
+    }
+  }
+}

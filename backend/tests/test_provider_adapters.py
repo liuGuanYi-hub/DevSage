@@ -6,6 +6,7 @@ from unittest.mock import patch
 from backend.app.retrieval.embeddings import (
     EmbeddingProviderError,
     HashEmbeddingProvider,
+    LocalSentenceTransformerEmbeddingProvider,
     OpenAICompatibleEmbeddingProvider,
 )
 from backend.app.retrieval.provider_factory import create_embedding_provider
@@ -93,6 +94,43 @@ class ProviderAdapterTests(unittest.TestCase):
         with patch.dict(os.environ, {"EMBEDDING_PROVIDER": "hash"}, clear=False):
             provider = create_embedding_provider()
         self.assertEqual("HashEmbeddingProvider", type(provider).__name__)
+
+    def test_local_provider_is_lazy_and_reads_runtime_configuration(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "EMBEDDING_PROVIDER": "local",
+                "LOCAL_EMBEDDING_MODEL": "demo-local-model",
+                "LOCAL_EMBEDDING_CACHE": "D:/devsage-models",
+                "LOCAL_EMBEDDING_DEVICE": "cpu",
+                "LOCAL_EMBEDDING_BATCH_SIZE": "8",
+            },
+            clear=False,
+        ):
+            provider = create_embedding_provider()
+        self.assertIsInstance(provider, LocalSentenceTransformerEmbeddingProvider)
+        self.assertEqual("demo-local-model", provider.model_name)
+        self.assertEqual("D:/devsage-models", provider.cache_folder)
+        self.assertEqual(8, provider.batch_size)
+        self.assertIsNone(provider._model)
+
+    def test_local_provider_validates_and_caches_model_output_without_importing_runtime(self) -> None:
+        class FakeModel:
+            def get_sentence_embedding_dimension(self):
+                return 3
+
+            def encode(self, texts, **_kwargs):
+                return [[float(index + 1), 0.0, 0.0] for index, _ in enumerate(texts)]
+
+        provider = LocalSentenceTransformerEmbeddingProvider(
+            model_name="fake", cache_folder="D:/devsage-models"
+        )
+        provider._model = FakeModel()
+        provider.dimension = 3
+        first = provider.embed(["one", "two"])
+        second = provider.embed(["one", "two"])
+        self.assertEqual(first, second)
+        self.assertEqual(3, len(first[0]))
 
     def test_provider_factory_rejects_unknown_mode(self) -> None:
         with patch.dict(os.environ, {"EMBEDDING_PROVIDER": "unknown"}, clear=False):
