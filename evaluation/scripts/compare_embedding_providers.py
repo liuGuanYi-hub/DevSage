@@ -76,6 +76,9 @@ def compare(
     model_name: str = "BAAI/bge-small-zh-v1.5",
     cache_folder: str | None = "data/models",
     top_k: int = 5,
+    backend: str = "torch",
+    file_name: str | None = None,
+    report_model_name: str | None = None,
 ) -> dict[str, object]:
     """Run both providers against the same fixed 75-question dataset."""
 
@@ -96,10 +99,16 @@ def compare(
     local_provider = LocalSentenceTransformerEmbeddingProvider(
         model_name=model_name,
         cache_folder=cache_folder,
+        backend=backend,
+        file_name=file_name,
     )
-    metrics.update(_provider_metrics("local_bge", local_provider, cases, chunks, top_k))
+    local_label = "local_e5" if "e5" in model_name.lower() else "local_bge"
+    metrics.update(_provider_metrics(local_label, local_provider, cases, chunks, top_k))
     return {
-        "model": model_name,
+        "model": report_model_name or model_name,
+        "model_path": model_name,
+        "backend": backend,
+        "file_name": file_name,
         "questions": len(cases),
         "chunk_count": len(chunks),
         "top_k": top_k,
@@ -135,12 +144,21 @@ def _render_table(report: dict[str, object]) -> str:
         assert isinstance(values, dict)
         rendered = [f"{float(values[name]):.4f}" for name in names]
         lines.append(f"| {strategy} | " + " | ".join(rendered) + " |")
+    local_dimension = report["local_dimension"]
+    if local_dimension == 1024:
+        persistence_note = (
+            "本地模型返回 1024 维，与 PostgreSQL/pgvector 的 `vector(1024)` 兼容；"
+            "索引写入使用 `passage:`，查询使用 `query:`。"
+        )
+    else:
+        persistence_note = (
+            "本地模型维度不是 1024，不会自动写入现有 PostgreSQL/pgvector 索引。"
+        )
     lines.extend(
         [
             "",
             "说明：Hash 是离线确定性基线；local_* 使用真实本地 SentenceTransformer 模型。",
-            "当前 PostgreSQL pgvector 表为 1024 维，本报告先在内存检索上比较本地模型；",
-            "若本地模型维度不是 1024，不会自动写入现有 PostgreSQL 索引。",
+            persistence_note,
         ]
     )
     return "\n".join(lines) + "\n"
@@ -155,6 +173,9 @@ def main() -> None:
     )
     parser.add_argument("--cache-folder", default="data/models")
     parser.add_argument("--top-k", type=int, default=5)
+    parser.add_argument("--backend", choices=("torch", "onnx", "openvino"), default="torch")
+    parser.add_argument("--file-name", default=None)
+    parser.add_argument("--report-model-name", default=None)
     parser.add_argument("--json-output", type=Path, default=DEFAULT_REPORT.with_suffix(".json"))
     parser.add_argument(
         "--markdown-output",
@@ -169,6 +190,9 @@ def main() -> None:
         model_name=args.model,
         cache_folder=args.cache_folder,
         top_k=args.top_k,
+        backend=args.backend,
+        file_name=args.file_name,
+        report_model_name=args.report_model_name,
     )
     args.json_output.parent.mkdir(parents=True, exist_ok=True)
     args.markdown_output.parent.mkdir(parents=True, exist_ok=True)

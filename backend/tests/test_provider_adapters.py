@@ -104,6 +104,7 @@ class ProviderAdapterTests(unittest.TestCase):
                 "LOCAL_EMBEDDING_CACHE": "D:/devsage-models",
                 "LOCAL_EMBEDDING_DEVICE": "cpu",
                 "LOCAL_EMBEDDING_BATCH_SIZE": "8",
+                "LOCAL_EMBEDDING_BACKEND": "onnx",
             },
             clear=False,
         ):
@@ -112,14 +113,19 @@ class ProviderAdapterTests(unittest.TestCase):
         self.assertEqual("demo-local-model", provider.model_name)
         self.assertEqual("D:/devsage-models", provider.cache_folder)
         self.assertEqual(8, provider.batch_size)
+        self.assertEqual("onnx", provider.backend)
         self.assertIsNone(provider._model)
 
     def test_local_provider_validates_and_caches_model_output_without_importing_runtime(self) -> None:
         class FakeModel:
+            def __init__(self):
+                self.inputs = []
+
             def get_sentence_embedding_dimension(self):
                 return 3
 
             def encode(self, texts, **_kwargs):
+                self.inputs.append(list(texts))
                 return [[float(index + 1), 0.0, 0.0] for index, _ in enumerate(texts)]
 
         provider = LocalSentenceTransformerEmbeddingProvider(
@@ -131,6 +137,38 @@ class ProviderAdapterTests(unittest.TestCase):
         second = provider.embed(["one", "two"])
         self.assertEqual(first, second)
         self.assertEqual(3, len(first[0]))
+
+    def test_e5_provider_uses_query_and_passage_prefixes(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "EMBEDDING_PROVIDER": "local",
+                "LOCAL_EMBEDDING_MODEL": "intfloat/multilingual-e5-large",
+            },
+            clear=False,
+        ):
+            provider = create_embedding_provider()
+        self.assertEqual("query: ", provider.query_prefix)
+        self.assertEqual("passage: ", provider.document_prefix)
+        provider.backend = "onnx"
+        provider.__post_init__()
+        self.assertEqual("model_qint8_avx512_vnni.onnx", provider.file_name)
+
+        class FakeModel:
+            def get_sentence_embedding_dimension(self):
+                return 3
+
+            def encode(self, texts, **_kwargs):
+                self.inputs = list(texts)
+                return [[1.0, 0.0, 0.0] for _ in texts]
+
+        fake_model = FakeModel()
+        provider._model = fake_model
+        provider.dimension = 3
+        provider.embed_query(["查询"])
+        self.assertEqual(["query: 查询"], fake_model.inputs)
+        provider.embed_documents(["文档"])
+        self.assertEqual(["passage: 文档"], fake_model.inputs)
 
     def test_provider_factory_rejects_unknown_mode(self) -> None:
         with patch.dict(os.environ, {"EMBEDDING_PROVIDER": "unknown"}, clear=False):

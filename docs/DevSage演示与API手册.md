@@ -152,9 +152,23 @@ MCP 的文档检索、代码检索、文件读取和故障报告工具也支持�
 
 通用 hybrid 查询会先应用中文同义词、错误码归一化和确定性代码词扩展，再进入关键词与本地向量融合；关键词信号使用更高的加权 RRF 权重，向量输入同时包含文件路径、文件职责、标题、符号和行号元数据。这样可以让“端口撞车”“未认证”“用户接口”等自然语言问题更容易命中类名、控制器、路由和配置文件。raw RRF 仍保留在策略评估中作为不带业务扩展的基线。
 
-本地语义 Embedding 通过可选的 `SentenceTransformers` Provider 接入。安装 `backend/requirements-local-embedding.txt` 后，设置 `EMBEDDING_PROVIDER=local` 即可加载 `BAAI/bge-small-zh-v1.5`，模型缓存建议放在 DevSage 的 `data/models/`；不设置时仍使用确定性的 Hash Provider。`evaluation/scripts/compare_embedding_providers.py` 会对同一批 75 道问题同时计算关键词、Hash 向量/混合和本地 BGE 向量/混合的 Case Recall@5、Source Recall@5、MRR 与错误码别名召回率。
+本地语义 Embedding 通过可选的 `SentenceTransformers` Provider 接入。安装 `backend/requirements-local-embedding.txt` 后，设置 `EMBEDDING_PROVIDER=local` 即可加载 BGE/E5 类模型，模型缓存建议放在 DevSage 的 `data/models/`；不设置时仍使用确定性的 Hash Provider。`evaluation/scripts/compare_embedding_providers.py` 会对同一批 75 道问题同时计算关键词、Hash 向量/混合和本地模型向量/混合的 Case Recall@5、Source Recall@5、MRR 与错误码别名召回率。
 
-当前评测模型输出 512 维，现有 PostgreSQL/pgvector 迁移的 `embedding vector(1024)` 不兼容，因此对比脚本在内存中运行本地模型，不会自动覆盖数据库索引。要将本地模型用于持久化检索，需要后续单独完成 1024 维模型选择或数据库迁移，并重新索引全部 Chunk。
+当前正式接入候选为 `intfloat/multilingual-e5-large` 的 ONNX qint8 版本。它输出 1024 维，和 PostgreSQL/pgvector 迁移的 `embedding vector(1024)` 兼容；写入 Chunk 向量时使用 `passage: `，查询时使用 `query: `。推荐配置如下：
+
+```powershell
+$env:EMBEDDING_PROVIDER = "local"
+$env:LOCAL_EMBEDDING_MODEL = "data/manual-models/multilingual-e5-large-qint8"
+$env:LOCAL_EMBEDDING_BACKEND = "onnx"
+$env:LOCAL_EMBEDDING_FILE_NAME = "model_qint8_avx512_vnni.onnx"
+$env:LOCAL_EMBEDDING_CACHE = "D:\zzd_project\cursor\hanshi  senior\DevSage\data\models"
+$env:DEVSAGE_STORAGE = "postgres"
+$env:DATABASE_URL = "postgresql://devsage:YOUR_PASSWORD@127.0.0.1:5433/devsage"
+```
+
+评测报告为 [local-embedding-1024-comparison.md](../evaluation/reports/local-embedding-1024-comparison.md)。`BAAI/bge-m3` 也是 1024 维候选，但本轮未完成其 PyTorch 权重下载，因此没有把 BGE-M3 作为已验证生产模型；Hash 仍保留为离线降级路径。
+
+真实 PostgreSQL 可用后，在当前 PowerShell 会话配置 `DATABASE_URL`，再运行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-local-embedding-postgres.ps1`。该 smoke 会加载 D 盘 E5 ONNX qint8 模型，调用现有迁移、写入 1024 维 Chunk 向量，再通过 pgvector 执行混合查询；脚本不会打印数据库连接串，也不会修改 Vault。
 
 LangGraph 适配是可选运行时，离线默认环境不安装也不影响本地 Agent。若使用项目自带虚拟环境，可运行 `.\\backend\\.venv\\Scripts\\python.exe evaluation/scripts/smoke_langgraph.py`；该 smoke 会验证四节点图完成、返回来源引用，并通过 `MemorySaver + thread_id` 读取已保存状态。未安装时脚本只报告 skipped，不会自动下载依赖。
 

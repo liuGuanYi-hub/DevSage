@@ -10,7 +10,7 @@ from typing import Any
 
 from ..ingestion.indexer import IndexSnapshot
 from ..ingestion.models import ChunkRecord
-from ..retrieval.embeddings import EmbeddingProvider
+from ..retrieval.embeddings import EmbeddingProvider, embed_query
 from ..retrieval.keyword_search import search_keyword as search_keyword_chunks
 from ..retrieval.models import SearchResult
 from ..retrieval.rrf import reciprocal_rank_fusion, select_source_diverse
@@ -139,7 +139,7 @@ class PostgresIndexRepository:
 
         if top_k <= 0:
             return []
-        query_vector = provider.embed([query])[0]
+        query_vector = embed_query(provider, [query])[0]
         try:
             vector = vector_literal(query_vector)
         except ValueError as exc:

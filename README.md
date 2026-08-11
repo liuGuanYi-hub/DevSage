@@ -136,6 +136,30 @@ $env:LOCAL_EMBEDDING_CACHE = "D:\zzd_project\cursor\hanshi  senior\DevSage\data\
 
 Provider 采用懒加载、批量编码和进程内文本缓存；Hash 基线仍保留，方便离线回归。当前 `bge-small-zh-v1.5` 输出 512 维，而 PostgreSQL/pgvector 迁移固定为 1024 维，因此本轮本地模型用于真实内存召回对比，不会自动写入现有 PostgreSQL 索引。若要持久化本地向量，需要单独选择 1024 维模型（例如 BGE-M3）或设计数据库迁移，不能把不同维度的向量混写。
 
+### 1024 维本地模型接入 PostgreSQL
+
+本轮已验证 `intfloat/multilingual-e5-large` 的 ONNX qint8 版本：本地输出 1024 维，和迁移中的 `embedding vector(1024)` 兼容。E5 查询与文档分别使用 `query: ` 和 `passage: ` 前缀；`IndexService` 写入 PostgreSQL 时使用文档向量，`PostgresIndexRepository` 查询时使用查询向量，避免把两类输入混用。评测结果见 [local-embedding-1024-comparison.md](evaluation/reports/local-embedding-1024-comparison.md)。
+
+模型文件和缓存应放在项目 D 盘目录；不要把模型文件提交到 Git：
+
+```powershell
+$env:EMBEDDING_PROVIDER = "local"
+$env:LOCAL_EMBEDDING_MODEL = "data/manual-models/multilingual-e5-large-qint8"
+$env:LOCAL_EMBEDDING_BACKEND = "onnx"
+$env:LOCAL_EMBEDDING_FILE_NAME = "model_qint8_avx512_vnni.onnx"
+$env:LOCAL_EMBEDDING_CACHE = "D:\zzd_project\cursor\hanshi  senior\DevSage\data\models"
+$env:DEVSAGE_STORAGE = "postgres"
+$env:DATABASE_URL = "postgresql://devsage:YOUR_PASSWORD@127.0.0.1:5433/devsage"
+```
+
+`BAAI/bge-m3` 同样是 1024 维候选，但本轮下载其 PyTorch 权重时未能完整拉取，因此没有把未验证的 BGE-M3 结果写成正式结论。当前正式可用候选是 E5 ONNX qint8；Hash 仍作为离线降级方案。
+
+真实数据库可用后，在同一个 PowerShell 会话设置 `DATABASE_URL`（不要把真实密码写入仓库），再运行下面的 smoke。它会用 E5 生成 1024 维文档向量写入 PostgreSQL，并用 `query:` 向量执行 pgvector 混合检索：
+
+```powershell
+.\scripts\smoke-local-embedding-postgres.ps1
+```
+
 ## MCP 演示
 
 从项目根目录运行：
@@ -150,8 +174,8 @@ MCP 的 `search_documents`、`search_code`、`read_file` 和 `generate_troublesh
 
 ## 下一步
 
-1. 在获得磁盘授权后启动 PostgreSQL/pgvector，完成迁移、索引写入和数据库检索端到端 smoke；
-2. 根据 [local-embedding-comparison.md](evaluation/reports/local-embedding-comparison.md) 决定是否采用 512 维 BGE 作为内存检索模型，或另行评估 1024 维模型后接入 pgvector；
+1. 在 Docker Desktop 可用且数据库凭据已配置后，执行 `scripts/smoke-local-embedding-postgres.ps1` 完成 1024 维 E5 的 PostgreSQL 迁移、索引写入和数据库检索端到端 smoke；
+2. 继续补充 BGE-M3 的可复现权重来源，再和当前 E5 报告做同数据集对比；
 3. 在配置测试仓库后完成外部 Issue 真实平台 smoke，并接入正式 MCP 宿主；
 4. 接入正式用户、项目和权限模型，继续保留当前本地 capability boundary；
 5. 扩充评估集并持续比较检索策略，补齐部署演示与最终交付材料。
@@ -161,7 +185,7 @@ MCP 的 `search_documents`、`search_code`、`read_file` 和 `generate_troublesh
 - Redis：已提供 Memory/Redis 统一缓存边界，检索响应支持 TTL、命名空间失效和 Redis 故障降级；Compose 已加入 Redis 7 服务，但真实容器 smoke 仍需单独执行。
 - 正式认证：已提供 PBKDF2-SHA256 密码哈希、签名 Bearer Token、登录和 `/api/auth/me`；默认关闭，启用时使用项目外或被忽略的用户文件，不把明文密码写入仓库。
 - 远程 Embedding：已提供 OpenAI-compatible 批量请求、超时、批大小、维度、索引连续性和有限浮点校验；只有显式选择 `EMBEDDING_PROVIDER=remote` 才会联网。
-- 本地 Embedding：已提供可选 SentenceTransformers Provider、D 盘模型缓存、懒加载、批量编码、有限浮点校验和 Hash 对比脚本；当前 BGE small 仅用于内存召回评测，PostgreSQL 仍要求 1024 维。
+- 本地 Embedding：已提供可选 SentenceTransformers/ONNX Provider、D 盘模型缓存、懒加载、批量编码、E5 查询/文档前缀、有限浮点校验和 Hash 对比脚本；当前 E5 qint8 已通过 1024 维检查，可进入 PostgreSQL 向量路径。
 - 外部 Issue 写入：已提供 Issue 创建预览与 operator 审批接口；预览不联网，审批前必须显式开启写入、配置仓库和 Token，当前未执行真实远程写入。
 
 ### 本轮启用配置示例

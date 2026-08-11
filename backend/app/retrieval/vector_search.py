@@ -6,7 +6,12 @@ import math
 from collections.abc import Iterable
 
 from ..ingestion.models import ChunkRecord
-from .embeddings import EmbeddingProvider, HashEmbeddingProvider
+from .embeddings import (
+    EmbeddingProvider,
+    HashEmbeddingProvider,
+    embed_documents,
+    embed_query,
+)
 from .models import SearchResult
 
 
@@ -46,8 +51,11 @@ def search_vector(
     if not chunk_list:
         return []
 
-    query_vector = embedding_provider.embed([query])[0]
-    chunk_vectors = embedding_provider.embed([embedding_text(chunk) for chunk in chunk_list])
+    query_vector = embed_query(embedding_provider, [query])[0]
+    chunk_vectors = embed_documents(
+        embedding_provider,
+        [embedding_text(chunk) for chunk in chunk_list],
+    )
     results = [
         SearchResult(
             chunk=chunk,

@@ -25,6 +25,28 @@ class EmbeddingProvider(Protocol):
     def embed(self, texts: list[str]) -> list[list[float]]:
         """Return one vector for every input text."""
 
+    def embed_query(self, texts: list[str]) -> list[list[float]]:
+        """Embed query texts using the provider's query formatting."""
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """Embed document texts using the provider's document formatting."""
+
+
+def embed_query(provider: EmbeddingProvider, texts: list[str]) -> list[list[float]]:
+    """Use query-aware formatting when a provider exposes it."""
+
+    method = getattr(provider, "embed_query", None)
+    return method(texts) if callable(method) else provider.embed(texts)
+
+
+def embed_documents(
+    provider: EmbeddingProvider, texts: list[str]
+) -> list[list[float]]:
+    """Use document-aware formatting when a provider exposes it."""
+
+    method = getattr(provider, "embed_documents", None)
+    return method(texts) if callable(method) else provider.embed(texts)
+
 
 @dataclass(frozen=True)
 class HashEmbeddingProvider:
@@ -57,6 +79,12 @@ class HashEmbeddingProvider:
             vectors.append(vector)
         return vectors
 
+    def embed_query(self, texts: list[str]) -> list[list[float]]:
+        return self.embed(texts)
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return self.embed(texts)
+
 
 class EmbeddingProviderError(RuntimeError):
     """Raised when a configured remote Embedding provider cannot be used."""
@@ -78,6 +106,10 @@ class LocalSentenceTransformerEmbeddingProvider:
     device: str = "cpu"
     batch_size: int = 16
     normalize_embeddings: bool = True
+    backend: str = "torch"
+    file_name: str | None = None
+    query_prefix: str = ""
+    document_prefix: str = ""
     dimension: int | None = None
     _model: Any = field(init=False, default=None, repr=False)
     _cache: OrderedDict[tuple[str, ...], list[list[float]]] = field(
@@ -89,6 +121,17 @@ class LocalSentenceTransformerEmbeddingProvider:
             raise ValueError("model_name must not be empty")
         if not 1 <= self.batch_size <= 256:
             raise ValueError("batch_size must be between 1 and 256")
+        if self.backend not in {"torch", "onnx", "openvino"}:
+            raise ValueError("backend must be torch, onnx, or openvino")
+        if (
+            self.file_name is None
+            and self.backend == "onnx"
+            and "e5" in self.model_name.lower()
+        ):
+            self.file_name = "model_qint8_avx512_vnni.onnx"
+        if "e5" in self.model_name.lower():
+            self.query_prefix = self.query_prefix or "query: "
+            self.document_prefix = self.document_prefix or "passage: "
 
     @classmethod
     def from_env(cls) -> "LocalSentenceTransformerEmbeddingProvider":
@@ -101,6 +144,8 @@ class LocalSentenceTransformerEmbeddingProvider:
             "LOCAL_EMBEDDING_CACHE", "data/models"
         ).strip() or None
         device = os.getenv("LOCAL_EMBEDDING_DEVICE", "cpu").strip() or "cpu"
+        backend = os.getenv("LOCAL_EMBEDDING_BACKEND", "torch").strip().lower() or "torch"
+        file_name = os.getenv("LOCAL_EMBEDDING_FILE_NAME", "").strip() or None
         try:
             batch_size = int(os.getenv("LOCAL_EMBEDDING_BATCH_SIZE", "16"))
         except ValueError as exc:
@@ -114,6 +159,15 @@ class LocalSentenceTransformerEmbeddingProvider:
             "yes",
             "on",
         }
+        is_e5_model = "e5" in model_name.lower()
+        query_prefix = os.getenv(
+            "LOCAL_EMBEDDING_QUERY_PREFIX",
+            "query: " if is_e5_model else "",
+        )
+        document_prefix = os.getenv(
+            "LOCAL_EMBEDDING_DOCUMENT_PREFIX",
+            "passage: " if is_e5_model else "",
+        )
         try:
             return cls(
                 model_name=model_name,
@@ -121,6 +175,10 @@ class LocalSentenceTransformerEmbeddingProvider:
                 device=device,
                 batch_size=batch_size,
                 normalize_embeddings=normalize_embeddings,
+                backend=backend,
+                file_name=file_name,
+                query_prefix=query_prefix,
+                document_prefix=document_prefix,
             )
         except ValueError as exc:
             raise EmbeddingProviderError(
@@ -140,11 +198,20 @@ class LocalSentenceTransformerEmbeddingProvider:
 
         cache_path = str(Path(self.cache_folder).expanduser()) if self.cache_folder else None
         try:
+            model_kwargs = {}
+            if self.file_name:
+                model_kwargs["file_name"] = (
+                    self.file_name
+                    if "/" in self.file_name or "\\" in self.file_name
+                    else f"onnx/{self.file_name}"
+                )
             self._model = SentenceTransformer(
                 self.model_name,
                 cache_folder=cache_path,
                 device=self.device,
                 trust_remote_code=False,
+                backend=self.backend,
+                model_kwargs=model_kwargs,
             )
             dimension_getter = getattr(self._model, "get_embedding_dimension", None)
             if not callable(dimension_getter):
@@ -159,9 +226,18 @@ class LocalSentenceTransformerEmbeddingProvider:
         return self._model
 
     def embed(self, texts: list[str]) -> list[list[float]]:
+        return self._embed_with_prefix(texts, "")
+
+    def embed_query(self, texts: list[str]) -> list[list[float]]:
+        return self._embed_with_prefix(texts, self.query_prefix)
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return self._embed_with_prefix(texts, self.document_prefix)
+
+    def _embed_with_prefix(self, texts: list[str], prefix: str) -> list[list[float]]:
         if not texts:
             return []
-        cache_key = tuple(texts)
+        cache_key = (prefix, *texts)
         cached = self._cache.get(cache_key)
         if cached is not None:
             self._cache.move_to_end(cache_key)
@@ -170,7 +246,7 @@ class LocalSentenceTransformerEmbeddingProvider:
         model = self._load_model()
         try:
             encoded = model.encode(
-                list(texts),
+                [f"{prefix}{text}" for text in texts],
                 batch_size=self.batch_size,
                 show_progress_bar=False,
                 convert_to_numpy=True,
@@ -276,6 +352,12 @@ class OpenAICompatibleEmbeddingProvider:
         for start in range(0, len(texts), self.batch_size):
             vectors.extend(self._embed_batch(texts[start : start + self.batch_size], api_key))
         return vectors
+
+    def embed_query(self, texts: list[str]) -> list[list[float]]:
+        return self.embed(texts)
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return self.embed(texts)
 
     def _embed_batch(self, texts: list[str], api_key: str) -> list[list[float]]:
         request = Request(

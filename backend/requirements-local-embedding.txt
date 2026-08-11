@@ -1,3 +1,5 @@
 # Optional local BGE/E5-style embedding runtime.
 # Install this file only when EMBEDDING_PROVIDER=local is required.
 sentence-transformers>=3.0,<6.0
+onnxruntime>=1.17,<2.0
+optimum[onnxruntime]>=1.20,<3.0

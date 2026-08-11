@@ -205,6 +205,44 @@ def make_snapshot() -> IndexSnapshot:
 
 
 class PostgresRepositoryContractTests(unittest.TestCase):
+    def test_index_service_uses_document_and_query_embedding_paths(self) -> None:
+        class QueryDocumentAwareHashProvider:
+            def __init__(self) -> None:
+                self.base = HashEmbeddingProvider()
+                self.dimension = self.base.dimension
+                self.document_calls: list[list[str]] = []
+                self.query_calls: list[list[str]] = []
+
+            def embed_documents(self, texts: list[str]) -> list[list[float]]:
+                self.document_calls.append(list(texts))
+                return self.base.embed(texts)
+
+            def embed_query(self, texts: list[str]) -> list[list[float]]:
+                self.query_calls.append(list(texts))
+                return self.base.embed(texts)
+
+            def embed(self, texts: list[str]) -> list[list[float]]:
+                return self.base.embed(texts)
+
+        connection = FakePostgresConnection()
+        provider = QueryDocumentAwareHashProvider()
+        repository = PostgresIndexRepository(connection_factory=lambda: connection)
+        service = IndexService(
+            embedding_provider=provider,
+            persistence=repository,
+            snapshot_store=None,
+        )
+
+        service.build("sample-data")
+        service.search_hybrid("sample-data", "server.port", top_k=3)
+
+        self.assertTrue(provider.document_calls)
+        self.assertTrue(provider.query_calls)
+        self.assertEqual(
+            len(provider.document_calls[0]),
+            sum(len(chunks) for chunks in connection.chunks.values()),
+        )
+
     def test_migration_snapshot_and_search_contract(self) -> None:
         connection = FakePostgresConnection()
         repository = PostgresIndexRepository(connection_factory=lambda: connection)
