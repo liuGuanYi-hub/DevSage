@@ -67,6 +67,7 @@ class AnswerResponse(BaseModel):
     generation_mode: str = "offline_rules"
     generation_model: str | None = None
     generation_warning: str | None = None
+    generation_runtime_ms: int = 0
 
 
 class KnowledgeNotePreviewRequest(BaseModel):

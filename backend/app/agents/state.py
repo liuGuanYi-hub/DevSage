@@ -212,6 +212,7 @@ def _serialize_answer(answer: object | None) -> dict[str, Any] | None:
         "generation_mode": answer.generation_mode,
         "generation_model": answer.generation_model,
         "generation_warning": answer.generation_warning,
+        "generation_runtime_ms": answer.generation_runtime_ms,
     }
 
 
@@ -232,4 +233,5 @@ def _deserialize_answer(payload: dict[str, Any] | None) -> AnswerDraft | None:
             else None
         ),
         generation_warning=payload.get("generation_warning"),
+        generation_runtime_ms=int(payload.get("generation_runtime_ms", 0)),
     )

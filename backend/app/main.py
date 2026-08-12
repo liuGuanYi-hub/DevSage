@@ -428,6 +428,7 @@ def _answer_response(
         generation_mode=draft.generation_mode,
         generation_model=draft.generation_model,
         generation_warning=draft.generation_warning,
+        generation_runtime_ms=draft.generation_runtime_ms,
     )
 
 
@@ -666,6 +667,7 @@ def _agent_response(state) -> AgentResponse:
         generation_mode=draft.generation_mode,
         generation_model=draft.generation_model,
         generation_warning=draft.generation_warning,
+        generation_runtime_ms=draft.generation_runtime_ms,
     )
 
 

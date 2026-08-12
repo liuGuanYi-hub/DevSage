@@ -22,6 +22,7 @@ class AnswerDraft:
     generation_mode: str = "offline_rules"
     generation_model: str | None = None
     generation_warning: str | None = None
+    generation_runtime_ms: int = 0
 
 
 def _compact_snippet(content: str, limit: int = 360) -> str:
@@ -301,9 +302,9 @@ def _enhance_with_ai(query: str, draft: AnswerDraft) -> AnswerDraft:
         return AnswerDraft(
             **{
                 **draft.__dict__,
-                "generation_mode": "offline_fallback",
-                "generation_model": config.model,
-                "generation_warning": str(exc),
+            "generation_mode": "offline_fallback",
+            "generation_model": config.model,
+            "generation_warning": str(exc),
             }
         )
     if generated is None:
@@ -316,6 +317,7 @@ def _enhance_with_ai(query: str, draft: AnswerDraft) -> AnswerDraft:
             "generation_mode": "ai",
             "generation_model": generated.model,
             "generation_warning": None,
+            "generation_runtime_ms": generated.runtime_ms,
         }
     )
 

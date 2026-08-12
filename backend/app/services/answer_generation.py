@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import json
 import os
 import re
+import time
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -26,6 +27,8 @@ class AnswerGenerationConfig:
     model: str
     timeout_seconds: float
     max_tokens: int
+    evidence_limit: int
+    enable_thinking: bool
 
     @property
     def enabled(self) -> bool:
@@ -38,6 +41,7 @@ class GeneratedAnswer:
     key_steps: tuple[str, ...]
     model: str
     provider: str
+    runtime_ms: int = 0
 
 
 def get_answer_generation_config() -> AnswerGenerationConfig:
@@ -55,7 +59,9 @@ def get_answer_generation_config() -> AnswerGenerationConfig:
         model=os.getenv("ANSWER_GENERATION_MODEL", "qwen3.7-flash-2026-07-15").strip()
         or "qwen3.7-flash-2026-07-15",
         timeout_seconds=_env_float("ANSWER_GENERATION_TIMEOUT", 30.0, minimum=1.0),
-        max_tokens=_env_int("ANSWER_GENERATION_MAX_TOKENS", 900, minimum=128),
+        max_tokens=_env_int("ANSWER_GENERATION_MAX_TOKENS", 480, minimum=128),
+        evidence_limit=min(_env_int("ANSWER_GENERATION_EVIDENCE_LIMIT", 3, minimum=1), 5),
+        enable_thinking=_env_bool("ANSWER_GENERATION_ENABLE_THINKING", False),
     )
 
 
@@ -102,15 +108,17 @@ def generate_grounded_answer(
             f"AI答案未配置密钥，请在本地环境变量 {config.api_key_env} 中设置"
         )
 
+    generation_evidence = tuple(evidence[: config.evidence_limit])
     payload = {
         "model": config.model,
         "temperature": 0.2,
         "max_tokens": config.max_tokens,
+        "enable_thinking": config.enable_thinking,
         "messages": [
             {"role": "system", "content": _system_prompt()},
             {
                 "role": "user",
-                "content": _user_prompt(query, category, evidence),
+                "content": _user_prompt(query, category, generation_evidence),
             },
         ],
     }
@@ -123,6 +131,7 @@ def generate_grounded_answer(
         },
         method="POST",
     )
+    started_at = time.perf_counter()
     try:
         with urlopen(request, timeout=config.timeout_seconds) as response:
             response_payload = json.loads(response.read().decode("utf-8"))
@@ -144,12 +153,13 @@ def generate_grounded_answer(
     )[:5]
     if not cleaned_steps:
         raise AnswerGenerationError("AI答案响应缺少关键步骤")
-    _validate_evidence_markers(answer, len(evidence))
+    _validate_evidence_markers(answer, len(generation_evidence))
     return GeneratedAnswer(
         answer=answer.strip(),
         key_steps=cleaned_steps,
         model=config.model,
         provider=config.provider,
+        runtime_ms=max(0, round((time.perf_counter() - started_at) * 1000)),
     )
 
 
@@ -244,3 +254,10 @@ def _env_int(name: str, default: int, minimum: int) -> int:
         return max(minimum, int(os.getenv(name, str(default)).strip()))
     except ValueError:
         return default
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}

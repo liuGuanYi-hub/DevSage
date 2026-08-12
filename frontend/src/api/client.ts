@@ -91,6 +91,7 @@ export interface AnswerResponse {
   generation_mode: string;
   generation_model: string | null;
   generation_warning: string | null;
+  generation_runtime_ms: number;
 }
 
 export interface AgentStep {

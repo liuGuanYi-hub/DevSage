@@ -62,6 +62,13 @@ class AnswerGenerationTests(unittest.TestCase):
             def read(self):
                 return json.dumps(response_payload, ensure_ascii=False).encode("utf-8")
 
+        captured: dict[str, object] = {}
+
+        def fake_urlopen(request, timeout):
+            captured["payload"] = json.loads(request.data.decode("utf-8"))
+            captured["timeout"] = timeout
+            return FakeResponse()
+
         with patch.dict(
             os.environ,
             {
@@ -70,14 +77,21 @@ class AnswerGenerationTests(unittest.TestCase):
                 "ANSWER_GENERATION_API_KEY_ENV": "TEST_QWEN_KEY",
                 "TEST_QWEN_KEY": "test-key",
                 "ANSWER_GENERATION_MODEL": "qwen-test",
+                "ANSWER_GENERATION_MAX_TOKENS": "480",
+                "ANSWER_GENERATION_EVIDENCE_LIMIT": "3",
+                "ANSWER_GENERATION_ENABLE_THINKING": "false",
             },
             clear=False,
-        ), patch("backend.app.services.answer_generation.urlopen", return_value=FakeResponse()):
+        ), patch("backend.app.services.answer_generation.urlopen", side_effect=fake_urlopen):
             generated = generate_grounded_answer("8080 怎么排查？", "troubleshooting", _evidence())
 
         self.assertIsNotNone(generated)
         self.assertIn("[E1]", generated.answer)
         self.assertEqual(("执行来源中给出的端口检查命令。",), generated.key_steps)
+        self.assertEqual(480, captured["payload"]["max_tokens"])
+        self.assertFalse(captured["payload"]["enable_thinking"])
+        self.assertEqual(1, captured["payload"]["messages"][1]["content"].count("[E1]"))
+        self.assertGreaterEqual(generated.runtime_ms, 0)
 
     def test_qwen_response_without_evidence_marker_is_rejected(self) -> None:
         response_payload = {

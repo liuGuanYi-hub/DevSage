@@ -62,6 +62,15 @@ const loginPassword = ref("");
 const loginStatus = ref("");
 const authUsername = ref("");
 const showExecutionDetails = ref(false);
+const agentPhase = ref("");
+let agentPhaseTimer: number | null = null;
+
+const agentPhases = [
+  "正在判断问题类型…",
+  "正在检索项目证据…",
+  "正在检查证据是否充分…",
+  "正在生成带引用的答案…",
+];
 interface ExampleQuery {
   label: string;
   query: string;
@@ -335,6 +344,24 @@ function toggleExecutionDetails(event: Event): void {
   showExecutionDetails.value = (event.target as HTMLDetailsElement).open;
 }
 
+function startAgentProgress(): void {
+  if (agentPhaseTimer !== null) window.clearInterval(agentPhaseTimer);
+  let phaseIndex = 0;
+  agentPhase.value = agentPhases[phaseIndex];
+  agentPhaseTimer = window.setInterval(() => {
+    phaseIndex = Math.min(phaseIndex + 1, agentPhases.length - 1);
+    agentPhase.value = agentPhases[phaseIndex];
+  }, 4500);
+}
+
+function stopAgentProgress(): void {
+  if (agentPhaseTimer !== null) {
+    window.clearInterval(agentPhaseTimer);
+    agentPhaseTimer = null;
+  }
+  agentPhase.value = "";
+}
+
 async function chooseExample(exampleQuery: string, projectId?: string): Promise<void> {
   query.value = exampleQuery;
   const targetProjectId = projectId ?? "sample-data";
@@ -393,6 +420,7 @@ async function search() {
   clearRequestError();
   isLoading.value = true;
   status.value = "Agent 正在分类、检索并组织证据…";
+  startAgentProgress();
   try {
     const response = await runAgent(
       query.value,
@@ -423,6 +451,7 @@ async function search() {
     setRequestError(error, "search");
     status.value = `检索失败：${readableError(error)}`;
   } finally {
+    stopAgentProgress();
     isLoading.value = false;
   }
 }
@@ -744,6 +773,12 @@ onMounted(async () => {
         </button>
       </form>
 
+      <div v-if="isLoading" class="agent-progress" role="status" aria-live="polite">
+        <span class="agent-progress-spinner" aria-hidden="true"></span>
+        <span>{{ agentPhase || "Agent 正在处理…" }}</span>
+        <small>远程模型可能需要几十秒，页面仍在工作</small>
+      </div>
+
       <div v-if="requestError" class="request-error" role="alert">
         <div>
           <strong>{{ retryAction === "search" ? "检索没有完成" : "后端连接没有完成" }}</strong>
@@ -887,7 +922,11 @@ onMounted(async () => {
           <div class="tool-tags">
             <span v-for="tool in answer.tool_calls" :key="tool" class="tool-tag">{{ tool }}</span>
           </div>
-          <small>工具重试：{{ answer.tool_retry_count }} 次 · Token 估算：{{ answer.usage.total_token_estimate }} · {{ answer.usage.runtime_ms }}ms</small>
+          <small>
+            工具重试：{{ answer.tool_retry_count }} 次 · Token 估算：{{ answer.usage.total_token_estimate }} ·
+            Agent {{ answer.usage.runtime_ms }}ms
+            <span v-if="answer.generation_runtime_ms > 0"> · 模型生成 {{ answer.generation_runtime_ms }}ms</span>
+          </small>
           <ol class="agent-steps">
             <li v-for="step in answer.steps" :key="`${step.name}-${step.status}`">
               <strong>{{ step.name }}</strong> · {{ step.status }} · {{ step.detail }}
@@ -1117,6 +1156,10 @@ select { border: 1px solid #cbd6e2; border-radius: 10px; padding: 10px 12px; col
 .request-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding: 12px 14px; border: 1px solid #e0a0a0; border-radius: 12px; color: #8b3030; background: #fff1f1; line-height: 1.5; }
 .request-error div { display: grid; gap: 2px; }
 .request-error span { font-size: 0.88rem; overflow-wrap: anywhere; }
+.agent-progress { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border: 1px solid #c8d8ec; border-radius: 10px; color: #315e8c; background: #f4f8fd; line-height: 1.45; }
+.agent-progress small { margin-left: auto; color: #7890aa; }
+.agent-progress-spinner { width: 13px; height: 13px; flex: 0 0 auto; border: 2px solid #b9d0e6; border-top-color: #326aa5; border-radius: 50%; animation: agent-progress-spin 0.8s linear infinite; }
+@keyframes agent-progress-spin { to { transform: rotate(360deg); } }
 .project-mismatch { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding: 12px 14px; border: 1px solid #e4c46d; border-radius: 12px; color: #6e5520; background: #fff8df; line-height: 1.5; }
 .project-mismatch div { display: grid; gap: 2px; }
 .project-mismatch span { font-size: 0.88rem; }
@@ -1230,6 +1273,8 @@ li { margin: 8px 0; line-height: 1.5; }
   .search-box { align-items: stretch; flex-direction: column; }
   .search-box button { width: 100%; }
   .request-error { align-items: stretch; flex-direction: column; }
+  .agent-progress { align-items: flex-start; flex-wrap: wrap; }
+  .agent-progress small { width: 100%; margin-left: 23px; }
   .project-mismatch { align-items: stretch; flex-direction: column; }
   .index-count { margin-left: 0; width: 100%; }
   .evidence-grid { grid-template-columns: 1fr; }

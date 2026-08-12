@@ -149,7 +149,7 @@ $env:ANSWER_GENERATION_MODEL = "qwen3.7-flash-2026-07-15"
 $env:DASHSCOPE_API_KEY = "YOUR_NEW_DASHSCOPE_API_KEY"
 ```
 
-Docker Compose 会把上述非敏感配置和 `DASHSCOPE_API_KEY` 环境变量传给 Backend；项目 `.env` 已被 Git 忽略。前端答案卡片会区分 `AI 生成`、`离线证据答案`、`AI 不可用·已回退离线答案` 和 `证据不足·已拦截生成`，并继续展示关键步骤、引用证据和折叠调试信息。
+Docker Compose 会把上述非敏感配置和 `DASHSCOPE_API_KEY` 环境变量传给 Backend；项目 `.env` 已被 Git 忽略。为控制延迟，默认最多把 3 条高排名证据摘要发送给模型、最多生成 480 个 Token，并关闭 Qwen 思考输出；所有 5 条去重后的检索证据仍会保留在页面中供复核。可通过本地 `.env` 调整 `ANSWER_GENERATION_EVIDENCE_LIMIT`、`ANSWER_GENERATION_MAX_TOKENS` 和 `ANSWER_GENERATION_ENABLE_THINKING`。前端答案卡片会区分 `AI 生成`、`离线证据答案`、`AI 不可用·已回退离线答案` 和 `证据不足·已拦截生成`，并继续展示关键步骤、引用证据和折叠调试信息；调试信息会分别显示 Agent 总耗时和模型生成耗时。
 
 ### 本地 BGE / E5 类 Embedding 对比
 
