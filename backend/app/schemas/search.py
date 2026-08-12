@@ -64,6 +64,9 @@ class AnswerResponse(BaseModel):
     evidence: list[SearchHit]
     evidence_sufficient: bool
     warning: str | None = None
+    generation_mode: str = "offline_rules"
+    generation_model: str | None = None
+    generation_warning: str | None = None
 
 
 class KnowledgeNotePreviewRequest(BaseModel):

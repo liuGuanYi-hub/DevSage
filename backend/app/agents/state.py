@@ -209,6 +209,9 @@ def _serialize_answer(answer: object | None) -> dict[str, Any] | None:
         "evidence_sufficient": answer.evidence_sufficient,
         "warning": answer.warning,
         "key_steps": list(answer.key_steps),
+        "generation_mode": answer.generation_mode,
+        "generation_model": answer.generation_model,
+        "generation_warning": answer.generation_warning,
     }
 
 
@@ -222,4 +225,11 @@ def _deserialize_answer(payload: dict[str, Any] | None) -> AnswerDraft | None:
         evidence_sufficient=bool(payload.get("evidence_sufficient", False)),
         warning=payload.get("warning"),
         key_steps=tuple(str(item) for item in payload.get("key_steps", [])),
+        generation_mode=str(payload.get("generation_mode", "offline_rules")),
+        generation_model=(
+            str(payload["generation_model"])
+            if payload.get("generation_model")
+            else None
+        ),
+        generation_warning=payload.get("generation_warning"),
     )

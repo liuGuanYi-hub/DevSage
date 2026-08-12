@@ -42,6 +42,7 @@ from .auth import AuthError, authenticate, decode_token, issue_token, resolve_ac
 from .agents.runner import AgentRunner
 from .services.index_service import IndexService, SourceRootError
 from .services.answer_service import AnswerDraft, compose_routed_answer
+from .services.answer_generation import answer_generation_status
 from .services.knowledge_writeback import KnowledgeWritebackService, WritebackPolicyError
 from .services.code_writeback import CodeChangePolicyError, CodeChangeWritebackService
 from .services.issue_writeback import (
@@ -190,6 +191,7 @@ def health() -> dict[str, str | bool]:
         "external_issue_write_enabled": external_issue_write_enabled,
         "auth_enabled": auth_enabled,
         "cache": cache_mode,
+        **answer_generation_status(),
     }
 
 
@@ -423,6 +425,9 @@ def _answer_response(
         evidence=[_to_search_hit(result) for result in draft.evidence],
         evidence_sufficient=draft.evidence_sufficient,
         warning=draft.warning,
+        generation_mode=draft.generation_mode,
+        generation_model=draft.generation_model,
+        generation_warning=draft.generation_warning,
     )
 
 
@@ -658,6 +663,9 @@ def _agent_response(state) -> AgentResponse:
         usage=AgentUsageResponse(**state.usage.to_dict()),
         report=report,
         key_steps=list(draft.key_steps),
+        generation_mode=draft.generation_mode,
+        generation_model=draft.generation_model,
+        generation_warning=draft.generation_warning,
     )
 
 

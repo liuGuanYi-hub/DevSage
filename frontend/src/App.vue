@@ -227,6 +227,13 @@ function categoryLabel(category: string): string {
   return labels[category] ?? category;
 }
 
+function generationLabel(mode: string, model: string | null = null): string {
+  if (mode === "ai") return `AI 生成 · ${model ?? "远程模型"}`;
+  if (mode === "offline_fallback") return `AI 不可用 · 已回退离线答案`;
+  if (mode === "guarded") return "证据不足 · 已拦截生成";
+  return "离线证据答案";
+}
+
 function sourceKind(sourcePath: string): string {
   if (sourcePath.startsWith("issues/") || sourcePath.startsWith("external-issues/")) return "Issue";
   if (sourcePath.startsWith("git/")) return "Git history";
@@ -720,7 +727,7 @@ onMounted(async () => {
           后端：{{ backendHealth === "checking" ? "检查中" : backendHealth === "online" ? "在线" : "离线" }}
         </span>
         <span v-if="healthDetails" class="health-details">
-          {{ healthDetails.storage ?? "memory" }} · Embedding {{ healthDetails.embedding_provider ?? "unknown" }} · Issue {{ healthDetails.external_issue_configured ? "已配置" : "未配置" }}
+          {{ healthDetails.storage ?? "memory" }} · Embedding {{ healthDetails.embedding_provider ?? "unknown" }} · AI {{ healthDetails.answer_generation_model ?? "offline-rules" }} · Issue {{ healthDetails.external_issue_configured ? "已配置" : "未配置" }}
         </span>
         <span>{{ status }}</span>
         <span v-if="indexSummary" class="index-count">{{ indexSummary }}</span>
@@ -811,6 +818,9 @@ onMounted(async () => {
             <strong>回答</strong>
             <span>{{ categoryLabel(answer.category) }} · {{ answer.status }} · 项目 {{ answer.project_id ?? "兼容 source_root" }}</span>
           </div>
+          <div class="generation-status" :class="`generation-${answer.generation_mode}`">
+            {{ generationLabel(answer.generation_mode, answer.generation_model) }}
+          </div>
           <div class="markdown-content answer-markdown">
             <template v-for="(block, index) in answerBlocks" :key="`answer-block-${index}`">
               <h3 v-if="block.type === 'heading'" v-html="block.html"></h3>
@@ -835,6 +845,9 @@ onMounted(async () => {
             </ol>
           </section>
           <small v-if="answer.warning" class="warning">{{ answer.warning }}</small>
+          <small v-if="answer.generation_warning" class="generation-warning">
+            {{ answer.generation_warning }}。当前答案仍来自已检索证据，未使用未经验证的模型内容。
+          </small>
         </article>
 
         <section class="evidence-section" aria-labelledby="evidence-heading">
@@ -1159,6 +1172,12 @@ input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; p
 .answer-markdown { font-size: 1.05rem; }
 .answer-card { padding: 22px; box-shadow: 0 10px 28px rgba(49, 94, 140, 0.08); }
 .answer-card > .result-meta strong { color: #1d568b; font-size: 1rem; }
+.generation-status { display: inline-flex; width: fit-content; margin: 12px 0 2px; padding: 5px 9px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; }
+.generation-ai { color: #276749; background: #e1f5e9; }
+.generation-offline_rules { color: #315e8c; background: #dcecf9; }
+.generation-offline_fallback { color: #8a5b16; background: #fff0c7; }
+.generation-guarded { color: #8b3a3a; background: #ffe3e3; }
+.generation-warning { display: block; margin-top: 8px; color: #8a5b16; line-height: 1.5; }
 .key-steps { margin-top: 20px; padding-top: 16px; border-top: 1px solid #c8deef; }
 .subsection-heading { display: flex; align-items: baseline; gap: 10px; }
 .subsection-heading .eyebrow { margin: 0; font-size: 0.7rem; }

@@ -10,9 +10,8 @@ from pathlib import Path
 from typing import Callable
 from uuid import uuid4
 
-from ..services.answer_service import compose_evidence_answer
+from ..services.answer_service import compose_evidence_answer, compose_routed_answer
 from ..services.index_service import IndexService, SourceRootError
-from ..services.project_summary import compose_project_summary
 from ..services.knowledge_writeback import KnowledgeWritebackService
 from .classifier import classify_question
 from .git_tools import GitToolError, get_commit_diff, get_git_history
@@ -90,7 +89,7 @@ class AgentRunner:
                 "step_limit_reached",
                 "task_timeout",
             }:
-                state.answer = compose_evidence_answer(state.query, state.evidence)
+                state.answer = compose_routed_answer(state.query, state.evidence)
         except (SourceRootError, GitToolError, IssueToolError):
             state.status = "failed"
             state.steps.append(AgentStep("retrieve_evidence", "failed", "invalid source root or tool input"))
@@ -119,7 +118,7 @@ class AgentRunner:
                 "step_limit_reached",
                 "task_timeout",
             }:
-                state.answer = compose_evidence_answer(state.query, state.evidence)
+                state.answer = compose_routed_answer(state.query, state.evidence)
         except (SourceRootError, GitToolError, IssueToolError):
             state.status = "failed"
             state.steps.append(AgentStep("retrieve_evidence", "failed", "resume tool input failed"))
@@ -181,10 +180,7 @@ class AgentRunner:
         return "compose_answer"
 
     def _compose_node(self, state: AgentState, _context: dict[str, object]) -> None:
-        if state.category == "project_summary":
-            draft = compose_project_summary(state.query, state.evidence)
-        else:
-            draft = compose_evidence_answer(state.query, state.evidence)
+        draft = compose_routed_answer(state.query, state.evidence)
         state.answer = draft
         state.status = "completed" if draft.evidence_sufficient else "insufficient_evidence"
         state.steps.append(AgentStep("compose_answer", state.status, "evidence-grounded draft"))

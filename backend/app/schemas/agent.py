@@ -68,3 +68,6 @@ class AgentResponse(BaseModel):
     usage: AgentUsageResponse
     report: TroubleshootingReportResponse | None = None
     key_steps: list[str] = Field(default_factory=list)
+    generation_mode: str = "offline_rules"
+    generation_model: str | None = None
+    generation_warning: str | None = None

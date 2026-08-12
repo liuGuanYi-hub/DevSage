@@ -24,6 +24,9 @@ export interface HealthResponse {
   external_issue_write_enabled?: boolean;
   auth_enabled?: boolean;
   cache?: string;
+  answer_generation_provider?: string;
+  answer_generation_model?: string;
+  answer_generation_configured?: boolean;
 }
 
 export interface LoginResponse {
@@ -85,6 +88,9 @@ export interface AnswerResponse {
   evidence: SearchHit[];
   evidence_sufficient: boolean;
   warning: string | null;
+  generation_mode: string;
+  generation_model: string | null;
+  generation_warning: string | null;
 }
 
 export interface AgentStep {

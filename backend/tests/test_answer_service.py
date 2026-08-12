@@ -1,6 +1,8 @@
 import unittest
+from unittest.mock import patch
 
-from backend.app.services.answer_service import compose_evidence_answer
+from backend.app.services.answer_generation import GeneratedAnswer
+from backend.app.services.answer_service import compose_evidence_answer, compose_routed_answer
 from backend.app.services.project_summary import compose_project_summary
 from backend.app.retrieval.models import SearchResult
 from backend.app.ingestion.models import ChunkRecord
@@ -119,6 +121,40 @@ class AnswerServiceTests(unittest.TestCase):
         self.assertIn("00-Inbox", draft.answer)
         self.assertIn("04-Research", draft.answer)
         self.assertIn("新内容放进", draft.answer)
+
+    def test_routed_answer_uses_ai_result_after_evidence_is_ready(self) -> None:
+        result = SearchResult(
+            chunk=ChunkRecord(
+                chunk_id="ai-1",
+                source_path="docs/example.md",
+                file_type="markdown",
+                content="8080 端口被占用时先查询 PID。",
+                start_line=3,
+                end_line=5,
+            ),
+            score=1.0,
+            matched_terms=("8080", "PID"),
+        )
+        generated = GeneratedAnswer(
+            answer="先查询占用 8080 端口的 PID。[E1]",
+            key_steps=("执行端口查询命令。",),
+            model="qwen-test",
+            provider="qwen",
+        )
+        with patch(
+            "backend.app.services.answer_service.get_answer_generation_config"
+        ) as config_mock, patch(
+            "backend.app.services.answer_service.generate_grounded_answer",
+            return_value=generated,
+        ):
+            config_mock.return_value.enabled = True
+            config_mock.return_value.model = "qwen-test"
+            draft = compose_routed_answer("8080 端口怎么排查？", [result])
+
+        self.assertEqual("ai", draft.generation_mode)
+        self.assertEqual("qwen-test", draft.generation_model)
+        self.assertIn("[E1]", draft.answer)
+        self.assertEqual(("执行端口查询命令。",), draft.key_steps)
 
     def test_project_summary_groups_code_and_document_evidence(self) -> None:
         results = [

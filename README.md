@@ -135,6 +135,22 @@ Docker Vault smoke 已验证：181 个 Vault 文件、1846 个 Chunk 写入 DevS
 
 当前 API 已支持项目注册发现、索引 `sample-data`、关键词/混合证据查询、分类答案检索路由、项目总结结构化回答、证据约束回答、SSE 流式输出、有限图多工具 Agent、脱敏或可选外部 Issue 查询、本地 Git 历史和 Commit Diff 只读查询、结构化故障排查报告、来源行号、索引变化统计、知识笔记审批写回，以及项目内代码变更的 Diff 预览和 operator 批准写入。离线模式默认把索引快照写入被忽略的 `data/index-snapshots/`，服务重启后仍可按内容 Hash 复用未变化文档；PostgreSQL 模式使用数据库持久化。Agent 状态可生成 JSON 快照，API 还返回不含查询正文的完成 usage：离线 token 估算、工具调用/重试次数和运行时；这些 token 不是供应商账单。工具调用、图步骤和总运行时有硬上限。Embedding 默认使用离线 Hash；显式配置 `EMBEDDING_PROVIDER=remote` 后才会联网，显式配置 `EMBEDDING_PROVIDER=local` 才会加载本地 BGE/E5 类模型。另提供无第三方依赖的 MCP-compatible stdio Server。
 
+### AI 答案生成层
+
+答案生成默认保持离线规则模式。显式配置 `ANSWER_GENERATION_PROVIDER=qwen` 或 `dashscope` 后，Agent 会先完成分类、检索、证据充分性检查，再调用 OpenAI-compatible Qwen 接口生成中文答案；模型必须在回答中引用 `[E1]`、`[E2]` 等证据标记，否则结果会被拒绝并回退到离线证据答案。远程调用失败、超时、响应格式错误或没有密钥时，不会影响检索结果，页面会显示回退原因。
+
+密钥只从本地环境变量读取，不要把真实 Key 写入代码、README、日志或 Git：
+
+```powershell
+$env:ANSWER_GENERATION_PROVIDER = "qwen"
+$env:ANSWER_GENERATION_API_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+$env:ANSWER_GENERATION_API_KEY_ENV = "DASHSCOPE_API_KEY"
+$env:ANSWER_GENERATION_MODEL = "qwen3.7-flash-2026-07-15"
+$env:DASHSCOPE_API_KEY = "YOUR_NEW_DASHSCOPE_API_KEY"
+```
+
+Docker Compose 会把上述非敏感配置和 `DASHSCOPE_API_KEY` 环境变量传给 Backend；项目 `.env` 已被 Git 忽略。前端答案卡片会区分 `AI 生成`、`离线证据答案`、`AI 不可用·已回退离线答案` 和 `证据不足·已拦截生成`，并继续展示关键步骤、引用证据和折叠调试信息。
+
 ### 本地 BGE / E5 类 Embedding 对比
 
 本地模型运行时是可选依赖，不会进入默认离线环境。使用项目 D 盘虚拟环境安装并把模型缓存放到项目 `data/`：

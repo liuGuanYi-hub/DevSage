@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import re
 
 from ..retrieval.models import SearchResult
+from .answer_generation import AnswerGenerationError, generate_grounded_answer, get_answer_generation_config
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,9 @@ class AnswerDraft:
     evidence_sufficient: bool
     warning: str | None
     key_steps: tuple[str, ...] = ()
+    generation_mode: str = "offline_rules"
+    generation_model: str | None = None
+    generation_warning: str | None = None
 
 
 def _compact_snippet(content: str, limit: int = 360) -> str:
@@ -275,5 +279,48 @@ def compose_routed_answer(query: str, results: list[SearchResult]) -> AnswerDraf
     from .project_summary import compose_project_summary
 
     if classify_question(query) == "project_summary":
-        return compose_project_summary(query, results)
-    return compose_evidence_answer(query, results)
+        draft = compose_project_summary(query, results)
+    else:
+        draft = compose_evidence_answer(query, results)
+    return _enhance_with_ai(query, draft)
+
+
+def _enhance_with_ai(query: str, draft: AnswerDraft) -> AnswerDraft:
+    """Use the configured model only after deterministic evidence checks pass."""
+
+    config = get_answer_generation_config()
+    if not config.enabled or not draft.evidence_sufficient:
+        return draft
+    try:
+        generated = generate_grounded_answer(
+            query,
+            _answer_category(query),
+            draft.evidence,
+        )
+    except AnswerGenerationError as exc:
+        return AnswerDraft(
+            **{
+                **draft.__dict__,
+                "generation_mode": "offline_fallback",
+                "generation_model": config.model,
+                "generation_warning": str(exc),
+            }
+        )
+    if generated is None:
+        return draft
+    return AnswerDraft(
+        **{
+            **draft.__dict__,
+            "answer": generated.answer,
+            "key_steps": generated.key_steps,
+            "generation_mode": "ai",
+            "generation_model": generated.model,
+            "generation_warning": None,
+        }
+    )
+
+
+def _answer_category(query: str) -> str:
+    from ..agents.classifier import classify_question
+
+    return classify_question(query)
