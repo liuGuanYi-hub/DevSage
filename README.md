@@ -160,6 +160,26 @@ $env:DATABASE_URL = "postgresql://devsage:YOUR_PASSWORD@127.0.0.1:5433/devsage"
 .\scripts\smoke-local-embedding-postgres.ps1
 ```
 
+### Docker Backend 的 E5 GPU 模式
+
+2026-08-12 已完成 Docker Backend 的真实 GPU smoke。`.env` 使用 `EMBEDDING_PROVIDER=local`、`LOCAL_EMBEDDING_RUNTIME=gpu`、`DOCKER_GPUS=all` 和 `LOCAL_EMBEDDING_EXECUTION_PROVIDER=CUDAExecutionProvider`；Compose 将项目 `data/manual-models/multilingual-e5-large-qint8/` 以只读方式挂载到容器 `/models/`，模型和 Docker 构建数据仍位于非系统盘。
+
+启动或重建后端：
+
+```powershell
+docker compose --progress=plain build backend
+docker compose up -d --no-build backend
+```
+
+验证容器确实获得 GPU 和 ONNX Provider，而不只是 `/health` 显示 `local`：
+
+```powershell
+docker exec devsage-backend-1 nvidia-smi --query-gpu=name,driver_version --format=csv,noheader
+docker exec devsage-backend-1 python -c "import onnxruntime as ort; print(ort.get_available_providers())"
+```
+
+本次验证结果包含 `TensorRTExecutionProvider`、`CUDAExecutionProvider` 和 `CPUExecutionProvider`；宿主机 RTX 4060 可见。重建索引后，PostgreSQL 中仍为 13 个文档、35 个 Chunk、1024 维向量且无空向量；浏览器页面显示 `postgres · Embedding local`，点击示例并提交问题可以返回 5 条带来源证据。没有 NVIDIA runtime 时仍可将 `LOCAL_EMBEDDING_RUNTIME=cpu`，Hash Provider 也继续作为离线降级方案。
+
 ## MCP 演示
 
 从项目根目录运行：
@@ -181,7 +201,7 @@ MCP 的 `search_documents`、`search_code`、`read_file` 和 `generate_troublesh
 
 ## 本轮长程集成状态
 
-- Redis：已提供 Memory/Redis 统一缓存边界，检索响应支持 TTL、命名空间失效和 Redis 故障降级；Compose 已加入 Redis 7 服务，但真实容器 smoke 仍需单独执行。
+- Redis：已提供 Memory/Redis 统一缓存边界，检索响应支持 TTL、命名空间失效和 Redis 故障降级；Compose 已加入 Redis 7 服务，并已通过真实容器健康与 Agent 查询 smoke。
 - 正式认证：已提供 PBKDF2-SHA256 密码哈希、签名 Bearer Token、登录和 `/api/auth/me`；默认关闭，启用时使用项目外或被忽略的用户文件，不把明文密码写入仓库。
 - 远程 Embedding：已提供 OpenAI-compatible 批量请求、超时、批大小、维度、索引连续性和有限浮点校验；只有显式选择 `EMBEDDING_PROVIDER=remote` 才会联网。
 - 本地 Embedding：已提供可选 SentenceTransformers/ONNX Provider、D 盘模型缓存、懒加载、批量编码、E5 查询/文档前缀、有限浮点校验和 Hash 对比脚本；当前 E5 qint8 已通过 1024 维检查，可进入 PostgreSQL 向量路径。

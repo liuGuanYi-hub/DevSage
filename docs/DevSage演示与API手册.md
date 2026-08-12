@@ -170,6 +170,8 @@ $env:DATABASE_URL = "postgresql://devsage:YOUR_PASSWORD@127.0.0.1:5433/devsage"
 
 本轮已在真实 Docker PostgreSQL 上完成 E5 smoke：写入 13 个文档、35 个 Chunk，数据库核验向量维度为 `1024`、空向量数为 `0`，pgvector 查询返回 5 条结果。Compose 使用 `DATABASE_URL=db:5432`，宿主机 E5 smoke 自动读取 `HOST_DATABASE_URL=127.0.0.1:5433`；`.env` 已被 Git 忽略。后续重建索引可运行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-local-embedding-postgres.ps1`；脚本不会打印数据库连接串，也不会修改 Vault。
 
+2026-08-12 已完成 Docker Backend 的 E5 GPU smoke。启用 `LOCAL_EMBEDDING_RUNTIME=gpu`、`DOCKER_GPUS=all` 和 `LOCAL_EMBEDDING_EXECUTION_PROVIDER=CUDAExecutionProvider` 后，容器内 `onnxruntime.get_available_providers()` 包含 `TensorRTExecutionProvider`、`CUDAExecutionProvider` 和 `CPUExecutionProvider`，并能看到宿主机 RTX 4060。模型目录通过只读 volume 挂载，不写入 Obsidian Vault。浏览器端刷新后显示 `postgres · Embedding local`，点击知识库示例并提交问题可返回带来源引用的答案；数据库核验仍为 13 个文档、35 个 Chunk、1024 维且无空向量。没有 NVIDIA runtime 时可切换 `LOCAL_EMBEDDING_RUNTIME=cpu`，Hash 仍是离线降级路径。
+
 LangGraph 适配是可选运行时，离线默认环境不安装也不影响本地 Agent。若使用项目自带虚拟环境，可运行 `.\\backend\\.venv\\Scripts\\python.exe evaluation/scripts/smoke_langgraph.py`；该 smoke 会验证四节点图完成、返回来源引用，并通过 `MemorySaver + thread_id` 读取已保存状态。未安装时脚本只报告 skipped，不会自动下载依赖。
 
 在启动真实数据库前，可以运行无外部服务的 PostgreSQL/pgvector 合同测试：
