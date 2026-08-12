@@ -26,17 +26,17 @@
 | Actor 能力 HTTP smoke | 已完成 | `scripts/smoke-actors.ps1`；viewer/editor/operator 的允许、拒绝动作、任务读取作用域和 preview 不写盘均已由独立进程验证 |
 | 一键本地演示与演示脚本 | 已完成（未做视觉回归） | `scripts/start-demo.ps1`、`docs/DevSage演示脚本.md`；启动/健康/HTML 入口标记/清理已验证 |
 | 只读环境预检 | 已完成 | `scripts/preflight.ps1`；报告 Python、Node、npm、pytest、前端依赖、Docker daemon 和浏览器工具状态；未安装依赖或创建资源 |
-| Compose 构建边界与后端健康检查 | 已完成（静态） | `backend/.dockerignore`、Dockerfile `HEALTHCHECK` 和 Compose backend healthcheck；未执行镜像构建或容器启动 |
+| Compose 构建边界与后端健康检查 | 已完成 | `backend/.dockerignore`、Dockerfile `HEALTHCHECK`、Compose backend healthcheck；已完成镜像构建和容器启动 |
 
 ## 尚未达到最终交付条件
 
 | 能力 | 状态 | 缺失的直接证据 |
 |---|---|---|
-| PostgreSQL/pgvector 真实部署 | 待授权 | Docker 镜像、容器、迁移、真实查询和卷恢复尚未执行 |
+| PostgreSQL/pgvector 真实部署 | 已完成本地 smoke | Docker Backend、PostgreSQL/pgvector、迁移、真实检索已运行；数据库核验 1024 维向量且空向量为 0 |
 | 真实 Embedding Provider | 未完成 | 尚未配置非 Hash Provider 并完成真实请求质量评估 |
 | 外部 Issue 平台 | 未完成 | 适配器和 fake transport 已通过，但没有配置真实平台做只读 smoke |
 | 正式用户/组织/权限模型 | 部分完成 | `project_id` API 已检查本地 actor/action；仍缺正式身份认证、成员持久化和组织权限 |
-| Redis 缓存 | 未完成 | 尚未接入或验证缓存一致性与失效策略 |
+| Redis 缓存 | 已完成本地 smoke | Redis 容器健康；检索第二次请求约 8ms，键 TTL 约 59 秒，健康接口返回 `cache=redis` |
 | 在线部署体验 | 未完成 | 尚未部署到可访问环境并完成外部链路验证 |
 | 3～5 分钟演示视频 | 未完成 | 演示脚本已完成，尚未录制和审核视频 |
 | Faithfulness 人工或 LLM 评审 | 未完成 | 当前只有可解释的词法代理，不能替代人工/模型评审 |
@@ -53,14 +53,13 @@
 
 ## 下一步执行顺序
 
-1. 获得 C 盘存储影响授权后，执行 `scripts/smoke-docker.ps1 -Execute`，记录真实 Docker/pgvector 证据。
-2. 配置脱敏的真实 Embedding Provider，重新记录检索和答案质量，不覆盖 Hash 基线。
-3. 配置外部 Issue 测试仓库，执行只读平台 smoke；Token 只从环境变量读取，不写入日志。
-4. 设计正式用户、项目成员关系和权限校验，再把当前 capability boundary 迁移为真实授权层。
-5. 接入 Redis、在线部署和最终演示材料，并逐项重新审计。
+1. 配置脱敏的真实 Embedding Provider，重新记录检索和答案质量，不覆盖 Hash 基线。
+2. 配置外部 Issue 测试仓库，执行只读平台 smoke；Token 只从环境变量读取，不写入日志。
+3. 设计正式用户、项目成员关系和权限校验，再把当前 capability boundary 迁移为真实授权层。
+4. 完成像素级视觉差异比较、在线部署和最终演示材料，并逐项重新审计。
 
 ## 安全与资源边界
 
-- 本次审计没有启动 Docker、安装依赖或发起外部网络请求；代码与 Docker smoke 未产生写入资源。此前浏览器 headless 探针曾观察到 C 盘可用空间读数约波动 0.07GB，归因不确定，因此后续浏览器运行或依赖安装前必须重新核算空间影响。
+- 本轮已在 D 盘项目目录执行 Docker、Qwen 远程 smoke 和浏览器回归；未读取、输出或提交真实密钥。浏览器截图与临时验证文件位于被忽略的 `output/playwright/`。
 - 不读取、输出或提交真实密码、Token、`.env` 文件或用户数据。
-- 真实 Docker smoke 可能拉取 pgvector/Python 镜像并创建卷；在获得明确磁盘授权前只允许 Compose dry-run。
+- Docker 数据继续绑定项目 `data/docker/`，模型目录只读挂载；Vault 仍以只读方式挂载，未在 Vault 内写入文件。

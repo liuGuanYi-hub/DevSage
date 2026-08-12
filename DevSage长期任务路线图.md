@@ -164,6 +164,15 @@
 - [x] 增加 PBKDF2 密码哈希、HMAC Bearer Token、登录和认证依赖；
 - [x] 增加远程 Embedding 的批量、超时、维度和响应结构校验；
 - [x] 增加外部 Issue 创建预览与 operator 审批写入适配器，默认关闭远程写入；
-- [ ] 启动真实 Docker PostgreSQL/pgvector/Redis，完成迁移、索引和缓存端到端 smoke；
-- [ ] 使用浏览器自动化完成页面加载、交互和截图基线/差异回归；
-- [ ] 在用户提供测试 Provider、Issue 仓库和凭据环境变量后执行真实远程 smoke。
+- [x] 启动真实 Docker PostgreSQL/pgvector/Redis，完成迁移、索引和缓存端到端 smoke；
+- [x] 使用浏览器自动化完成页面加载、交互和截图基线回归；像素级差异比较仍作为后续视觉质量增强项；
+- [x] 使用用户配置的 Qwen Provider 完成真实远程 smoke；外部 Issue 仓库仍未配置，暂不执行远程写入。
+
+## 2026-08-12 Qwen 与 Vault 闭环增量
+
+- [x] 接入证据约束的 Qwen 答案生成，并保留离线规则答案作为失败回退；
+- [x] 默认关闭 Qwen 思考输出，模型上下文限制为 3 条高排名证据摘要、最多 480 个输出 Token；
+- [x] 前端增加“判断问题 → 检索证据 → 检查证据 → 生成答案”的长请求阶段提示，并展示 Agent/模型耗时；
+- [x] Vault 示例自动切换 `obsidian-vault` 和 `obsidian-viewer`，验证只读页面、相对路径引用和 AI 答案；
+- [x] 验证 Redis 检索缓存命中与 TTL：第二次查询约 8ms，缓存 TTL 约 59 秒；
+- [x] 固化 `scripts/verify-browser.ps1`，覆盖样例项目和 Vault 项目的浏览器 smoke 与截图输出。
