@@ -677,10 +677,10 @@ GET  /api/evaluations/compare
 - [x] 实现任务暂停和恢复；
 - [x] 实现写操作审批和 Diff 展示；
 - [x] 实现文件 Hash 去重和增量索引；
-- 增加 Redis 缓存；
+- [x] 增加 Redis 缓存，并完成真实命中、TTL 和失效边界 smoke；
 - [x] 增加日志、Token 统计和异常处理；
 - [x] 完善 Pytest 自动化测试；
-- [x] 使用 Docker Compose 组织服务（配置和 dry-run 已验证，真实容器启动待授权）。
+- [x] 使用 Docker Compose 组织服务，并完成 Backend、PostgreSQL、Redis 本地容器 smoke；在线部署仍待后续。
 
 交付物：
 
@@ -876,7 +876,7 @@ MVP 可以先只创建 `backend`、`frontend`、`evaluation` 和 `docs`，不要
 
 ### 18.1 DevMind MVP 完成标准
 
-- [ ] 能索引 Obsidian Markdown 和至少一个真实项目；
+- [x] 能索引外部 Obsidian Markdown 和至少一个脱敏真实结构项目；Vault 只读保护与快照边界已验证；
 - [x] 支持至少三种编程语言代码（Java、PHP、TypeScript 已有加载与切分回归测试）；
 - [x] Markdown 与代码使用不同切分策略（标题元数据与代码结构元数据均有回归测试）；
 - [x] 支持关键词和向量检索；
@@ -899,7 +899,7 @@ MVP 可以先只创建 `backend`、`frontend`、`evaluation` 和 `docs`，不要
 - [x] 支持增量索引和任务状态记录；
 - [x] 建立至少 50 条评估数据；
 - [x] 输出真实 Recall@5、MRR 和工具调用准确率（当前为固定脱敏数据和可解释代理指标）；
-- [ ] 支持 Docker Compose 一键启动；
+- [x] 支持 Docker Compose 一键启动并完成本地健康检查；
 - [ ] 提供完整 README、架构图和演示视频；
 - [x] 提供 MCP Server 或明确的扩展接口。
 

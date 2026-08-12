@@ -56,7 +56,7 @@
 
 - [x] 接入可选的 OpenAI-compatible Embedding Provider，并保留仅用于离线测试的 Hash Provider；
 - [x] 写入 PostgreSQL + pgvector 初始迁移和可选持久化适配器；
-- [ ] 启动真实 PostgreSQL/pgvector，完成迁移、索引写入和数据库检索 API smoke；
+- [x] 启动真实 PostgreSQL/pgvector，完成迁移、索引写入和数据库检索 API smoke；
 - [x] 实现离线向量检索边界；
 - [x] 实现关键词与离线向量的 RRF 融合基线；
 - [x] 实现来源引用模型；
@@ -106,14 +106,14 @@
 - [x] 实现项目内代码文件的 Diff 预览、Hash 防过期覆盖和 operator 批准写入；
 - [ ] 实现外部 Issue 写操作审批与真实平台写入；
 - [x] 增加不含查询正文的 Agent 完成日志和离线 Token 使用估算（真实 Provider 账单仍待接入）；
-- [ ] 增加 Redis 缓存；
+- [x] 增加 Redis 缓存，并完成真实命中、TTL 和失效边界 smoke；
 - [x] 完善 unittest、接口权限、审批和参数错误场景测试；
 - [x] 引入并完善 Pytest 测试运行入口（`pytest.ini`，backend/evaluation 共 129 项：127 passed、2 skipped）；
 - [x] 增加默认只读的 Compose 配置校验和显式执行 smoke 脚本；
 - [x] 增加只读环境预检入口，报告本地工具、依赖和 Docker daemon 状态；
 - [x] 增加只读交付合同审计，校验关键文件、50 条数据集、报告 schema 和数据集 Hash；
 - [x] 硬化 Compose 镜像构建边界并声明后端容器健康检查；
-- [ ] 完善 Docker Compose 部署。
+- [x] 完善 Docker Compose 本地部署，并完成 Backend、PostgreSQL、Redis 健康检查；在线部署仍待后续。
 
 ### 阶段 5：量化评估
 
@@ -137,7 +137,8 @@
 - [x] 暴露 `search_documents`、`search_code`、`read_file`；
 - [x] 暴露 `get_git_history` 和 `generate_troubleshooting_report`；
 - [x] 提供可重复的 MCP stdio JSON-RPC smoke；
-- [x] 完成本地前后端 HTTP 冒烟验证：索引、Agent 查询和结构化报告链路均返回 200（浏览器视觉回归仍待工具授权）；
+- [x] 完成本地前后端 HTTP 冒烟验证：索引、Agent 查询和结构化报告链路均返回 200；
+- [x] 完成浏览器页面加载、样例切换、Vault 切换、答案展示和控制台/网络请求回归；
 - [x] 完善架构图、Agent 流程图和 API 文档；
 - [x] 编写 3～5 分钟可复现演示脚本；
 - [x] 准备脱敏演示数据；

@@ -60,6 +60,7 @@ const authToken = ref(getAuthToken());
 const loginUsername = ref("");
 const loginPassword = ref("");
 const loginStatus = ref("");
+const isLoggingIn = ref(false);
 const authUsername = ref("");
 const showExecutionDetails = ref(false);
 const agentPhase = ref("");
@@ -651,6 +652,8 @@ async function checkBackendHealth() {
 }
 
 async function submitLogin() {
+  if (isLoggingIn.value) return;
+  isLoggingIn.value = true;
   loginStatus.value = "正在登录…";
   try {
     const response = await login(loginUsername.value.trim(), loginPassword.value);
@@ -667,6 +670,8 @@ async function submitLogin() {
     }
   } catch (error) {
     loginStatus.value = `登录失败：${readableError(error)}`;
+  } finally {
+    isLoggingIn.value = false;
   }
 }
 
@@ -706,18 +711,21 @@ onMounted(async () => {
       </p>
 
       <form v-if="requiresLogin" class="login-card" @submit.prevent="submitLogin">
-        <strong>Formal authentication</strong>
+        <div class="login-card-heading">
+          <span class="eyebrow">SECURE ACCESS</span>
+          <strong>正式身份认证</strong>
+        </div>
         <p>当前后端已开启 Bearer Token 认证，登录后才能访问项目和检索能力。</p>
         <label class="field-label">
-          Username
-          <input v-model="loginUsername" autocomplete="username" aria-label="Username" required />
+          用户名
+          <input v-model="loginUsername" autocomplete="username" aria-label="用户名" required :disabled="isLoggingIn" />
         </label>
         <label class="field-label">
-          Password
-          <input v-model="loginPassword" type="password" autocomplete="current-password" aria-label="Password" required />
+          密码
+          <input v-model="loginPassword" type="password" autocomplete="current-password" aria-label="密码" required :disabled="isLoggingIn" />
         </label>
-        <button type="submit">Login</button>
-        <small v-if="loginStatus" class="writeback-status">{{ loginStatus }}</small>
+        <button type="submit" :disabled="isLoggingIn">{{ isLoggingIn ? "登录中…" : "登录" }}</button>
+        <small v-if="loginStatus" class="writeback-status" role="status" aria-live="polite">{{ loginStatus }}</small>
       </form>
 
       <div v-if="!requiresLogin" class="toolbar">
@@ -1143,6 +1151,8 @@ body { margin: 0; }
 h1 { margin: 12px 0; font-size: clamp(2rem, 5vw, 3.6rem); line-height: 1.05; }
 .summary { color: #526176; font-size: 1.08rem; line-height: 1.7; }
 .login-card { margin: 24px 0; padding: 18px; border: 1px solid #c8d8ec; border-radius: 16px; background: #f5f9ff; }
+.login-card-heading { display: grid; gap: 4px; }
+.login-card-heading strong { color: #1d3555; font-size: 1.15rem; }
 .login-card p { color: #526176; line-height: 1.5; }
 
 .toolbar { margin: 28px 0 16px; color: #526176; font-size: 0.9rem; flex-wrap: wrap; }
