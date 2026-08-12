@@ -1268,7 +1268,7 @@ input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; p
 .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin: 18px 0 10px; color: #6c7b8f; }
 .section-heading h2 { margin: 3px 0 0; color: #1d3555; font-size: 1.35rem; }
 .section-heading .eyebrow { margin: 0; font-size: 0.72rem; }
-.evidence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.evidence-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .evidence-card { min-width: 0; padding: 16px; border: 1px solid #d7e0ea; border-radius: 14px; background: #f8fbfd; }
 .evidence-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .evidence-score { color: #6b7f95; font: 0.8rem "SFMono-Regular", Consolas, monospace; }
