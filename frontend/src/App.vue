@@ -322,8 +322,18 @@ async function switchToSuggestedProject(): Promise<void> {
   await handleProjectChange();
 }
 
+function showIndexPermissionNotice(): void {
+  clearRequestError();
+  backendHealth.value = "online";
+  status.value = "后端在线，当前角色无索引权限";
+}
+
 async function refreshIndex() {
   if (isIndexing.value) return;
+  if (!canIndex()) {
+    showIndexPermissionNotice();
+    return;
+  }
   isIndexing.value = true;
   clearRequestError();
   status.value = "正在建立当前项目索引…";
