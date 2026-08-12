@@ -108,9 +108,20 @@ $env:DEVSAGE_OBSIDIAN_VAULT_PATH = "D:\zzd_project\cursor\life\Obsidian Vault"
 .\scripts\start-demo.ps1 -ObsidianVaultPath "D:\zzd_project\cursor\life\Obsidian Vault"
 ```
 
+Docker Backend 使用项目根目录 `.env` 时，容器内路径和宿主机路径要分开配置；Compose 会把宿主机 Vault 以只读方式挂载到 `/vault`：
+
+```text
+DEVSAGE_OBSIDIAN_VAULT_PATH=/vault
+DEVSAGE_OBSIDIAN_VAULT_HOST_PATH=D:/zzd_project/cursor/life/Obsidian Vault
+```
+
+修改后执行 `docker compose up -d --no-build backend` 重新创建后端，再检查 `/api/projects` 是否包含 `obsidian-vault`。如果只配置了前端示例而没有把路径传进 Docker，查询会返回 `project not found: obsidian-vault`。
+
 该项目只提供 `vault_viewer` 角色：可以读取、检索、运行 Agent 和刷新 DevSage 索引，但不能审批知识笔记、代码变更或外部 Issue 写回。前端和 API 只返回逻辑项目名、Vault 内相对路径及 `Lx-Ly` 行号引用，不暴露绝对磁盘路径。
 
 索引器会排除 `.obsidian`、`.git`、缓存目录、构建产物和 `node_modules` 等运行时内容；快照仍写入 DevSage 自己的 `data/index-snapshots/`，不会在 Obsidian Vault 内新增注册文件、索引文件或其他写入内容。
+
+Docker Vault smoke 已验证：181 个 Vault 文件、1846 个 Chunk 写入 DevSage PostgreSQL 索引，查询“Obsidian 知识库的核心目录分别负责什么？”可以返回带 Vault 相对路径和行号的真实证据。Vault 目录本身保持只读。
 
 执行 Docker Compose 前必须先准备本地环境变量，并确认数据库数据目录和端口范围。不要把真实密码、Token 或 `.env` 文件提交到仓库。
 

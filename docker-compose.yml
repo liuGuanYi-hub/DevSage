@@ -41,6 +41,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL before starting Docker Compose}
       DEVSAGE_PROJECT_ROOT: /app
       DEVSAGE_GIT_ROOT: /workspace
+      DEVSAGE_OBSIDIAN_VAULT_PATH: ${DEVSAGE_OBSIDIAN_VAULT_PATH:-}
       DEVSAGE_STORAGE: postgres
       DEVSAGE_CACHE: ${DEVSAGE_CACHE:-redis}
       DEVSAGE_REDIS_URL: redis://redis:6379/0
@@ -61,6 +62,10 @@ services:
     volumes:
       - ./sample-data:/app/sample-data:ro
       - ./.git:/workspace/.git:ro
+      - type: bind
+        source: ${DEVSAGE_OBSIDIAN_VAULT_HOST_PATH:-D:/zzd_project/cursor/life/Obsidian Vault}
+        target: /vault
+        read_only: true
       - ./data/manual-models/multilingual-e5-large-qint8:/models/multilingual-e5-large-qint8:ro
       - devsage-approved-notes:/app/data/approved-notes
     ports:
