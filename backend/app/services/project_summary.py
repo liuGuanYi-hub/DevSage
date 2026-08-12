@@ -29,6 +29,10 @@ def compose_project_summary(
             evidence=tuple(_unique_source_results(results, max_sources)),
             evidence_sufficient=False,
             warning="项目总结需要至少一条带关键词命中的来源。",
+            key_steps=(
+                "补充项目名、模块名或技术栈，再重新检索文件职责。",
+                "打开候选文件的引用行号，确认它是否真的承担该职责。",
+            ),
         )
 
     responsibility_lines = _render_responsibilities(direct_results)
@@ -47,6 +51,11 @@ def compose_project_summary(
         evidence=tuple(direct_results),
         evidence_sufficient=True,
         warning=warning,
+        key_steps=(
+            "先按文件职责区分入口、业务逻辑、配置和文档。",
+            "结合引用路径和行号核对每个文件的实际职责。",
+            "需要补全项目结构时，再针对缺失模块提出更具体的问题。",
+        ),
     )
 
 

@@ -116,6 +116,21 @@ class ApiTests(unittest.TestCase):
         self.assertTrue(any("springboot-errors.md" in result["source_path"] for result in results))
         self.assertTrue(all(result["citation"] for result in results))
 
+        status_response = self.client.get(
+            "/api/projects/sample-data/index-status",
+            headers={"X-DevSage-Actor": "local-viewer"},
+        )
+        self.assertEqual(200, status_response.status_code)
+        self.assertTrue(status_response.json()["indexed"])
+        self.assertEqual(
+            index_response.json()["document_count"],
+            status_response.json()["document_count"],
+        )
+        self.assertEqual(
+            index_response.json()["chunk_count"],
+            status_response.json()["chunk_count"],
+        )
+
     def test_registered_project_id_can_drive_index_search_and_agent(self) -> None:
         index_response = self.client.post(
             "/api/index",
@@ -473,6 +488,7 @@ class ApiTests(unittest.TestCase):
         self.assertGreater(payload["usage"]["total_token_estimate"], 0)
         self.assertTrue(payload["steps"])
         self.assertTrue(payload["citations"])
+        self.assertTrue(payload["key_steps"])
 
     def test_agent_endpoint_supports_issue_search(self) -> None:
         response = self.client.post(

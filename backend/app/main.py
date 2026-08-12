@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from .schemas.search import (
     IndexRequest,
     IndexResponse,
+    IndexStatusResponse,
     AnswerRequest,
     AnswerResponse,
     KnowledgeNotePreviewRequest,
@@ -258,6 +259,29 @@ def get_project(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     _authorize_project(project_id, actor_id, "read")
     return ProjectResponse(**definition.to_dict())
+
+
+@app.get("/api/projects/{project_id}/index-status", response_model=IndexStatusResponse, tags=["index"])
+def get_index_status(
+    project_id: str,
+    actor_id: str = Depends(resolve_actor_id),
+) -> IndexStatusResponse:
+    """Read persisted index counts without requiring index permission or rebuilding."""
+
+    try:
+        _authorize_project(project_id, actor_id, "read")
+        definition = project_registry.get(project_id)
+        source_root, document_count, chunk_count = index_service.get_status(definition.source_root)
+    except (SourceRootError, ProjectRegistryError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PostgresRepositoryError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return IndexStatusResponse(
+        source_root=source_root,
+        document_count=document_count,
+        chunk_count=chunk_count,
+        indexed=document_count > 0 and chunk_count > 0,
+    )
 
 
 def _resolve_request_source_root(project_id: str | None, source_root: str) -> str:
@@ -633,6 +657,7 @@ def _agent_response(state) -> AgentResponse:
         evidence=[_to_search_hit(result) for result in state.evidence],
         usage=AgentUsageResponse(**state.usage.to_dict()),
         report=report,
+        key_steps=list(draft.key_steps),
     )
 
 

@@ -20,6 +20,15 @@ class IndexResponse(BaseModel):
     removed_documents: int
 
 
+class IndexStatusResponse(BaseModel):
+    """Read-only view of the latest persisted index snapshot."""
+
+    source_root: str
+    document_count: int
+    chunk_count: int
+    indexed: bool
+
+
 class SearchRequest(BaseModel):
     query: str = Field(min_length=1)
     source_root: str = Field(default="sample-data", min_length=1)

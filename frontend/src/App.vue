@@ -7,6 +7,7 @@ import {
   approveKnowledgeNote,
   getHealth,
   getAuthToken,
+  getIndexStatus,
   indexSource,
   login,
   listProjects,
@@ -19,6 +20,7 @@ import {
   type CodeChangePreview,
   type HealthResponse,
   type IndexResponse,
+  type IndexStatusResponse,
   type IssueWritePreview,
   type KnowledgeNotePreview,
   type Project,
@@ -29,7 +31,7 @@ import { renderMarkdown, type MarkdownBlock } from "./markdown";
 const query = ref("");
 const results = ref<SearchHit[]>([]);
 const answer = ref<AgentResponse | null>(null);
-const indexInfo = ref<IndexResponse | null>(null);
+const indexInfo = ref<IndexResponse | IndexStatusResponse | null>(null);
 const projects = ref<Project[]>([]);
 const selectedProjectId = ref("sample-data");
 const selectedActorId = ref("local-demo");
@@ -163,6 +165,19 @@ const answerBlocks = computed<MarkdownBlock[]>(() =>
   answer.value ? renderMarkdown(answer.value.answer) : [],
 );
 
+const keySteps = computed<string[]>(() => {
+  if (!answer.value) return [];
+  if (answer.value.key_steps.length) return answer.value.key_steps;
+  return answer.value.report?.next_steps ?? [];
+});
+
+const indexSummary = computed(() => {
+  const info = indexInfo.value;
+  if (!info) return "";
+  if ("indexed" in info && !info.indexed) return "索引：尚未建立";
+  return `${info.document_count} files / ${info.chunk_count} chunks`;
+});
+
 function uniqueEvidence(hits: SearchHit[], limit = Number.MAX_SAFE_INTEGER): SearchHit[] {
   const seenSources = new Set<string>();
   return hits.filter((hit) => {
@@ -257,11 +272,18 @@ function buildKnowledgeNote(response: AgentResponse, title: string): string {
         .join("\n\n")
     : "暂无证据摘要。";
   const warning = response.warning ?? "请结合来源位置进行最终判断。";
+  const keySteps = response.key_steps.length
+    ? response.key_steps.map((step) => `- ${step}`).join("\n")
+    : "- 结合证据来源继续复核";
   return `# ${title}
 
 ## 结论
 
 ${response.answer.trim()}
+
+## 关键步骤
+
+${keySteps}
 
 ## 证据来源
 
@@ -411,7 +433,10 @@ async function retryLastRequest(): Promise<void> {
     clearRequestError();
     await checkBackendHealth();
     const loaded = await loadProjects();
-    if (loaded) await refreshIndex();
+    if (loaded) {
+      await loadIndexStatus();
+      if (!canIndex()) showIndexPermissionNotice();
+    }
   }
 }
 
@@ -532,6 +557,20 @@ async function loadProjects(): Promise<boolean> {
   }
 }
 
+async function loadIndexStatus(): Promise<void> {
+  if (!selectedProjectId.value) return;
+  try {
+    const info = await getIndexStatus(selectedProjectId.value, selectedActorId.value || undefined);
+    indexInfo.value = info;
+    backendHealth.value = "online";
+    status.value = info.indexed
+      ? `已读取最新索引：${info.document_count} 个文件、${info.chunk_count} 个 Chunk`
+      : "当前项目尚未建立索引，可点击按钮建立快照";
+  } catch {
+    indexInfo.value = null;
+  }
+}
+
 function resetScopeState() {
   answer.value = null;
   results.value = [];
@@ -551,15 +590,17 @@ async function handleProjectChange() {
   }
   resetScopeState();
   clearRequestError();
-  status.value = "正在切换项目并清理旧证据…";
-  await refreshIndex();
+  status.value = "正在切换项目并读取最新索引状态…";
+  await loadIndexStatus();
+  if (!canIndex()) showIndexPermissionNotice();
 }
 
 async function handleActorChange() {
   resetScopeState();
   clearRequestError();
-  status.value = "正在切换本地角色并重新检查能力…";
-  await refreshIndex();
+  status.value = "正在切换本地角色并读取最新索引状态…";
+  await loadIndexStatus();
+  if (!canIndex()) showIndexPermissionNotice();
 }
 
 async function checkBackendHealth() {
@@ -584,7 +625,10 @@ async function submitLogin() {
     loginPassword.value = "";
     loginStatus.value = `已登录 ${response.username}`;
     const loaded = await loadProjects();
-    if (loaded) await refreshIndex();
+    if (loaded) {
+      await loadIndexStatus();
+      if (!canIndex()) showIndexPermissionNotice();
+    }
   } catch (error) {
     loginStatus.value = `登录失败：${readableError(error)}`;
   }
@@ -606,7 +650,10 @@ onMounted(async () => {
     return;
   }
   const loaded = await loadProjects();
-  if (loaded) await refreshIndex();
+  if (loaded) {
+    await loadIndexStatus();
+    if (!canIndex()) showIndexPermissionNotice();
+  }
 });
 </script>
 
@@ -676,7 +723,7 @@ onMounted(async () => {
           {{ healthDetails.storage ?? "memory" }} · Embedding {{ healthDetails.embedding_provider ?? "unknown" }} · Issue {{ healthDetails.external_issue_configured ? "已配置" : "未配置" }}
         </span>
         <span>{{ status }}</span>
-        <span v-if="indexInfo" class="index-count">{{ indexInfo.document_count }} files / {{ indexInfo.chunk_count }} chunks</span>
+        <span v-if="indexSummary" class="index-count">{{ indexSummary }}</span>
       </div>
 
       <form v-if="!requiresLogin" class="search-box" @submit.prevent="search">
@@ -754,14 +801,14 @@ onMounted(async () => {
           <span>项目：{{ currentProject.source_root }}</span>
           <span>角色：{{ currentMember?.role ?? "vault_viewer" }}</span>
           <span>过滤：.obsidian · cache · build · node_modules</span>
-          <span v-if="indexInfo">索引：{{ indexInfo.document_count }} 文件 / {{ indexInfo.chunk_count }} Chunk</span>
+          <span v-if="indexSummary">{{ indexSummary.replace("files", "文件").replace("chunks", "Chunk") }}</span>
         </div>
       </section>
 
       <section v-if="answer" class="results" aria-live="polite">
         <article class="answer-card">
           <div class="result-meta">
-            <strong>直接回答</strong>
+            <strong>回答</strong>
             <span>{{ categoryLabel(answer.category) }} · {{ answer.status }} · 项目 {{ answer.project_id ?? "兼容 source_root" }}</span>
           </div>
           <div class="markdown-content answer-markdown">
@@ -775,20 +822,65 @@ onMounted(async () => {
               <pre v-else-if="block.type === 'code'"><code>{{ block.code }}</code></pre>
             </template>
           </div>
-          <small v-if="answer.warning" class="warning">{{ answer.warning }}</small>
-          <details class="execution-details" :open="showExecutionDetails" @toggle="toggleExecutionDetails">
-            <summary>执行详情 · {{ answer.tool_calls.length }} 个工具 · {{ answer.steps.length }} 个步骤</summary>
-            <div class="tool-tags">
-              <span v-for="tool in answer.tool_calls" :key="tool" class="tool-tag">{{ tool }}</span>
+          <section v-if="keySteps.length" class="key-steps" aria-labelledby="key-steps-heading">
+            <div class="subsection-heading">
+              <span class="eyebrow">NEXT STEPS</span>
+              <h3 id="key-steps-heading">关键步骤</h3>
             </div>
-            <small>工具重试：{{ answer.tool_retry_count }} 次 · Token 估算：{{ answer.usage.total_token_estimate }} · {{ answer.usage.runtime_ms }}ms</small>
-            <ol class="agent-steps">
-              <li v-for="step in answer.steps" :key="`${step.name}-${step.status}`">
-                <strong>{{ step.name }}</strong> · {{ step.status }} · {{ step.detail }}
+            <ol class="key-step-list">
+              <li v-for="(step, index) in keySteps" :key="`key-step-${index}`">
+                <span class="key-step-number">{{ index + 1 }}</span>
+                <span>{{ step }}</span>
               </li>
             </ol>
-          </details>
+          </section>
+          <small v-if="answer.warning" class="warning">{{ answer.warning }}</small>
         </article>
+
+        <section class="evidence-section" aria-labelledby="evidence-heading">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">GROUNDING</span>
+              <h2 id="evidence-heading">引用证据</h2>
+            </div>
+            <span>{{ evidenceView.length }} 条直接证据</span>
+          </div>
+          <div class="evidence-grid">
+            <article v-for="evidence in evidenceView" :key="evidence.citation" class="evidence-card">
+              <div class="evidence-card-head">
+                <span class="source-kind">{{ evidence.kind }}</span>
+                <span class="evidence-score">{{ evidence.score.toFixed(3) }}</span>
+              </div>
+              <strong class="evidence-path">{{ evidence.source_path }}</strong>
+              <small class="evidence-citation">{{ answer.source_root }}/{{ evidence.source_path }} · L{{ evidence.start_line }}-L{{ evidence.end_line }}</small>
+              <div class="markdown-content evidence-markdown">
+                <template v-for="(block, index) in evidence.blocks" :key="`evidence-block-${index}`">
+                  <h4 v-if="block.type === 'heading'" v-html="block.html"></h4>
+                  <p v-else-if="block.type === 'paragraph'" v-html="block.html"></p>
+                  <blockquote v-else-if="block.type === 'quote'" v-html="block.html"></blockquote>
+                  <component v-else-if="block.type === 'list'" :is="block.ordered ? 'ol' : 'ul'">
+                    <li v-for="(item, itemIndex) in block.items" :key="`evidence-item-${index}-${itemIndex}`" v-html="item"></li>
+                  </component>
+                  <pre v-else-if="block.type === 'code'"><code>{{ block.code }}</code></pre>
+                </template>
+              </div>
+              <small class="matched-terms">匹配：{{ evidence.matched_terms.join("、") || "向量候选" }}</small>
+            </article>
+          </div>
+        </section>
+
+        <details class="execution-details" :open="showExecutionDetails" @toggle="toggleExecutionDetails">
+          <summary>检索过程与调试信息 · {{ answer.tool_calls.length }} 个工具 · {{ answer.steps.length }} 个步骤</summary>
+          <div class="tool-tags">
+            <span v-for="tool in answer.tool_calls" :key="tool" class="tool-tag">{{ tool }}</span>
+          </div>
+          <small>工具重试：{{ answer.tool_retry_count }} 次 · Token 估算：{{ answer.usage.total_token_estimate }} · {{ answer.usage.runtime_ms }}ms</small>
+          <ol class="agent-steps">
+            <li v-for="step in answer.steps" :key="`${step.name}-${step.status}`">
+              <strong>{{ step.name }}</strong> · {{ step.status }} · {{ step.detail }}
+            </li>
+          </ol>
+        </details>
 
         <article v-if="answer.report" class="report-card">
           <div class="result-meta">
@@ -955,37 +1047,6 @@ onMounted(async () => {
           </div>
         </details>
 
-        <section class="evidence-section" aria-labelledby="evidence-heading">
-          <div class="section-heading">
-            <div>
-              <span class="eyebrow">Grounding</span>
-              <h2 id="evidence-heading">证据来源</h2>
-            </div>
-            <span>{{ evidenceView.length }} 条直接证据</span>
-          </div>
-          <div class="evidence-grid">
-            <article v-for="evidence in evidenceView" :key="evidence.citation" class="evidence-card">
-              <div class="evidence-card-head">
-                <span class="source-kind">{{ evidence.kind }}</span>
-                <span class="evidence-score">{{ evidence.score.toFixed(3) }}</span>
-              </div>
-              <strong class="evidence-path">{{ evidence.source_path }}</strong>
-              <small class="evidence-citation">{{ answer.source_root }}/{{ evidence.source_path }} · L{{ evidence.start_line }}-L{{ evidence.end_line }}</small>
-              <div class="markdown-content evidence-markdown">
-                <template v-for="(block, index) in evidence.blocks" :key="`evidence-block-${index}`">
-                  <h4 v-if="block.type === 'heading'" v-html="block.html"></h4>
-                  <p v-else-if="block.type === 'paragraph'" v-html="block.html"></p>
-                  <blockquote v-else-if="block.type === 'quote'" v-html="block.html"></blockquote>
-                  <component v-else-if="block.type === 'list'" :is="block.ordered ? 'ol' : 'ul'">
-                    <li v-for="(item, itemIndex) in block.items" :key="`evidence-item-${index}-${itemIndex}`" v-html="item"></li>
-                  </component>
-                  <pre v-else-if="block.type === 'code'"><code>{{ block.code }}</code></pre>
-                </template>
-              </div>
-              <small class="matched-terms">匹配：{{ evidence.matched_terms.join("、") || "向量候选" }}</small>
-            </article>
-          </div>
-        </section>
       </section>
       <p v-else class="empty-state">输入问题后查看带来源引用的检索证据。</p>
     </section>
@@ -1096,6 +1157,15 @@ input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; p
 .markdown-content pre code { padding: 0; color: inherit; background: transparent; }
 .markdown-content a { color: #1f65a6; }
 .answer-markdown { font-size: 1.05rem; }
+.answer-card { padding: 22px; box-shadow: 0 10px 28px rgba(49, 94, 140, 0.08); }
+.answer-card > .result-meta strong { color: #1d568b; font-size: 1rem; }
+.key-steps { margin-top: 20px; padding-top: 16px; border-top: 1px solid #c8deef; }
+.subsection-heading { display: flex; align-items: baseline; gap: 10px; }
+.subsection-heading .eyebrow { margin: 0; font-size: 0.7rem; }
+.subsection-heading h3 { margin: 0; color: #1d3555; font-size: 1rem; }
+.key-step-list { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+.key-step-list li { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 10px 12px; border-radius: 10px; color: #405673; background: rgba(255,255,255,0.72); line-height: 1.55; }
+.key-step-number { display: inline-flex; flex: 0 0 auto; width: 22px; height: 22px; align-items: center; justify-content: center; border-radius: 50%; color: #ffffff; background: #4e83b5; font-size: 0.78rem; font-weight: 800; }
 .warning { display: block; color: #9a6700; margin-bottom: 8px; }
 .execution-details { margin-top: 16px; border-top: 1px solid #c8deef; padding-top: 12px; color: #526176; font-size: 0.88rem; }
 .execution-details summary { cursor: pointer; color: #416b98; font-weight: 700; }
@@ -1122,7 +1192,7 @@ input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; p
 .diff-summary { margin-top: 14px; }
 .diff-summary pre { max-height: 240px; overflow: auto; padding: 12px; border-radius: 10px; background: #29261f; color: #f8edc7; white-space: pre-wrap; font: 0.82rem/1.5 "SFMono-Regular", Consolas, monospace; }
 .empty-state { color: #6c7b8f; text-align: center; }
-.evidence-section { margin-top: 8px; }
+.evidence-section { margin-top: 4px; padding-top: 4px; }
 .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin: 18px 0 10px; color: #6c7b8f; }
 .section-heading h2 { margin: 3px 0 0; color: #1d3555; font-size: 1.35rem; }
 .section-heading .eyebrow { margin: 0; font-size: 0.72rem; }

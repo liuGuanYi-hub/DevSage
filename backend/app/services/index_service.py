@@ -142,8 +142,33 @@ class IndexService:
         with self._lock:
             snapshot = self._snapshots.get(key)
         if snapshot is None:
+            load_chunks = getattr(self.persistence, "load_chunks", None)
+            if self.persistence is not None and callable(load_chunks):
+                persisted_chunks = tuple(load_chunks(logical_root))
+                if persisted_chunks:
+                    # PostgreSQL already contains the indexed chunks. Reuse
+                    # them after a restart instead of rebuilding and embedding
+                    # the whole source before the first search.
+                    return logical_root, IndexSnapshot(documents=(), chunks=persisted_chunks)
             return self.build(source_root)
         return logical_root, snapshot
+
+    def get_status(self, source_root: str) -> tuple[str, int, int]:
+        """Read the latest snapshot counts without triggering a rebuild."""
+
+        logical_root, resolved = self._resolve_source_root(source_root)
+        key = resolved.as_posix()
+        with self._lock:
+            snapshot = self._snapshots.get(key)
+        if snapshot is None and self.snapshot_store is not None:
+            snapshot = self.snapshot_store.load(logical_root)
+        if snapshot is not None:
+            return logical_root, len(snapshot.documents), len(snapshot.chunks)
+        get_counts = getattr(self.persistence, "get_snapshot_counts", None)
+        if self.persistence is not None and callable(get_counts):
+            document_count, chunk_count = get_counts(logical_root)
+            return logical_root, document_count, chunk_count
+        return logical_root, 0, 0
 
     def search(self, source_root: str, query: str, top_k: int) -> tuple[str, list[SearchResult]]:
         relative_root, snapshot = self.get_or_build(source_root)

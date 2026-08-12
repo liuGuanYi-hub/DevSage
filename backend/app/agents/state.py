@@ -208,6 +208,7 @@ def _serialize_answer(answer: object | None) -> dict[str, Any] | None:
         "evidence": [_serialize_search_result(result) for result in answer.evidence],
         "evidence_sufficient": answer.evidence_sufficient,
         "warning": answer.warning,
+        "key_steps": list(answer.key_steps),
     }
 
 
@@ -220,4 +221,5 @@ def _deserialize_answer(payload: dict[str, Any] | None) -> AnswerDraft | None:
         evidence=tuple(_deserialize_search_result(item) for item in payload.get("evidence", [])),
         evidence_sufficient=bool(payload.get("evidence_sufficient", False)),
         warning=payload.get("warning"),
+        key_steps=tuple(str(item) for item in payload.get("key_steps", [])),
     )

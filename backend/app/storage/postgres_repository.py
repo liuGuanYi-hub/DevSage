@@ -118,6 +118,29 @@ class PostgresIndexRepository:
 
         return self._fetch_chunks(project_name)
 
+    def get_snapshot_counts(self, project_name: str) -> tuple[int, int]:
+        """Return persisted document and chunk counts without rebuilding the index."""
+
+        connection = self._connect()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT COUNT(DISTINCT d.id), COUNT(c.id)
+                    FROM documents AS d
+                    JOIN projects AS p ON p.id = d.project_id
+                    LEFT JOIN chunks AS c ON c.document_id = d.id
+                    WHERE p.name = %s
+                    """,
+                    (project_name,),
+                )
+                row = cursor.fetchone()
+            return (int(row[0]), int(row[1])) if row else (0, 0)
+        except Exception as exc:
+            raise PostgresRepositoryError("PostgreSQL index status query failed") from exc
+        finally:
+            connection.close()
+
     def search_keyword(
         self,
         project_name: str,

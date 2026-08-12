@@ -8,6 +8,13 @@ export interface IndexResponse {
   removed_documents: number;
 }
 
+export interface IndexStatusResponse {
+  source_root: string;
+  document_count: number;
+  chunk_count: number;
+  indexed: boolean;
+}
+
 export interface HealthResponse {
   status: string;
   service?: string;
@@ -121,6 +128,7 @@ export interface AgentResponse extends AnswerResponse {
   steps: AgentStep[];
   report: TroubleshootingReport | null;
   usage: AgentUsage;
+  key_steps: string[];
 }
 
 export interface KnowledgeNoteDiff {
@@ -260,6 +268,12 @@ export function indexSource(
     method: "POST",
     body: JSON.stringify({ source_root: sourceRoot, project_id: projectId }),
   }, actorId, INDEX_REQUEST_TIMEOUT_MS);
+}
+
+export function getIndexStatus(projectId: string, actorId?: string): Promise<IndexStatusResponse> {
+  return request<IndexStatusResponse>(`/api/projects/${projectId}/index-status`, {
+    method: "GET",
+  }, actorId);
 }
 
 export function searchEvidence(

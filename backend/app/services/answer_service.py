@@ -17,6 +17,7 @@ class AnswerDraft:
     evidence: tuple[SearchResult, ...]
     evidence_sufficient: bool
     warning: str | None
+    key_steps: tuple[str, ...] = ()
 
 
 def _compact_snippet(content: str, limit: int = 360) -> str:
@@ -24,6 +25,57 @@ def _compact_snippet(content: str, limit: int = 360) -> str:
     if len(compact) <= limit:
         return compact
     return compact[: limit - 1].rstrip() + "…"
+
+
+def _clean_evidence_text(content: str, limit: int = 300) -> str:
+    """Turn a source excerpt into a short sentence suitable for an answer lead."""
+
+    cleaned = re.sub(r"```.*?```", " ", content, flags=re.DOTALL)
+    cleaned = re.sub(r"^\s*#{1,6}\s*", "", cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]", r"\1", cleaned)
+    cleaned = " ".join(line.strip(" -*") for line in cleaned.splitlines() if line.strip())
+    return _compact_snippet(cleaned, limit)
+
+
+def _key_steps(category: str, query: str) -> tuple[str, ...]:
+    """Provide transparent, offline-safe next steps for the answer view."""
+
+    normalized = query.lower()
+    if "目录" in normalized or "文件夹" in normalized:
+        return (
+            "先按收集、研究、内容生产、项目、模板、记忆和归档等职责理解目录边界。",
+            "新资料先进入 Inbox，再根据内容性质流转到 Research、Content 或 Projects。",
+            "打开 README 的目录表和引用行号，确认当前笔记应该归档到哪里。",
+        )
+    if category == "troubleshooting":
+        return (
+            "先确认现象、错误码和发生环境，避免把相似故障混为一谈。",
+            "按引用中的命令、配置或请求链路逐项核对，并记录实际结果。",
+            "修复后重新执行原操作，确认问题消失，再把结论沉淀为可复用记录。",
+        )
+    if category == "code_location":
+        return (
+            "先定位入口文件或路由，再沿调用关系确认控制器、服务和配置边界。",
+            "打开引用行号核对真实方法签名，不只依据文件名推断职责。",
+            "如果要修改代码，先保留当前行为和相关测试，再进入预览审批流程。",
+        )
+    if category == "project_summary":
+        return (
+            "先按文件职责区分入口、业务逻辑、配置和文档，不把检索结果当成完整架构图。",
+            "结合引用路径和行号核对每个文件的实际职责。",
+            "需要补全项目结构时，再针对缺失模块提出更具体的问题。",
+        )
+    if "agent evaluation" in normalized or "评估" in normalized:
+        return (
+            "先记录任务定义、成功标准以及 Agent、模型、Prompt 和工具版本。",
+            "再记录执行轨迹、最终结果，并按成功率、依据充分性、格式遵循、安全性、成本和延迟复核。",
+            "最后记录失败原因和是否进入回归测试集，保留原始证据便于复盘。",
+        )
+    return (
+        "先阅读最相关来源，确认知识库中的定义、前置条件和适用范围。",
+        "按照引用内容执行或核对步骤，并结合当前项目环境判断是否适用。",
+        "把验证结果和仍不确定的部分记录下来，必要时继续追问更具体的问题。",
+    )
 
 
 def _unique_source_results(
@@ -124,9 +176,48 @@ def _compose_direct_conclusion(
             ),
             first,
         )
+    if category in {"knowledge_qa", "knowledge_write"}:
+        normalized = query.lower()
+        if "目录" in normalized or "文件夹" in normalized:
+            directory_result = next(
+                (
+                    result
+                    for result in results
+                    if "核心目录" in result.chunk.content
+                    or "00-inbox" in result.chunk.content.lower()
+                ),
+                None,
+            )
+            if directory_result is not None:
+                rows = re.findall(
+                    r"\|\s*`?([0-9]{2}-[A-Za-z-]+)`?\s*\|\s*([^|\n]+?)\s*\|",
+                    directory_result.chunk.content,
+                )
+                if rows:
+                    rendered_rows = "\n".join(
+                        f"- `{directory}`：{purpose.strip()}" for directory, purpose in rows
+                    )
+                    return (
+                        "Vault 的核心目录按知识流转职责划分，而不是简单按文件类型堆放：\n\n"
+                        f"{rendered_rows}\n\n"
+                        "实际整理时，可以先把新内容放进 `00-Inbox`，再根据用途流转到研究、内容、项目或归档目录。"
+                    )
+        if "agent evaluation" in normalized or "评估" in normalized:
+            return (
+                "知识库建议把一次 Agent 评估记录成完整闭环：任务定义、执行轨迹、最终结果、"
+                "多维评分、失败诊断，以及是否纳入回归测试集。评分至少覆盖 Task Success、"
+                "Groundedness、Format Conformance、Policy Adherence、Safety、Cost 和 Latency；"
+                "具体通过阈值仍需结合项目评测标准确认。"
+            )
+        return f"根据知识库中的相关记录，当前问题的核心依据是：{_clean_evidence_text(first.chunk.content)}。"
+    if category == "troubleshooting":
+        return (
+            f"根据相关故障记录，建议先按证据核对：{_clean_evidence_text(first.chunk.content, 240)}。"
+            f"具体来源为 `{first.citation}`。"
+        )
     return (
-        f"直接结论：当前最相关的知识证据是“{_compact_snippet(first.chunk.content, 240)}”，"
-        f"来源：`{first.citation}`。"
+        f"根据知识库中的相关记录，当前最有帮助的线索是：{_clean_evidence_text(first.chunk.content, 240)}。"
+        f"具体来源为 `{first.citation}`。"
     )
 
 
@@ -142,6 +233,9 @@ def compose_evidence_answer(
     configured.
     """
 
+    from ..agents.classifier import classify_question
+
+    category = classify_question(query)
     direct_results = _unique_source_results(
         [result for result in results if result.matched_terms],
         max_sources,
@@ -156,6 +250,7 @@ def compose_evidence_answer(
             evidence=(),
             evidence_sufficient=False,
             warning="没有找到包含查询关键词的直接来源。",
+            key_steps=_key_steps("knowledge_qa", query),
         )
 
     answer = _compose_direct_conclusion(query, direct_results)
@@ -169,6 +264,7 @@ def compose_evidence_answer(
         evidence=tuple(direct_results),
         evidence_sufficient=True,
         warning=warning,
+        key_steps=_key_steps(category, query),
     )
 
 

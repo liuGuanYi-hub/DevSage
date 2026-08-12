@@ -67,3 +67,4 @@ class AgentResponse(BaseModel):
     evidence: list[SearchHit]
     usage: AgentUsageResponse
     report: TroubleshootingReportResponse | None = None
+    key_steps: list[str] = Field(default_factory=list)

@@ -1,5 +1,6 @@
 import unittest
 
+from backend.app.ingestion.models import ChunkRecord
 from backend.app.services.index_service import IndexService
 from backend.app.retrieval.embeddings import HashEmbeddingProvider
 
@@ -10,6 +11,7 @@ class RecordingPersistence:
         self.saved = []
         self.keyword_calls = []
         self.hybrid_calls = []
+        self.persisted_chunks = []
 
     def initialize(self) -> None:
         self.initialize_calls += 1
@@ -24,6 +26,9 @@ class RecordingPersistence:
     def search_hybrid(self, project_name, query, top_k, provider):
         self.hybrid_calls.append((project_name, query, top_k, provider))
         return []
+
+    def load_chunks(self, project_name):
+        return list(self.persisted_chunks)
 
 
 class IndexPersistenceTests(unittest.TestCase):
@@ -59,6 +64,29 @@ class IndexPersistenceTests(unittest.TestCase):
         self.assertEqual("sample-data", persistence.hybrid_calls[0][0])
         self.assertEqual("8080", persistence.hybrid_calls[0][1])
         self.assertEqual(4, persistence.hybrid_calls[0][2])
+
+    def test_restart_reuses_persisted_chunks_without_rebuilding(self) -> None:
+        persistence = RecordingPersistence()
+        persistence.persisted_chunks = [
+            ChunkRecord(
+                chunk_id="persisted-1",
+                source_path="docs/guide.md",
+                file_type="markdown",
+                content="Persisted index evidence.",
+                start_line=1,
+                end_line=1,
+            )
+        ]
+        service = IndexService(
+            embedding_provider=HashEmbeddingProvider(dimension=8),
+            persistence=persistence,
+        )
+
+        source_root, snapshot = service.get_or_build("sample-data")
+
+        self.assertEqual("sample-data", source_root)
+        self.assertEqual(["persisted-1"], [chunk.chunk_id for chunk in snapshot.chunks])
+        self.assertEqual([], persistence.saved)
 
     def test_hybrid_search_applies_deterministic_code_query_expansion(self) -> None:
         persistence = RecordingPersistence()

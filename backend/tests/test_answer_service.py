@@ -24,6 +24,7 @@ class AnswerServiceTests(unittest.TestCase):
         self.assertTrue(draft.evidence_sufficient)
         self.assertIn("docs/example.md:3-5", draft.answer)
         self.assertEqual(("docs/example.md:3-5",), draft.citations)
+        self.assertTrue(draft.key_steps)
 
     def test_no_direct_evidence_is_explicitly_insufficient(self) -> None:
         result = SearchResult(
@@ -93,6 +94,31 @@ class AnswerServiceTests(unittest.TestCase):
         self.assertIn("UserService.findUser", draft.answer)
         self.assertEqual(2, len(draft.evidence))
         self.assertEqual(2, len(draft.citations))
+
+    def test_directory_question_prefers_the_vault_responsibility_table(self) -> None:
+        result = SearchResult(
+            chunk=ChunkRecord(
+                chunk_id="vault-readme-1",
+                source_path="README.md",
+                file_type="markdown",
+                content=(
+                    "## 核心目录\n\n"
+                    "| 目录 | 用途 |\n|---|---|\n"
+                    "| `00-Inbox` | 网页剪藏、下载、清理和收集流程 |\n"
+                    "| `04-Research` | 研究资料、领域分类和 Topic Hub |"
+                ),
+                start_line=12,
+                end_line=18,
+            ),
+            score=0.8,
+            matched_terms=("目录", "核心"),
+        )
+
+        draft = compose_evidence_answer("Obsidian 知识库的核心目录分别负责什么？", [result])
+
+        self.assertIn("00-Inbox", draft.answer)
+        self.assertIn("04-Research", draft.answer)
+        self.assertIn("新内容放进", draft.answer)
 
     def test_project_summary_groups_code_and_document_evidence(self) -> None:
         results = [
