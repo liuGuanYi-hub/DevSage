@@ -15,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from backend.app.agents.runner import AgentRunner
 from backend.app.services.index_service import IndexService
+from evaluation.scripts.dataset_loader import load_evaluation_cases
 
 
 def normalize_expected_source(source_path: str) -> str:
@@ -26,7 +27,7 @@ def normalize_expected_source(source_path: str) -> str:
 def evaluate() -> dict[str, object]:
     """Run all MVP cases and return aggregate metrics plus bounded failures."""
 
-    cases = json.loads(DATASET_PATH.read_text(encoding="utf-8"))
+    cases = load_evaluation_cases()
     runner = AgentRunner(IndexService())
     source_recall_total = 0.0
     fully_grounded = 0

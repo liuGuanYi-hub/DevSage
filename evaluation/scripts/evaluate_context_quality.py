@@ -18,6 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from backend.app.ingestion.chunkers import split_document
 from backend.app.ingestion.indexer import build_index
 from backend.app.ingestion.loaders import load_document
+from evaluation.scripts.dataset_loader import load_evaluation_cases
 from backend.app.retrieval.answer_search import search_answer_chunks
 from backend.app.retrieval.keyword_search import tokenize
 from backend.app.services.answer_service import compose_routed_answer
@@ -74,7 +75,7 @@ def _mean(values: Iterable[float]) -> float:
 def evaluate(top_k: int = 5) -> dict[str, object]:
     """Evaluate source-level context quality and deterministic answer proxies."""
 
-    cases = json.loads(DATASET_PATH.read_text(encoding="utf-8"))
+    cases = load_evaluation_cases()
     sample_snapshot = build_index(SAMPLE_ROOT)
     config_document = load_document(PROJECT_ROOT / ".env.example", PROJECT_ROOT)
     chunks = (*sample_snapshot.chunks, *split_document(config_document))

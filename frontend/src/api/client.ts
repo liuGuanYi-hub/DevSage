@@ -37,6 +37,33 @@ export interface LoginResponse {
   actor_id: string;
 }
 
+export interface CitationCorrection {
+  citation: string;
+  corrected_citation?: string;
+  note?: string;
+}
+
+export interface AnswerFeedbackRequest {
+  task_id: string;
+  project_id?: string;
+  query: string;
+  rating: "helpful" | "needs_revision";
+  comment?: string;
+  incorrect_citations?: string[];
+  citation_corrections?: CitationCorrection[];
+}
+
+export interface AnswerFeedbackResponse {
+  feedback_id: string;
+  task_id: string;
+  project_id: string | null;
+  rating: string;
+  status: string;
+  created_at: string;
+  reviewed_at: string | null;
+  evaluation_case_id: string | null;
+}
+
 export interface ProjectRole {
   role: string;
   actions: string[];
@@ -303,6 +330,16 @@ export function login(username: string, password: string): Promise<LoginResponse
     method: "POST",
     body: JSON.stringify({ username, password }),
   });
+}
+
+export function submitAnswerFeedback(
+  feedback: AnswerFeedbackRequest,
+  actorId?: string,
+): Promise<AnswerFeedbackResponse> {
+  return request<AnswerFeedbackResponse>("/api/feedback", {
+    method: "POST",
+    body: JSON.stringify(feedback),
+  }, actorId);
 }
 
 export function listProjects(): Promise<ProjectListResponse> {

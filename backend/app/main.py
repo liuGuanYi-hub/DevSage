@@ -45,6 +45,13 @@ from .schemas.code_changes import (
     IssueWritePreviewResponse,
 )
 from .schemas.auth import LoginRequest, LoginResponse, MeResponse
+from .schemas.feedback import (
+    AnswerFeedbackRequest,
+    AnswerFeedbackResponse,
+    FeedbackApprovalRequest,
+    FeedbackApprovalResponse,
+    FeedbackListResponse,
+)
 from .auth import AuthError, authenticate, decode_token, issue_token, resolve_actor_id
 from .agents.runner import AgentRunner
 from .services.index_service import IndexService, SourceRootError
@@ -61,6 +68,12 @@ from .services.project_registry import (
     DEFAULT_ACTOR_ID,
     ProjectRegistry,
     ProjectRegistryError,
+)
+from .services.feedback_store import (
+    FeedbackAlreadyReviewedError,
+    FeedbackNotFoundError,
+    FeedbackStore,
+    FeedbackStoreError,
 )
 from .services.troubleshooting import TroubleshootingReport, build_troubleshooting_report
 from .services.task_store import (
@@ -167,6 +180,10 @@ def _create_task_store():
 
 
 task_store = _create_task_store()
+feedback_store = FeedbackStore(
+    PROJECT_ROOT / "data" / "feedback",
+    PROJECT_ROOT / "data" / "feedback" / "confirmed-evaluation.jsonl",
+)
 
 
 @app.get("/health", tags=["system"])
@@ -246,6 +263,106 @@ def get_current_user(
     except AuthError:
         raise HTTPException(status_code=401, detail="Bearer authentication is invalid") from None
     return MeResponse(username=token.username, actor_id=actor_id)
+
+
+def _feedback_response(record: dict[str, object]) -> AnswerFeedbackResponse:
+    return AnswerFeedbackResponse(
+        feedback_id=str(record["feedback_id"]),
+        task_id=str(record["task_id"]),
+        project_id=str(record["project_id"]) if record.get("project_id") else None,
+        rating=str(record["rating"]),
+        status=str(record["status"]),
+        created_at=str(record["created_at"]),
+        reviewed_at=str(record["reviewed_at"]) if record.get("reviewed_at") else None,
+        evaluation_case_id=(
+            str(record["evaluation_case_id"]) if record.get("evaluation_case_id") else None
+        ),
+    )
+
+
+def _authorize_feedback_reviewer(actor_id: str, project_id: str | None = None) -> None:
+    if project_id:
+        _authorize_project(project_id, actor_id, "writeback_approve")
+        return
+    for definition in project_registry.list_projects():
+        try:
+            project_registry.require_action(definition.project_id, actor_id, "writeback_approve")
+            return
+        except ProjectRegistryError:
+            continue
+    raise HTTPException(status_code=403, detail="actor is not allowed to review feedback")
+
+
+@app.post("/api/feedback", response_model=AnswerFeedbackResponse, tags=["feedback"])
+def create_answer_feedback(
+    request: AnswerFeedbackRequest,
+    actor_id: str = Depends(resolve_actor_id),
+) -> AnswerFeedbackResponse:
+    """Queue answer feedback without changing the answer or source files."""
+
+    try:
+        if request.project_id:
+            _authorize_project(request.project_id, actor_id, "read")
+        payload = request.model_dump() if hasattr(request, "model_dump") else request.dict()
+        record = feedback_store.create(payload, actor_id)
+        return _feedback_response(record)
+    except (ProjectRegistryError, FeedbackStoreError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/feedback", response_model=FeedbackListResponse, tags=["feedback"])
+def list_answer_feedback(
+    project_id: str | None = None,
+    status: str = "pending",
+    limit: int = 100,
+    actor_id: str = Depends(resolve_actor_id),
+) -> FeedbackListResponse:
+    """List the human-review queue for an authorized project."""
+
+    try:
+        _authorize_feedback_reviewer(actor_id, project_id)
+        records = feedback_store.list(project_id=project_id, status=status, limit=limit)
+        return FeedbackListResponse(items=[_feedback_response(record) for record in records], total=len(records))
+    except (HTTPException, ProjectRegistryError, FeedbackStoreError) as exc:
+        if isinstance(exc, HTTPException):
+            raise
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/feedback/{feedback_id}/approve", response_model=FeedbackApprovalResponse, tags=["feedback"])
+def approve_answer_feedback(
+    feedback_id: str,
+    request: FeedbackApprovalRequest,
+    actor_id: str = Depends(resolve_actor_id),
+) -> FeedbackApprovalResponse:
+    """Approve one correction and append a curated evaluation case."""
+
+    try:
+        record = feedback_store.load(feedback_id)
+        project_id = str(record["project_id"]) if record.get("project_id") else None
+        if project_id:
+            _authorize_project(project_id, actor_id, "writeback_approve")
+        approved = feedback_store.approve(
+            feedback_id,
+            actor_id,
+            request.reference_answer,
+            list(request.expected_sources),
+            list(request.expected_tools),
+            request.reviewer_comment,
+        )
+        base = _feedback_response(approved)
+        return FeedbackApprovalResponse(
+            **(base.model_dump() if hasattr(base, "model_dump") else base.dict()),
+            reviewed_by=str(approved["reviewed_by"]),
+        )
+    except FeedbackNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FeedbackAlreadyReviewedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (HTTPException, ProjectRegistryError, FeedbackStoreError) as exc:
+        if isinstance(exc, HTTPException):
+            raise
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/projects", response_model=ProjectListResponse, tags=["projects"])

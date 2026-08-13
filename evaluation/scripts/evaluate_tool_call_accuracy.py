@@ -15,10 +15,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from backend.app.agents.runner import AgentRunner
 from backend.app.services.index_service import IndexService
+from evaluation.scripts.dataset_loader import load_evaluation_cases
 
 
 def evaluate() -> dict[str, float | int]:
-    cases = json.loads(DATASET_PATH.read_text(encoding="utf-8"))
+    cases = load_evaluation_cases()
     runner = AgentRunner(IndexService())
     coverage_total = 0.0
     fully_covered = 0

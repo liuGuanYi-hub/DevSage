@@ -18,6 +18,7 @@ import {
   previewIssueWrite,
   previewKnowledgeNote,
   resumeAgentTask,
+  submitAnswerFeedback,
   isAgentStreamCancelled,
   streamAgent,
   setAuthToken,
@@ -70,6 +71,12 @@ const loginPassword = ref("");
 const loginStatus = ref("");
 const isLoggingIn = ref(false);
 const authUsername = ref("");
+const feedbackRating = ref<"helpful" | "needs_revision" | null>(null);
+const feedbackComment = ref("");
+const feedbackIncorrectCitations = ref<string[]>([]);
+const feedbackCorrectionText = ref("");
+const feedbackStatus = ref("");
+const isSubmittingFeedback = ref(false);
 const showExecutionDetails = ref(false);
 const agentPhase = ref("");
 const agentProgressSteps = ref<AgentProgressEvent[]>([]);
@@ -320,6 +327,44 @@ function clearRequestError(): void {
   retryAction.value = null;
 }
 
+function resetFeedback(): void {
+  feedbackRating.value = null;
+  feedbackComment.value = "";
+  feedbackIncorrectCitations.value = [];
+  feedbackCorrectionText.value = "";
+  feedbackStatus.value = "";
+}
+
+async function sendAnswerFeedback(): Promise<void> {
+  if (!answer.value || !feedbackRating.value || isSubmittingFeedback.value) return;
+  isSubmittingFeedback.value = true;
+  feedbackStatus.value = "正在提交反馈…";
+  try {
+    const response = await submitAnswerFeedback(
+      {
+        task_id: answer.value.task_id,
+        project_id: answer.value.project_id ?? undefined,
+        query: answer.value.query,
+        rating: feedbackRating.value,
+        comment: feedbackComment.value.trim(),
+        incorrect_citations: [...feedbackIncorrectCitations.value],
+        citation_corrections: feedbackIncorrectCitations.value.map((citation) => ({
+          citation,
+          corrected_citation: feedbackCorrectionText.value.trim(),
+        })),
+      },
+      selectedActorId.value || undefined,
+    );
+    feedbackStatus.value = response.status === "pending"
+      ? "反馈已提交，等待人工确认后进入评测集"
+      : `反馈已提交：${response.status}`;
+  } catch (error) {
+    feedbackStatus.value = `反馈提交失败：${readableError(error)}`;
+  } finally {
+    isSubmittingFeedback.value = false;
+  }
+}
+
 function setRequestError(error: unknown, action: "bootstrap" | "search" | "index"): void {
   requestError.value = readableError(error);
   retryAction.value = action;
@@ -558,6 +603,7 @@ async function search() {
     return;
   }
   clearRequestError();
+  resetFeedback();
   isLoading.value = true;
   agentProgressSteps.value = [];
   status.value = "Agent 正在分类、检索并组织证据…";
@@ -771,6 +817,7 @@ async function loadIndexStatus(): Promise<void> {
 function resetScopeState() {
   answer.value = null;
   results.value = [];
+  resetFeedback();
   indexInfo.value = null;
   pendingPreview.value = null;
   pendingCodePreview.value = null;
@@ -1097,6 +1144,67 @@ onMounted(async () => {
           <small v-if="answer.generation_warning" class="generation-warning">
             {{ answer.generation_warning }}。当前答案仍来自已检索证据，未使用未经验证的模型内容。
           </small>
+        </article>
+
+        <article class="feedback-card" aria-label="答案反馈与引用纠错">
+          <div class="result-meta">
+            <strong>答案反馈与引用纠错</strong>
+            <span>人工确认后回流评测集</span>
+          </div>
+          <div class="feedback-actions">
+            <button
+              type="button"
+              class="secondary-button"
+              :class="{ 'feedback-selected': feedbackRating === 'helpful' }"
+              :disabled="isSubmittingFeedback"
+              @click="feedbackRating = 'helpful'; sendAnswerFeedback()"
+            >
+              答案有帮助
+            </button>
+            <button
+              type="button"
+              class="secondary-button"
+              :class="{ 'feedback-selected': feedbackRating === 'needs_revision' }"
+              :disabled="isSubmittingFeedback"
+              @click="feedbackRating = 'needs_revision'"
+            >
+              需要修正
+            </button>
+          </div>
+          <template v-if="feedbackRating === 'needs_revision'">
+            <label class="field-label" for="feedback-comment">
+              问题说明
+              <textarea
+                id="feedback-comment"
+                v-model="feedbackComment"
+                rows="3"
+                placeholder="例如：结论没有回答端口冲突的处理顺序"
+              ></textarea>
+            </label>
+            <fieldset class="feedback-fieldset">
+              <legend>错误引用（可选）</legend>
+              <label v-for="evidence in evidenceView" :key="`feedback-${evidence.citation}`" class="feedback-citation-option">
+                <input v-model="feedbackIncorrectCitations" type="checkbox" :value="evidence.citation">
+                <span>{{ evidence.source_path }} · L{{ evidence.start_line }}-L{{ evidence.end_line }}</span>
+              </label>
+              <small v-if="!evidenceView.length" class="field-help">当前答案没有可标记的直接引用。</small>
+            </fieldset>
+            <label class="field-label" for="feedback-correction">
+              正确引用（可选）
+              <textarea
+                id="feedback-correction"
+                v-model="feedbackCorrectionText"
+                rows="2"
+                placeholder="填写正确文件路径或文件路径:行号"
+              ></textarea>
+            </label>
+            <div class="feedback-submit-row">
+              <button type="button" :disabled="isSubmittingFeedback" @click="sendAnswerFeedback">
+                {{ isSubmittingFeedback ? "提交中…" : "提交修正反馈" }}
+              </button>
+            </div>
+          </template>
+          <small v-if="feedbackStatus" class="feedback-status" role="status">{{ feedbackStatus }}</small>
         </article>
 
         <section class="evidence-section" aria-labelledby="evidence-heading">
@@ -1825,6 +1933,15 @@ input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; p
 .result-card, .answer-card, .report-card { padding: 18px; border-radius: 14px; }
 .result-card { border: 1px solid #d7e0ea; background: #f8fbfd; }
 .answer-card { border: 1px solid #8bb5d8; background: #eef7ff; }
+.feedback-card { padding: 16px 18px; border: 1px solid #c8d8ec; border-radius: 14px; background: #f8fbff; }
+.feedback-actions, .feedback-submit-row { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 12px; }
+.feedback-actions .feedback-selected { color: #ffffff; border-color: #315e8c; background: #315e8c; }
+.feedback-fieldset { display: grid; gap: 7px; margin: 14px 0 0; padding: 10px 12px; border: 1px solid #d7e3ef; border-radius: 10px; }
+.feedback-fieldset legend { padding: 0 5px; color: #526176; font-size: 0.86rem; font-weight: 700; }
+.feedback-citation-option { display: flex; align-items: flex-start; gap: 8px; color: #526176; font-size: 0.84rem; line-height: 1.45; }
+.feedback-citation-option input { flex: 0 0 auto; width: 15px; height: 15px; margin: 3px 0 0; }
+.feedback-submit-row button { background: #315e8c; }
+.feedback-status { display: block; margin-top: 10px; color: #416b98; line-height: 1.5; }
 .report-card { border: 1px solid #b9d8c5; background: #f3fbf5; }
 .writeback-card { border: 1px solid #d6c38e; background: #fffaf0; }
 .code-writeback-card { border: 1px solid #c5b6dd; background: #faf7ff; }
