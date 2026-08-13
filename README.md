@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/liuGuanYi-hub/DevSage/actions/workflows/ci.yml/badge.svg)](https://github.com/liuGuanYi-hub/DevSage/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/liuGuanYi-hub/DevSage?display_name=tag)](https://github.com/liuGuanYi-hub/DevSage/releases)
 
-DevSage 是基于 Agentic RAG 的研发知识库与故障排查系统。当前处于阶段 6 的离线可验证演示基线：已完成本地数据接入、内容 Hash、带文件职责元数据的结构化 Chunk、中文同义词与错误码匹配、关键词/离线向量混合排序、来源查询 API、知识写回审批边界、有限图 Agent、MCP 展示和可复现演示脚本。
+DevSage 是基于 Agentic RAG 的研发知识平台；DevMind 是当前运行在 DevSage 内的个人研发助手应用。当前处于阶段 6 的离线可验证演示基线：已完成本地数据接入、内容 Hash、带文件职责元数据的结构化 Chunk、中文同义词与错误码匹配、关键词/离线向量混合排序、来源查询 API、知识写回审批边界、有限图 Agent、MCP 展示和可复现演示脚本。
 
 > 在线演示：当前尚未部署公网实例；本地入口为 `http://127.0.0.1:5173/`。发布、截图和部署替换说明见 [DevSage 发布与在线演示说明](docs/DevSage发布与在线演示说明.md)。
 
@@ -14,8 +14,8 @@ DevSage 是基于 Agentic RAG 的研发知识库与故障排查系统。当前�
 - Agent 已增加来源级 grounding 评估、配置文件检索、代码路径加权、项目总结证据预算和有界工具重试；50 条问题当前 Agent Source Recall@5 为 0.9800，完整来源案例率为 0.9600。指标仍是固定脱敏数据集上的离线结果。
 - 答案 API 与上下文评估已共享分类检索路由：代码定位优先代码证据，项目总结使用多来源预算和结构化摘要，安全边界问题保留策略文档与配置模板双来源；当前上下文质量代理为 Precision@5 `0.3095`、Recall@5 `1.0000`、失败 `0/50`。Agent grounding 仍为 Source Recall@5 `0.9800`、完整来源案例率 `0.9600`，其中 2 个 `.env.example` 案例位于 `sample-data` source root 之外，Agent 会保持不越界读取。
 
-- `DevMind`：个人模式，优先连接 Obsidian 笔记和个人项目代码；
-- `DevSage`：后续扩展到 Git、Issue、多项目和团队协作；
+- `DevSage`：平台层，负责项目、索引、权限、任务、评测以及后续的 Git、Issue、多项目和团队协作能力；
+- `DevMind`：应用层，作为 DevSage 的个人模式和第一阶段 MVP，优先连接 Obsidian 笔记和个人项目代码，完成带证据的研发问答与故障排查；
 - 固定 75 条问题上的当前实测：纯关键词 Case Recall@5 `0.8800` / Source Recall@5 `0.7200` / MRR `0.7589`，Hash 混合加来源多样性重排 `0.9600` / `0.8800` / `0.8049`；新增口语化同义词/错误码题的期望匹配率为 `1.0000`。Hash 向量和当前 reranker 都是离线可解释基线，不代表生产 Embedding 或神经 Reranker 效果。
 - 已接入可选的真实本地 SentenceTransformers Provider，默认评测模型为中文 `BAAI/bge-small-zh-v1.5`。在同一批 75 道问题上，BGE 混合 Source Recall@5 为 `0.8867`、Case Recall@5 为 `0.9600`、MRR 为 `0.7960`；对比报告见 [local-embedding-comparison.md](evaluation/reports/local-embedding-comparison.md)。
 - 已接入可选 PostgreSQL/pgvector 索引与 Agent task state 持久化、迁移和数据库检索路径；真实 Docker 已验证 PostgreSQL/Redis 健康、索引写入、重启恢复和并发检索，数据绑定到项目 `data/docker/`。外部 Issue 已提供可选 GitHub-compatible 只读适配器，真实平台请求仍需用户配置地址、仓库和可选 Token 环境变量；LangGraph 已在项目本地虚拟环境完成可选适配 smoke。

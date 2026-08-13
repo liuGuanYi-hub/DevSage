@@ -88,7 +88,7 @@ class ProjectRegistry:
         self._definitions = definitions or (
             ProjectDefinition(
                 project_id="sample-data",
-                name="DevMind 脱敏样例知识库",
+                name="本地脱敏样例库",
                 source_root="sample-data",
                 description="用于离线演示的文档、代码、配置、Git 和 Issue 样例。",
             ),
@@ -102,7 +102,7 @@ class ProjectRegistry:
             definitions: list[ProjectDefinition] = [
                 ProjectDefinition(
                     project_id="sample-data",
-                    name="DevMind 脱敏样例知识库",
+                    name="本地脱敏样例库",
                     source_root="sample-data",
                     description="用于离线演示的文档、代码、配置、Git 和 Issue 样例。",
                 )

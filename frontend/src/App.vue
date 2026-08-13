@@ -915,12 +915,12 @@ onMounted(async () => {
   <main class="page-shell">
     <section class="hero-card">
       <div class="brand-row">
-        <p class="eyebrow">DevSage / DevMind MVP</p>
-        <span class="phase-badge">Agentic RAG</span>
+        <p class="eyebrow">DevSage · 研发知识平台</p>
+        <span class="phase-badge">DevMind 个人模式 · Agentic RAG</span>
       </div>
-      <h1>研发知识库与故障排查助手</h1>
+      <h1>DevMind 研发助手</h1>
       <p class="summary">
-        输入一个研发问题，DevMind 会先判断问题类型，再调用受限工具检索样例代码、Git 历史与 Issue，最后返回带引用的答案和可执行的排查报告。
+        DevSage 提供项目、索引、权限、任务和评测基础；当前通过 DevMind 个人模式检索 Obsidian、项目文档、代码、Git 和 Issue，返回带引用的技术答案和可执行的排查报告。
       </p>
 
       <form v-if="requiresLogin" class="login-card" @submit.prevent="submitLogin">
@@ -942,10 +942,11 @@ onMounted(async () => {
       </form>
 
       <div v-if="!requiresLogin" class="workspace-layout">
-        <aside class="workspace-sidebar" aria-label="DevSage 工作台导航">
+        <aside class="workspace-sidebar" aria-label="DevSage 平台导航">
           <div class="workspace-sidebar-heading">
-            <span class="eyebrow">WORKSPACE</span>
-            <strong>研发助手</strong>
+            <span class="eyebrow">DEVSAGE PLATFORM</span>
+            <strong>DevSage 工作台</strong>
+            <small>当前应用：DevMind 个人模式</small>
           </div>
           <nav class="workspace-nav" aria-label="工作台页面">
             <button
@@ -965,7 +966,7 @@ onMounted(async () => {
           </nav>
           <div class="workspace-sidebar-note">
             <span class="eyebrow">SAFETY</span>
-            <p>答案先读证据，写回必须经过预览和审批。</p>
+            <p>DevSage 负责平台能力，DevMind 负责个人知识问答。答案先读证据，写回必须经过预览和审批。</p>
           </div>
         </aside>
 
@@ -975,7 +976,7 @@ onMounted(async () => {
               <span class="eyebrow">{{ activeViewMeta.label }}</span>
               <h2>{{ activeViewMeta.description }}</h2>
             </div>
-            <span class="workspace-view-status">{{ currentProject?.name ?? "等待项目" }}</span>
+            <span class="workspace-view-status">DevMind 个人模式 · 当前项目：{{ currentProject?.name ?? "等待项目" }}</span>
           </div>
 
           <div v-if="activeView === 'workspace'" class="workspace-query">
