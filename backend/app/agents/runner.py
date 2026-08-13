@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import time
+from threading import Event
 from pathlib import Path
 from typing import Callable
 from uuid import uuid4
@@ -28,6 +29,7 @@ from ..retrieval.answer_search import (
 
 
 logger = logging.getLogger("devsage.agent")
+AgentProgressCallback = Callable[[AgentState, AgentStep], None]
 
 
 class AgentRunner:
@@ -79,15 +81,23 @@ class AgentRunner:
         source_root: str,
         top_k: int = 5,
         project_id: str | None = None,
+        progress_callback: AgentProgressCallback | None = None,
+        cancel_event: Event | None = None,
     ) -> AgentState:
         state = AgentState(uuid4().hex, query, source_root, project_id=project_id)
         started_at = time.perf_counter()
         try:
-            self.graph.run(state, {"top_k": top_k})
+            self.graph.run(
+                state,
+                {"top_k": top_k},
+                progress_callback=progress_callback,
+                cancel_event=cancel_event,
+            )
             if state.answer is None and state.status in {
                 "tool_limit_reached",
                 "step_limit_reached",
                 "task_timeout",
+                "cancelled",
             }:
                 state.answer = compose_routed_answer(state.query, state.evidence)
         except (SourceRootError, GitToolError, IssueToolError):

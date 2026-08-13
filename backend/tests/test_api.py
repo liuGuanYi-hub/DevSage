@@ -470,6 +470,23 @@ class ApiTests(unittest.TestCase):
         self.assertIn("event: meta", response.text)
         self.assertIn("event: done", response.text)
 
+    def test_agent_stream_returns_real_progress_and_final_response(self) -> None:
+        response = self.client.post(
+            "/api/agent/stream",
+            json={
+                "source_root": "sample-data",
+                "project_id": "sample-data",
+                "query": "8080 端口被占用怎么排查？",
+                "persist": True,
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        self.assertIn("event: meta", response.text)
+        self.assertIn("event: progress", response.text)
+        self.assertIn("classify_question", response.text)
+        self.assertIn("event: done", response.text)
+        self.assertIn('"status": "completed"', response.text)
+
     def test_agent_endpoint_reports_tools_and_steps(self) -> None:
         response = self.client.post(
             "/api/agent/run",

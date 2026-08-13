@@ -14,9 +14,11 @@ import {
   previewCodeChange,
   previewIssueWrite,
   previewKnowledgeNote,
-  runAgent,
+  isAgentStreamCancelled,
+  streamAgent,
   setAuthToken,
   type AgentResponse,
+  type AgentProgressEvent,
   type CodeChangePreview,
   type HealthResponse,
   type IndexResponse,
@@ -64,9 +66,10 @@ const isLoggingIn = ref(false);
 const authUsername = ref("");
 const showExecutionDetails = ref(false);
 const agentPhase = ref("");
+const agentProgressSteps = ref<AgentProgressEvent[]>([]);
 type WorkspaceViewId = "workspace" | "knowledge" | "retrieval" | "tasks" | "evaluation";
 const activeView = ref<WorkspaceViewId>("workspace");
-let agentPhaseTimer: number | null = null;
+let agentAbortController: AbortController | null = null;
 
 const workspaceViews: Array<{ id: WorkspaceViewId; label: string; icon: string; description: string }> = [
   { id: "workspace", label: "工作台", icon: "⌂", description: "问题、答案与证据" },
@@ -76,12 +79,6 @@ const workspaceViews: Array<{ id: WorkspaceViewId; label: string; icon: string; 
   { id: "evaluation", label: "评测中心", icon: "◒", description: "质量、延迟与失败案例" },
 ];
 
-const agentPhases = [
-  "正在判断问题类型…",
-  "正在检索项目证据…",
-  "正在检查证据是否充分…",
-  "正在生成带引用的答案…",
-];
 interface ExampleQuery {
   label: string;
   query: string;
@@ -360,21 +357,7 @@ function selectWorkspaceView(viewId: WorkspaceViewId): void {
   activeView.value = viewId;
 }
 
-function startAgentProgress(): void {
-  if (agentPhaseTimer !== null) window.clearInterval(agentPhaseTimer);
-  let phaseIndex = 0;
-  agentPhase.value = agentPhases[phaseIndex];
-  agentPhaseTimer = window.setInterval(() => {
-    phaseIndex = Math.min(phaseIndex + 1, agentPhases.length - 1);
-    agentPhase.value = agentPhases[phaseIndex];
-  }, 4500);
-}
-
 function stopAgentProgress(): void {
-  if (agentPhaseTimer !== null) {
-    window.clearInterval(agentPhaseTimer);
-    agentPhaseTimer = null;
-  }
   agentPhase.value = "";
 }
 
@@ -435,15 +418,24 @@ async function search() {
   }
   clearRequestError();
   isLoading.value = true;
+  agentProgressSteps.value = [];
   status.value = "Agent 正在分类、检索并组织证据…";
-  startAgentProgress();
+  agentAbortController = new AbortController();
   try {
-    const response = await runAgent(
+    const response = await streamAgent(
       query.value,
       "sample-data",
       5,
       selectedProjectId.value || undefined,
       selectedActorId.value || undefined,
+      {
+        signal: agentAbortController.signal,
+        onProgress: (progress) => {
+          agentProgressSteps.value = [...agentProgressSteps.value, progress];
+          agentPhase.value = `${progress.step.name} · ${progress.step.detail}`;
+          status.value = `Agent 正在执行：${progress.step.name}`;
+        },
+      },
     );
     backendHealth.value = "online";
     answer.value = response;
@@ -463,13 +455,25 @@ async function search() {
       ? `找到 ${uniqueEvidence(visibleEvidence).length} 个来源的直接证据`
       : "证据不足，页面保留排查线索";
   } catch (error) {
+    if (isAgentStreamCancelled(error)) {
+      clearRequestError();
+      status.value = "已取消本次 Agent 检索，可以修改问题后重新排查";
+      return;
+    }
     backendHealth.value = "offline";
     setRequestError(error, "search");
     status.value = `检索失败：${readableError(error)}`;
   } finally {
     stopAgentProgress();
     isLoading.value = false;
+    agentAbortController = null;
   }
+}
+
+function cancelAgentSearch(): void {
+  if (!agentAbortController) return;
+  agentAbortController.abort();
+  status.value = "正在取消 Agent 任务…";
 }
 
 async function retryLastRequest(): Promise<void> {
@@ -837,7 +841,10 @@ onMounted(async () => {
       <div v-if="isLoading" class="agent-progress" role="status" aria-live="polite">
         <span class="agent-progress-spinner" aria-hidden="true"></span>
         <span>{{ agentPhase || "Agent 正在处理…" }}</span>
-        <small>远程模型可能需要几十秒，页面仍在工作</small>
+        <small>后端 SSE 已连接 · 已完成 {{ agentProgressSteps.length }} 个步骤</small>
+        <button type="button" class="secondary-button agent-cancel-button" @click="cancelAgentSearch">
+          取消任务
+        </button>
       </div>
 
       <div v-if="requestError" class="request-error" role="alert">
@@ -1471,6 +1478,7 @@ select { border: 1px solid #cbd6e2; border-radius: 10px; padding: 10px 12px; col
 .request-error span { font-size: 0.88rem; overflow-wrap: anywhere; }
 .agent-progress { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border: 1px solid #c8d8ec; border-radius: 10px; color: #315e8c; background: #f4f8fd; line-height: 1.45; }
 .agent-progress small { margin-left: auto; color: #7890aa; }
+.agent-cancel-button { flex: 0 0 auto; padding: 7px 10px; }
 .agent-progress-spinner { width: 13px; height: 13px; flex: 0 0 auto; border: 2px solid #b9d0e6; border-top-color: #326aa5; border-radius: 50%; animation: agent-progress-spin 0.8s linear infinite; }
 @keyframes agent-progress-spin { to { transform: rotate(360deg); } }
 .project-mismatch { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding: 12px 14px; border: 1px solid #e4c46d; border-radius: 12px; color: #6e5520; background: #fff8df; line-height: 1.5; }
@@ -1605,6 +1613,7 @@ li { margin: 8px 0; line-height: 1.5; }
   .request-error { align-items: stretch; flex-direction: column; }
   .agent-progress { align-items: flex-start; flex-wrap: wrap; }
   .agent-progress small { width: 100%; margin-left: 23px; }
+  .agent-cancel-button { margin-left: 23px; }
   .project-mismatch { align-items: stretch; flex-direction: column; }
   .index-count { margin-left: 0; width: 100%; }
   .evidence-grid { grid-template-columns: 1fr; }

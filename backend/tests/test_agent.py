@@ -178,6 +178,22 @@ class AgentTests(unittest.TestCase):
         self.assertTrue(all("用户接口入口在哪里" not in message for message in logs.output))
         self.assertGreater(state.usage.total_token_estimate, 0)
 
+    def test_runner_reports_completed_steps_to_progress_callback(self) -> None:
+        progress = []
+        state = self.runner.run(
+            "8080 端口被占用怎么排查？",
+            "sample-data",
+            progress_callback=lambda current, step: progress.append(
+                (current.task_id, step.name, step.status)
+            ),
+        )
+
+        self.assertEqual("completed", state.status)
+        self.assertTrue(progress)
+        self.assertEqual(state.task_id, progress[0][0])
+        self.assertEqual("classify_question", progress[0][1])
+        self.assertEqual("compose_answer", progress[-1][1])
+
     def test_tool_limit_stops_before_unbounded_read(self) -> None:
         runner = AgentRunner(IndexService(), max_tool_calls=1)
         state = runner.run("用户接口入口在哪里", "sample-data")

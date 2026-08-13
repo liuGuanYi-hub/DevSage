@@ -1,11 +1,13 @@
 """DevSage API entrypoint for project-aware retrieval and Agent workflows."""
 
 from pathlib import Path
+import asyncio
 import json
 import logging
 import os
+from threading import Event, Thread
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from .schemas.search import (
@@ -630,6 +632,115 @@ def run_agent(
     if request.persist:
         task_store.save(state)
     return _agent_response(state)
+
+
+@app.post("/api/agent/stream", tags=["agent"])
+async def stream_agent(
+    request: AgentRequest,
+    http_request: Request,
+    actor_id: str = Depends(resolve_actor_id),
+) -> StreamingResponse:
+    """Stream real Agent steps and the final grounded response over SSE.
+
+    The Runner remains bounded and synchronous, so it runs in a worker thread
+    while the async generator forwards each completed graph step. Closing the
+    browser stream sets the cancellation event; the Runner observes it between
+    graph nodes and persists the partial, explicitly cancelled task.
+    """
+
+    try:
+        if request.project_id:
+            _authorize_project(request.project_id, actor_id, "agent")
+        requested_root = _resolve_request_source_root(request.project_id, request.source_root)
+    except (SourceRootError, ProjectRegistryError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    event_loop = asyncio.get_running_loop()
+    event_queue: asyncio.Queue[tuple[str, dict[str, object]]] = asyncio.Queue()
+    cancel_event = Event()
+
+    def enqueue(event_name: str, payload: dict[str, object]) -> None:
+        event_loop.call_soon_threadsafe(event_queue.put_nowait, (event_name, payload))
+
+    def on_progress(state, step) -> None:
+        enqueue(
+            "progress",
+            {
+                "task_id": state.task_id,
+                "status": state.status,
+                "step": {
+                    "name": step.name,
+                    "status": step.status,
+                    "detail": step.detail,
+                },
+                "completed_steps": len(state.steps),
+                "tool_calls": len(state.tool_calls),
+            },
+        )
+
+    def run_worker() -> None:
+        try:
+            state = agent_runner.run(
+                request.query,
+                requested_root,
+                request.top_k,
+                project_id=request.project_id,
+                progress_callback=on_progress,
+                cancel_event=cancel_event,
+            )
+            if request.persist:
+                task_store.save(state)
+            response = _agent_response(state)
+            response_payload = (
+                response.model_dump() if hasattr(response, "model_dump") else response.dict()
+            )
+            enqueue("done", response_payload)
+        except (SourceRootError, ProjectRegistryError, PostgresRepositoryError) as exc:
+            enqueue("error", {"detail": str(exc)})
+        except Exception as exc:  # pragma: no cover - defensive boundary for a live stream
+            logger.exception("agent_stream_worker_failed")
+            enqueue("error", {"detail": f"Agent task failed: {type(exc).__name__}"})
+        finally:
+            enqueue("close", {})
+
+    worker = Thread(target=run_worker, name="devsage-agent-stream", daemon=True)
+    worker.start()
+
+    async def events():
+        yield (
+            "event: meta\n"
+            f"data: {json.dumps({'source_root': requested_root, 'status': 'queued'}, ensure_ascii=False)}\n\n"
+        )
+        try:
+            while True:
+                if await http_request.is_disconnected():
+                    cancel_event.set()
+                    break
+                try:
+                    event_name, payload = await asyncio.wait_for(
+                        event_queue.get(), timeout=0.25
+                    )
+                except asyncio.TimeoutError:
+                    yield ": keep-alive\n\n"
+                    continue
+                if event_name == "close":
+                    break
+                yield (
+                    f"event: {event_name}\n"
+                    f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                )
+        finally:
+            cancel_event.set()
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 def _agent_response(state) -> AgentResponse:

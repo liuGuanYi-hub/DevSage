@@ -138,6 +138,25 @@ export interface AgentResponse extends AnswerResponse {
   key_steps: string[];
 }
 
+export interface AgentProgressEvent {
+  task_id: string;
+  status: string;
+  step: AgentStep;
+  completed_steps: number;
+  tool_calls: number;
+}
+
+export class AgentStreamCancelledError extends Error {
+  constructor() {
+    super("已取消本次 Agent 检索");
+    this.name = "AgentStreamCancelledError";
+  }
+}
+
+export function isAgentStreamCancelled(error: unknown): error is AgentStreamCancelledError {
+  return error instanceof AgentStreamCancelledError;
+}
+
 export interface KnowledgeNoteDiff {
   operation: string;
   target_exists: boolean;
@@ -320,6 +339,137 @@ export function runAgent(
     method: "POST",
     body: JSON.stringify({ query, source_root: sourceRoot, top_k: topK, project_id: projectId }),
   }, actorId, AGENT_REQUEST_TIMEOUT_MS);
+}
+
+interface AgentStreamOptions {
+  signal?: AbortSignal;
+  onProgress?: (event: AgentProgressEvent) => void;
+}
+
+async function consumeSse(
+  response: Response,
+  onEvent: (eventName: string, data: string) => void,
+): Promise<void> {
+  if (!response.body) {
+    throw new Error("后端没有返回 Agent 任务流");
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  const flushBlock = (block: string) => {
+    const lines = block.split(/\r?\n/);
+    let eventName = "message";
+    const dataLines: string[] = [];
+    for (const line of lines) {
+      if (line.startsWith("event:")) {
+        eventName = line.slice(6).trim();
+      } else if (line.startsWith("data:")) {
+        dataLines.push(line.slice(5).trimStart());
+      }
+    }
+    if (dataLines.length) onEvent(eventName, dataLines.join("\n"));
+  };
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+      let boundary = buffer.indexOf("\n\n");
+      while (boundary >= 0) {
+        flushBlock(buffer.slice(0, boundary).replace(/\r$/, ""));
+        buffer = buffer.slice(boundary + 2);
+        boundary = buffer.indexOf("\n\n");
+      }
+      if (done) break;
+    }
+    if (buffer.trim()) flushBlock(buffer);
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+export function streamAgent(
+  query: string,
+  sourceRoot = "sample-data",
+  topK = 5,
+  projectId?: string,
+  actorId?: string,
+  options: AgentStreamOptions = {},
+): Promise<AgentResponse> {
+  const controller = new AbortController();
+  const externalSignal = options.signal;
+  let externallyCancelled = Boolean(externalSignal?.aborted);
+  const abortExternal = () => {
+    externallyCancelled = true;
+    controller.abort();
+  };
+  externalSignal?.addEventListener("abort", abortExternal, { once: true });
+  const timeoutHandle = window.setTimeout(() => controller.abort(), AGENT_REQUEST_TIMEOUT_MS);
+
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+  if (actorId) headers.set("X-DevSage-Actor", actorId);
+  if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
+
+  return (async () => {
+    try {
+      if (externallyCancelled) throw new AgentStreamCancelledError();
+      const response = await fetch(`${API_BASE_URL}/api/agent/stream`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          query,
+          source_root: sourceRoot,
+          top_k: topK,
+          project_id: projectId,
+          persist: true,
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const responseText = await response.text();
+        let detail = responseText.trim();
+        try {
+          const payload = JSON.parse(responseText) as { detail?: string; message?: string };
+          detail = payload.detail ?? payload.message ?? detail;
+        } catch {
+          // Keep the plain response text when the server did not return JSON.
+        }
+        throw new Error(detail || `请求失败（HTTP ${response.status}）`);
+      }
+
+      let finalResponse: AgentResponse | null = null;
+      await consumeSse(response, (eventName, data) => {
+        if (eventName === "progress") {
+          options.onProgress?.(JSON.parse(data) as AgentProgressEvent);
+          return;
+        }
+        if (eventName === "error") {
+          const payload = JSON.parse(data) as { detail?: string };
+          throw new Error(payload.detail || "Agent 任务执行失败");
+        }
+        if (eventName === "done") {
+          finalResponse = JSON.parse(data) as AgentResponse;
+        }
+      });
+      if (!finalResponse) {
+        throw new Error("Agent 任务流意外中断，未收到最终答案");
+      }
+      return finalResponse;
+    } catch (error) {
+      if (externallyCancelled || externalSignal?.aborted) {
+        throw new AgentStreamCancelledError();
+      }
+      if (controller.signal.aborted) {
+        throw new Error("Agent 任务超时，请稍后重试");
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutHandle);
+      externalSignal?.removeEventListener("abort", abortExternal);
+    }
+  })();
 }
 
 export function previewKnowledgeNote(
