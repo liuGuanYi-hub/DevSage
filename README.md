@@ -80,6 +80,8 @@ npm run dev --prefix frontend
 .\scripts\start-demo.ps1
 ```
 
+该脚本会安全读取项目根目录的 `.env`：只解析环境变量赋值，不执行其中内容、不打印密钥；当前 PowerShell 已设置的变量优先。Docker 配置中的 `DEVSAGE_OBSIDIAN_VAULT_PATH=/vault` 若同时提供有效的 `DEVSAGE_OBSIDIAN_VAULT_HOST_PATH`，本地演示会自动使用宿主机 Vault 路径。
+
 仅用于自动检查启动和清理时，可传入短暂运行时间：
 
 ```powershell

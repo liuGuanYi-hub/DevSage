@@ -17,6 +17,37 @@ $backendProcess = $null
 $frontendProcess = $null
 $previousStorage = $env:DEVSAGE_STORAGE
 $previousObsidianVaultPath = $env:DEVSAGE_OBSIDIAN_VAULT_PATH
+$loadedDotEnvVariables = @()
+
+function Import-DotEnv {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return @()
+    }
+
+    $loaded = [System.Collections.Generic.List[string]]::new()
+    foreach ($line in Get-Content -LiteralPath $Path -Encoding utf8) {
+        if ($line -match '^\s*(?:export\s+)?(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?<value>.*)\s*$') {
+            $name = $Matches.name
+            $value = $Matches.value.Trim()
+            if ($value.Length -ge 2) {
+                $first = $value.Substring(0, 1)
+                $last = $value.Substring($value.Length - 1, 1)
+                if (($first -eq '"' -and $last -eq '"') -or ($first -eq "'" -and $last -eq "'")) {
+                    $value = $value.Substring(1, $value.Length - 2)
+                }
+            }
+
+            # An explicitly supplied process variable wins over the .env file.
+            if ($null -eq [Environment]::GetEnvironmentVariable($name, "Process")) {
+                [Environment]::SetEnvironmentVariable($name, $value, "Process")
+                $loaded.Add($name) | Out-Null
+            }
+        }
+    }
+    return $loaded.ToArray()
+}
 
 function Assert-PortAvailable {
     param([Parameter(Mandatory = $true)][int]$Port)
@@ -45,13 +76,41 @@ function Stop-DemoProcess {
     }
 }
 
-try {
-    if ($ObsidianVaultPath.Trim()) {
-        $resolvedVaultPath = Resolve-Path -LiteralPath $ObsidianVaultPath -ErrorAction Stop
-        if (-not (Test-Path -LiteralPath $resolvedVaultPath.Path -PathType Container)) {
-            throw "Obsidian Vault path is not a directory: $ObsidianVaultPath"
+function Resolve-LocalVaultPath {
+    param([string]$ExplicitPath, [string[]]$DotEnvVariables)
+
+    if ($ExplicitPath.Trim()) {
+        $resolved = Resolve-Path -LiteralPath $ExplicitPath -ErrorAction Stop
+        if (-not (Test-Path -LiteralPath $resolved.Path -PathType Container)) {
+            throw "Obsidian Vault path is not a directory: $ExplicitPath"
         }
-        $env:DEVSAGE_OBSIDIAN_VAULT_PATH = $resolvedVaultPath.Path
+        return $resolved.Path
+    }
+
+    $configuredPath = [Environment]::GetEnvironmentVariable("DEVSAGE_OBSIDIAN_VAULT_PATH", "Process")
+    if ([string]::IsNullOrWhiteSpace($configuredPath)) {
+        return ""
+    }
+    if (Test-Path -LiteralPath $configuredPath -PathType Container) {
+        return (Resolve-Path -LiteralPath $configuredPath).Path
+    }
+
+    # Compose uses /vault inside the container; local demo uses the host path.
+    $hostPath = [Environment]::GetEnvironmentVariable("DEVSAGE_OBSIDIAN_VAULT_HOST_PATH", "Process")
+    if ($DotEnvVariables -contains "DEVSAGE_OBSIDIAN_VAULT_PATH" -and
+        -not [string]::IsNullOrWhiteSpace($hostPath) -and
+        (Test-Path -LiteralPath $hostPath -PathType Container)) {
+        return (Resolve-Path -LiteralPath $hostPath).Path
+    }
+
+    throw "Configured Obsidian Vault path is not a local directory; pass -ObsidianVaultPath with a host path"
+}
+
+try {
+    $loadedDotEnvVariables = @(Import-DotEnv -Path (Join-Path $projectRoot ".env"))
+    $localVaultPath = Resolve-LocalVaultPath -ExplicitPath $ObsidianVaultPath -DotEnvVariables $loadedDotEnvVariables
+    if ($localVaultPath) {
+        $env:DEVSAGE_OBSIDIAN_VAULT_PATH = $localVaultPath
     }
     if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
         throw "python command was not found"
@@ -76,6 +135,10 @@ try {
         -WorkingDirectory $projectRoot `
         -WindowStyle Hidden `
         -PassThru
+    Start-Sleep -Milliseconds 250
+    if ($backendProcess.HasExited) {
+        throw "Backend process exited before health check"
+    }
 
     $frontendProcess = Start-Process `
         -FilePath "node" `
@@ -90,6 +153,9 @@ try {
     $backendReady = $false
     $frontendReady = $false
     for ($attempt = 1; $attempt -le 40; $attempt++) {
+        if ($backendProcess.HasExited) {
+            throw "Backend process exited before becoming healthy"
+        }
         try {
             $health = Invoke-RestMethod -Uri "http://127.0.0.1:$backendPort/health" -TimeoutSec 2
             $backendReady = $health.status -eq "ok"
@@ -144,5 +210,8 @@ try {
         Remove-Item Env:DEVSAGE_OBSIDIAN_VAULT_PATH -ErrorAction SilentlyContinue
     } else {
         $env:DEVSAGE_OBSIDIAN_VAULT_PATH = $previousObsidianVaultPath
+    }
+    foreach ($name in $loadedDotEnvVariables) {
+        [Environment]::SetEnvironmentVariable($name, $null, "Process")
     }
 }
