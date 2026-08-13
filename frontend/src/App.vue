@@ -64,7 +64,17 @@ const isLoggingIn = ref(false);
 const authUsername = ref("");
 const showExecutionDetails = ref(false);
 const agentPhase = ref("");
+type WorkspaceViewId = "workspace" | "knowledge" | "retrieval" | "tasks" | "evaluation";
+const activeView = ref<WorkspaceViewId>("workspace");
 let agentPhaseTimer: number | null = null;
+
+const workspaceViews: Array<{ id: WorkspaceViewId; label: string; icon: string; description: string }> = [
+  { id: "workspace", label: "工作台", icon: "⌂", description: "问题、答案与证据" },
+  { id: "knowledge", label: "知识库", icon: "▤", description: "项目、文件与索引" },
+  { id: "retrieval", label: "检索实验室", icon: "⌕", description: "排序与 Chunk 检查" },
+  { id: "tasks", label: "任务记录", icon: "◷", description: "运行、恢复与重试" },
+  { id: "evaluation", label: "评测中心", icon: "◒", description: "质量、延迟与失败案例" },
+];
 
 const agentPhases = [
   "正在判断问题类型…",
@@ -157,6 +167,7 @@ const currentProject = computed(() =>
 const currentMember = computed(() =>
   currentProject.value?.members.find((member) => member.actor_id === selectedActorId.value),
 );
+const activeViewMeta = computed(() => workspaceViews.find((view) => view.id === activeView.value) ?? workspaceViews[0]);
 
 const canIssueWrite = computed(() => can("issue_write_preview") || can("issue_write_approve"));
 const canCodeWrite = computed(() => can("code_write_preview") || can("code_write_approve"));
@@ -343,6 +354,10 @@ ${citations}
 
 function toggleExecutionDetails(event: Event): void {
   showExecutionDetails.value = (event.target as HTMLDetailsElement).open;
+}
+
+function selectWorkspaceView(viewId: WorkspaceViewId): void {
+  activeView.value = viewId;
 }
 
 function startAgentProgress(): void {
@@ -728,7 +743,45 @@ onMounted(async () => {
         <small v-if="loginStatus" class="writeback-status" role="status" aria-live="polite">{{ loginStatus }}</small>
       </form>
 
-      <div v-if="!requiresLogin" class="toolbar">
+      <div v-if="!requiresLogin" class="workspace-layout">
+        <aside class="workspace-sidebar" aria-label="DevSage 工作台导航">
+          <div class="workspace-sidebar-heading">
+            <span class="eyebrow">WORKSPACE</span>
+            <strong>研发助手</strong>
+          </div>
+          <nav class="workspace-nav" aria-label="工作台页面">
+            <button
+              v-for="view in workspaceViews"
+              :key="view.id"
+              type="button"
+              :class="{ active: activeView === view.id }"
+              :aria-current="activeView === view.id ? 'page' : undefined"
+              @click="selectWorkspaceView(view.id)"
+            >
+              <span class="workspace-nav-icon" aria-hidden="true">{{ view.icon }}</span>
+              <span>
+                <strong>{{ view.label }}</strong>
+                <small>{{ view.description }}</small>
+              </span>
+            </button>
+          </nav>
+          <div class="workspace-sidebar-note">
+            <span class="eyebrow">SAFETY</span>
+            <p>答案先读证据，写回必须经过预览和审批。</p>
+          </div>
+        </aside>
+
+        <div class="workspace-main">
+          <div class="workspace-view-heading">
+            <div>
+              <span class="eyebrow">{{ activeViewMeta.label }}</span>
+              <h2>{{ activeViewMeta.description }}</h2>
+            </div>
+            <span class="workspace-view-status">{{ currentProject?.name ?? "等待项目" }}</span>
+          </div>
+
+          <div v-if="activeView === 'workspace'" class="workspace-query">
+          <div class="toolbar">
         <label class="project-picker">
           项目
           <select v-model="selectedProjectId" @change="handleProjectChange" aria-label="选择项目">
@@ -768,9 +821,9 @@ onMounted(async () => {
         </span>
         <span>{{ status }}</span>
         <span v-if="indexSummary" class="index-count">{{ indexSummary }}</span>
-      </div>
+          </div>
 
-      <form v-if="!requiresLogin" class="search-box" @submit.prevent="search">
+      <form class="search-box" @submit.prevent="search">
         <input
           v-model="query"
           placeholder="例如：8080 端口被占用，应该怎么排查？"
@@ -812,7 +865,7 @@ onMounted(async () => {
         </button>
       </div>
 
-      <section v-if="!requiresLogin" class="example-prompts" aria-label="知识库问题示例">
+      <section class="example-prompts" aria-label="知识库问题示例">
         <div class="example-prompts-heading">
           <strong>从知识库试试</strong>
           <span>点击示例会自动切换到对应项目，再点击“开始排查”</span>
@@ -1109,6 +1162,113 @@ onMounted(async () => {
 
       </section>
       <p v-else class="empty-state">输入问题后查看带来源引用的检索证据。</p>
+          </div>
+
+          <div v-else class="workspace-placeholder">
+            <span class="eyebrow">NEXT BUILD</span>
+            <h3>{{ activeViewMeta.label }}页面骨架已就位</h3>
+            <p>{{ activeViewMeta.description }}会在后续阶段接入真实数据和操作。当前项目上下文、权限和索引状态仍保持可见。</p>
+
+            <div class="placeholder-grid">
+              <article>
+                <span class="placeholder-icon">✓</span>
+                <div>
+                  <strong>当前项目上下文</strong>
+                  <p>{{ currentProject?.name ?? "尚未连接项目" }}</p>
+                </div>
+              </article>
+              <article>
+                <span class="placeholder-icon">▤</span>
+                <div>
+                  <strong>索引状态</strong>
+                  <p>{{ indexSummary || "正在读取索引状态" }}</p>
+                </div>
+              </article>
+              <article v-if="activeView === 'retrieval'">
+                <span class="placeholder-icon">⌕</span>
+                <div>
+                  <strong>当前测试问题</strong>
+                  <p>{{ query || "输入问题后在工作台运行一次检索" }}</p>
+                </div>
+              </article>
+              <article v-else-if="activeView === 'tasks'">
+                <span class="placeholder-icon">◷</span>
+                <div>
+                  <strong>任务状态</strong>
+                  <p>后端任务快照已支持持久化，历史列表和恢复操作待接入。</p>
+                </div>
+              </article>
+              <article v-else-if="activeView === 'evaluation'">
+                <span class="placeholder-icon">◒</span>
+                <div>
+                  <strong>评测状态</strong>
+                  <p>离线评测报告已生成，指标趋势和失败案例筛选待接入。</p>
+                </div>
+              </article>
+              <article v-else>
+                <span class="placeholder-icon">→</span>
+                <div>
+                  <strong>下一步</strong>
+                  <p>先返回工作台提交问题，查看自然语言答案和单列引用证据。</p>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+
+        <aside class="workspace-inspector" aria-label="当前项目上下文">
+          <div class="context-card">
+            <div class="context-card-heading">
+              <div>
+                <span class="eyebrow">CONTEXT</span>
+                <h2>当前上下文</h2>
+              </div>
+              <span class="health-badge" :class="`health-${backendHealth}`">
+                {{ backendHealth === "online" ? "在线" : backendHealth === "checking" ? "检查中" : "离线" }}
+              </span>
+            </div>
+            <dl class="context-facts">
+              <div>
+                <dt>项目</dt>
+                <dd>{{ currentProject?.name ?? "未选择" }}</dd>
+              </div>
+              <div>
+                <dt>角色</dt>
+                <dd>{{ currentMember?.role ?? selectedActorId }}</dd>
+              </div>
+              <div>
+                <dt>索引</dt>
+                <dd>{{ indexSummary || "尚未读取" }}</dd>
+              </div>
+              <div>
+                <dt>权限</dt>
+                <dd>{{ currentProject?.read_only ? "外部只读" : canIndex() ? "可管理索引" : "只读检索" }}</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div class="context-card">
+            <span class="eyebrow">GROUNDING</span>
+            <h2>证据上下文</h2>
+            <template v-if="answer">
+              <strong class="context-stat">{{ evidenceView.length }}</strong>
+              <p>条去重后的直接证据</p>
+              <div class="context-source-list">
+                <span v-for="evidence in evidenceView.slice(0, 4)" :key="evidence.citation">
+                  {{ evidence.source_path }} · L{{ evidence.start_line }}-L{{ evidence.end_line }}
+                </span>
+              </div>
+            </template>
+            <p v-else>提交问题后，这里会显示来源文件、行号和答案引用范围。</p>
+          </div>
+
+          <div class="context-card context-safety-card">
+            <span class="eyebrow">SAFE WRITEBACK</span>
+            <h2>安全边界</h2>
+            <p>知识笔记、代码变更和外部 Issue 都必须先预览，再由具备权限的角色审批。</p>
+          </div>
+        </aside>
+      </div>
     </section>
   </main>
 </template>
@@ -1131,13 +1291,156 @@ body { margin: 0; }
 }
 
 .hero-card {
-  width: min(1040px, 100%);
+  width: min(1440px, 100%);
   padding: clamp(24px, 5vw, 48px);
   border: 1px solid #d7e0ea;
   border-radius: 24px;
   background: #ffffff;
   box-shadow: 0 20px 60px rgba(42, 67, 101, 0.12);
 }
+
+.workspace-layout {
+  display: grid;
+  grid-template-columns: 188px minmax(0, 1fr) 280px;
+  gap: 20px;
+  align-items: start;
+  margin-top: 28px;
+}
+
+.workspace-sidebar,
+.workspace-inspector {
+  position: sticky;
+  top: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.workspace-sidebar {
+  padding: 14px;
+  border: 1px solid #dbe4ee;
+  border-radius: 16px;
+  background: #f7faff;
+}
+
+.workspace-sidebar-heading,
+.context-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.workspace-sidebar-heading {
+  display: grid;
+  gap: 4px;
+  padding: 4px 6px 10px;
+}
+
+.workspace-sidebar-heading strong { color: #1d3555; font-size: 1.05rem; }
+.workspace-nav { display: grid; gap: 6px; }
+.workspace-nav button {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 8px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  color: #526176;
+  background: transparent;
+  text-align: left;
+}
+.workspace-nav button:hover,
+.workspace-nav button.active {
+  border-color: #c5d9ed;
+  color: #1d568b;
+  background: #eaf4fc;
+}
+.workspace-nav button > span:last-child { display: grid; gap: 2px; min-width: 0; }
+.workspace-nav strong { font-size: 0.86rem; }
+.workspace-nav small { color: #7890aa; font-size: 0.7rem; line-height: 1.35; }
+.workspace-nav-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  color: #4674a8;
+  background: #dcecf9;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.workspace-sidebar-note {
+  margin-top: 8px;
+  padding: 10px;
+  border-top: 1px solid #dbe4ee;
+  color: #68788d;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+.workspace-sidebar-note p { margin: 6px 0 0; }
+.workspace-main { min-width: 0; }
+.workspace-view-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.workspace-view-heading h2 { margin: 4px 0 0; color: #1d3555; font-size: 1.35rem; }
+.workspace-view-status { max-width: 45%; overflow-wrap: anywhere; color: #7890aa; font-size: 0.8rem; text-align: right; }
+.workspace-query { min-width: 0; }
+.workspace-placeholder {
+  min-height: 390px;
+  padding: 28px;
+  border: 1px dashed #b8cde3;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f8fbff, #f1f6fb);
+}
+.workspace-placeholder h3 { margin: 8px 0; color: #1d3555; font-size: 1.45rem; }
+.workspace-placeholder > p { max-width: 680px; color: #526176; line-height: 1.7; }
+.placeholder-grid { display: grid; gap: 10px; margin-top: 24px; }
+.placeholder-grid article {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px 14px;
+  border: 1px solid #d7e3ef;
+  border-radius: 12px;
+  background: #ffffff;
+}
+.placeholder-grid article p { margin: 4px 0 0; color: #68788d; font-size: 0.86rem; line-height: 1.5; overflow-wrap: anywhere; }
+.placeholder-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #315e8c;
+  background: #dcecf9;
+  font-weight: 800;
+}
+.context-card {
+  padding: 16px;
+  border: 1px solid #dbe4ee;
+  border-radius: 16px;
+  background: #fbfdff;
+}
+.context-card h2 { margin: 4px 0 0; color: #1d3555; font-size: 1.02rem; }
+.context-card p { margin: 10px 0 0; color: #68788d; font-size: 0.82rem; line-height: 1.55; }
+.context-facts { display: grid; gap: 10px; margin: 16px 0 0; }
+.context-facts div { display: grid; gap: 3px; }
+.context-facts dt { color: #8b98a8; font-size: 0.72rem; }
+.context-facts dd { margin: 0; color: #405673; font-size: 0.82rem; font-weight: 700; overflow-wrap: anywhere; }
+.context-stat { display: block; margin-top: 14px; color: #1d568b; font-size: 2rem; line-height: 1; }
+.context-source-list { display: grid; gap: 6px; margin-top: 12px; }
+.context-source-list span { padding: 7px 8px; border-radius: 8px; color: #526176; background: #f0f6fb; font: 0.72rem/1.4 "SFMono-Regular", Consolas, monospace; overflow-wrap: anywhere; }
+.context-safety-card { border-color: #d6c38e; background: #fffaf0; }
+.context-safety-card .eyebrow { color: #8a6421; }
 
 .brand-row, .toolbar, .search-box, .result-meta {
   display: flex;
@@ -1278,6 +1581,23 @@ input { flex: 1; min-width: 0; border: 1px solid #cbd6e2; border-radius: 10px; p
 .evidence-markdown pre { max-height: 220px; }
 .matched-terms { display: block; margin-top: 12px; color: #7890aa; }
 li { margin: 8px 0; line-height: 1.5; }
+
+@media (max-width: 1120px) {
+  .workspace-layout { grid-template-columns: 176px minmax(0, 1fr); }
+  .workspace-inspector { grid-column: 2; position: static; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .page-shell { padding: 12px; }
+  .hero-card { padding: 22px 18px; border-radius: 18px; }
+  .workspace-layout { grid-template-columns: 1fr; gap: 14px; }
+  .workspace-sidebar, .workspace-inspector { position: static; grid-column: auto; }
+  .workspace-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .workspace-inspector { grid-template-columns: 1fr; }
+  .workspace-view-heading { align-items: flex-start; flex-direction: column; }
+  .workspace-view-status { max-width: 100%; text-align: left; }
+  .workspace-placeholder { min-height: 0; padding: 20px; }
+}
 
 @media (max-width: 640px) {
   .search-box { align-items: stretch; flex-direction: column; }
