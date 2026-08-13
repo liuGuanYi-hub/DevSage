@@ -1,0 +1,45 @@
+name: DevSage Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Package and publish release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build frontend
+        working-directory: frontend
+        run: npm ci && npm run build
+      - name: Package source and built frontend
+        env:
+          RELEASE_NAME: devsage-${{ github.ref_name }}
+        run: |
+          mkdir -p "${RELEASE_NAME}"
+          cp -R backend evaluation docs sample-data scripts README.md docker-compose.yml .env.example "${RELEASE_NAME}/"
+          cp -R frontend/dist "${RELEASE_NAME}/frontend-dist"
+          tar -czf "${RELEASE_NAME}.tar.gz" "${RELEASE_NAME}"
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: devsage-${{ github.ref_name }}
+          path: devsage-${{ github.ref_name }}.tar.gz
+      - name: Create GitHub Release for version tags
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" "devsage-${{ github.ref_name }}.tar.gz" --generate-notes --title "DevSage ${{ github.ref_name }}"

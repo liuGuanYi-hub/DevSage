@@ -1,0 +1,26 @@
+name: Feature request
+description: 提议一个可验证的研发助手能力
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决的问题
+      description: 当前工作流中哪里不方便或不可靠？
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+      description: 请说明页面、API、权限和证据展示应该如何变化
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 验收标准
+      description: 用可观察的行为描述完成条件
+    validations:
+      required: true

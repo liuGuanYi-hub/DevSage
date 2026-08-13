@@ -1,6 +1,12 @@
 # DevSage
 
+[![CI](https://github.com/liuGuanYi-hub/DevSage/actions/workflows/ci.yml/badge.svg)](https://github.com/liuGuanYi-hub/DevSage/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/liuGuanYi-hub/DevSage?display_name=tag)](https://github.com/liuGuanYi-hub/DevSage/releases)
+
 DevSage 是基于 Agentic RAG 的研发知识库与故障排查系统。当前处于阶段 6 的离线可验证演示基线：已完成本地数据接入、内容 Hash、带文件职责元数据的结构化 Chunk、中文同义词与错误码匹配、关键词/离线向量混合排序、来源查询 API、知识写回审批边界、有限图 Agent、MCP 展示和可复现演示脚本。
+
+> 在线演示：当前尚未部署公网实例；本地入口为 `http://127.0.0.1:5173/`。发布、截图和部署替换说明见 [DevSage 发布与在线演示说明](docs/DevSage发布与在线演示说明.md)。
+
+![答案反馈与引用纠错](docs/assets/feedback-loop-fixed.png)
 
 ## 当前版本范围
 
@@ -23,6 +29,7 @@ DevSage/
 ├── evaluation/              # 75 条测试问题、评估脚本和报告
 ├── sample-data/             # 脱敏文档、代码和配置样例
 ├── docs/                    # 项目设计文档
+├── .github/                 # CI、Issue/PR 模板和版本发布工作流
 ├── DevSage长期任务路线图.md  # 持续推进的阶段任务
 ├── docker-compose.yml       # PostgreSQL + pgvector 本地服务骨架与健康检查
 └── .env.example             # 非敏感配置模板
