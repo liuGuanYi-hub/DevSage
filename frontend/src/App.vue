@@ -109,7 +109,7 @@ const selectedResumableTaskIds = computed(() =>
 const allVisibleTasksSelected = computed(() =>
   taskRecords.value.length > 0 && taskRecords.value.every((task) => selectedTaskIds.value.includes(task.task_id)),
 );
-type WorkspaceViewId = "workspace" | "knowledge" | "retrieval" | "tasks" | "evaluation";
+type WorkspaceViewId = "workspace" | "knowledge" | "retrieval" | "tasks" | "evaluation" | "settings";
 const activeView = ref<WorkspaceViewId>("workspace");
 let agentAbortController: AbortController | null = null;
 
@@ -119,6 +119,7 @@ const workspaceViews: Array<{ id: WorkspaceViewId; label: string; icon: string; 
   { id: "retrieval", label: "检索实验室", icon: "⌕", description: "排序与 Chunk 检查" },
   { id: "tasks", label: "任务记录", icon: "◷", description: "运行、恢复与重试" },
   { id: "evaluation", label: "评测中心", icon: "◒", description: "质量、延迟与失败案例" },
+  { id: "settings", label: "设置", icon: "⚙", description: "认证、成员与审计边界" },
 ];
 
 interface ExampleQuery {
@@ -1551,6 +1552,64 @@ onMounted(async () => {
             </div>
           </section>
 
+          <section v-else-if="activeView === 'settings'" class="settings-page" aria-label="认证、成员与审计设置">
+            <div class="settings-hero">
+              <div>
+                <span class="eyebrow">ACCESS & AUDIT</span>
+                <h3>认证与组织权限</h3>
+                <p>这里展示当前身份、项目成员和能力边界。敏感 Token 不会在页面回显。</p>
+              </div>
+              <span class="status-pill">{{ healthDetails?.auth_enabled ? "正式认证" : "本地演示 actor" }}</span>
+            </div>
+
+            <div class="settings-grid">
+              <article class="settings-card">
+                <span class="eyebrow">IDENTITY</span>
+                <h4>当前身份</h4>
+                <dl class="settings-facts">
+                  <div><dt>用户名</dt><dd>{{ authUsername || "未启用正式认证" }}</dd></div>
+                  <div><dt>Actor</dt><dd>{{ selectedActorId }}</dd></div>
+                  <div><dt>认证接口</dt><dd>{{ healthDetails?.auth_enabled ? "/api/auth/login + /api/auth/me" : "未启用" }}</dd></div>
+                </dl>
+                <p class="settings-note">当前正式认证已经支持 PBKDF2 密码哈希、签名 Bearer Token 和 `/api/auth/me`。Token 只保存在浏览器本地，不在此页展示。</p>
+              </article>
+
+              <article class="settings-card">
+                <span class="eyebrow">PROJECT MEMBERS</span>
+                <h4>{{ currentProject?.name ?? "未选择项目" }} · 成员与角色</h4>
+                <div class="member-list">
+                  <div v-for="member in currentProject?.members ?? []" :key="member.actor_id" class="member-row">
+                    <div>
+                      <strong>{{ member.actor_id }}</strong>
+                      <small>{{ member.role }}</small>
+                    </div>
+                    <span class="member-action-count">{{ member.actions.length }} 项能力</span>
+                  </div>
+                </div>
+              </article>
+
+              <article class="settings-card settings-card-wide">
+                <span class="eyebrow">CAPABILITY BOUNDARY</span>
+                <h4>当前角色权限</h4>
+                <div class="tool-tags settings-action-list">
+                  <span v-for="action in currentMember?.actions ?? []" :key="action" class="tool-tag">{{ action }}</span>
+                  <span v-if="!currentMember" class="field-help">当前 actor 不属于项目成员。</span>
+                </div>
+                <p class="settings-note">这些权限来自当前项目注册器的本地 capability boundary；viewer/editor 切换不会触发索引。正式组织级 RBAC 和成员持久化尚未替换这套边界。</p>
+              </article>
+
+              <article class="settings-card settings-card-wide audit-card">
+                <span class="eyebrow">AUDIT LOG</span>
+                <h4>审计日志状态</h4>
+                <div class="audit-status-row">
+                  <span class="status-pill">审批日志：后端记录</span>
+                  <span class="status-pill">页面查询：待接入</span>
+                </div>
+                <p class="settings-note">知识笔记、代码变更和 Issue 写回仍要求预览与审批；当前日志只记录安全元数据，不记录答案正文。组织级成员、审核人和可筛选审计事件将在 PostgreSQL 持久化模型确定后接入。</p>
+              </article>
+            </div>
+          </section>
+
           <div v-else-if="activeView !== 'tasks'" class="workspace-placeholder">
             <span class="eyebrow">NEXT BUILD</span>
             <h3>{{ activeViewMeta.label }}页面骨架已就位</h3>
@@ -1788,6 +1847,27 @@ body { margin: 0; }
 }
 .workspace-placeholder h3 { margin: 8px 0; color: #1d3555; font-size: 1.45rem; }
 .workspace-placeholder > p { max-width: 680px; color: #526176; line-height: 1.7; }
+.settings-page { display: grid; gap: 14px; }
+.settings-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid #c8d8ec; border-radius: 16px; background: linear-gradient(135deg, #f7fbff, #eef6fc); }
+.settings-hero h3 { margin: 6px 0; color: #1d3555; font-size: 1.35rem; }
+.settings-hero p { margin: 0; color: #526176; line-height: 1.55; }
+.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.settings-card { display: grid; gap: 9px; padding: 18px; border: 1px solid #d7e3ef; border-radius: 14px; background: #ffffff; }
+.settings-card-wide { grid-column: 1 / -1; }
+.settings-card h4 { margin: 0; color: #1d3555; font-size: 1.05rem; }
+.settings-facts { display: grid; gap: 8px; margin: 0; }
+.settings-facts div { display: flex; justify-content: space-between; gap: 16px; padding-bottom: 7px; border-bottom: 1px solid #edf2f7; }
+.settings-facts dt { color: #7890aa; }
+.settings-facts dd { margin: 0; color: #294a70; font-weight: 700; text-align: right; overflow-wrap: anywhere; }
+.settings-note { margin: 2px 0 0; color: #68788d; font-size: 0.84rem; line-height: 1.6; }
+.member-list { display: grid; gap: 8px; }
+.member-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; background: #f7faff; }
+.member-row > div { display: grid; gap: 3px; }
+.member-row strong { color: #294a70; overflow-wrap: anywhere; }
+.member-row small, .member-action-count { color: #7890aa; font-size: 0.78rem; }
+.member-action-count { white-space: nowrap; }
+.settings-action-list { margin: 2px 0 0; }
+.audit-status-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .task-history-page { display: grid; gap: 16px; }
 .task-history-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid #d7e3ef; border-radius: 16px; background: #f8fbff; }
 .task-history-toolbar h3 { margin: 6px 0 4px; color: #1d3555; font-size: 1.25rem; }
@@ -2032,6 +2112,8 @@ li { margin: 8px 0; line-height: 1.5; }
   .workspace-view-status { max-width: 100%; text-align: left; }
   .workspace-placeholder { min-height: 0; padding: 20px; }
   .task-history-layout { grid-template-columns: 1fr; }
+  .settings-grid { grid-template-columns: 1fr; }
+  .settings-card-wide { grid-column: auto; }
 }
 
 @media (max-width: 640px) {
