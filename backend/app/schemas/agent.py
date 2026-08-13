@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from .search import SearchHit
@@ -36,6 +38,23 @@ class AgentTaskSummaryResponse(BaseModel):
 class AgentTaskListResponse(BaseModel):
     items: list[AgentTaskSummaryResponse]
     total: int
+
+
+class AgentTaskBatchRequest(BaseModel):
+    task_ids: list[str] = Field(min_length=1, max_length=20)
+    action: Literal["resume", "rerun"]
+    top_k: int = Field(default=5, ge=1, le=20)
+
+
+class AgentTaskBatchFailure(BaseModel):
+    task_id: str
+    detail: str
+
+
+class AgentTaskBatchResponse(BaseModel):
+    action: Literal["resume", "rerun"]
+    items: list[AgentTaskSummaryResponse]
+    failures: list[AgentTaskBatchFailure]
 
 
 class AgentStepResponse(BaseModel):

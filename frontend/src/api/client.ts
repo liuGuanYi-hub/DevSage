@@ -157,6 +157,19 @@ export interface AgentTaskListResponse {
   total: number;
 }
 
+export type AgentTaskBatchAction = "resume" | "rerun";
+
+export interface AgentTaskBatchFailure {
+  task_id: string;
+  detail: string;
+}
+
+export interface AgentTaskBatchResponse {
+  action: AgentTaskBatchAction;
+  items: AgentTaskSummary[];
+  failures: AgentTaskBatchFailure[];
+}
+
 export interface AgentProgressEvent {
   task_id: string;
   status: string;
@@ -364,9 +377,15 @@ export function listAgentTasks(
   projectId?: string,
   limit = 50,
   actorId?: string,
+  status?: string,
+  sortBy: "updated_at" | "runtime_ms" = "updated_at",
+  sortOrder: "asc" | "desc" = "desc",
 ): Promise<AgentTaskListResponse> {
   const params = new URLSearchParams({ limit: String(limit) });
   if (projectId) params.set("project_id", projectId);
+  if (status) params.set("status", status);
+  params.set("sort_by", sortBy);
+  params.set("sort_order", sortOrder);
   return request<AgentTaskListResponse>(`/api/agent/tasks?${params.toString()}`, {
     method: "GET",
   }, actorId);
@@ -386,6 +405,18 @@ export function resumeAgentTask(
   return request<AgentResponse>(`/api/agent/tasks/${encodeURIComponent(taskId)}/resume`, {
     method: "POST",
     body: JSON.stringify({ top_k: topK }),
+  }, actorId, AGENT_REQUEST_TIMEOUT_MS);
+}
+
+export function batchAgentTasks(
+  taskIds: string[],
+  action: AgentTaskBatchAction,
+  topK = 5,
+  actorId?: string,
+): Promise<AgentTaskBatchResponse> {
+  return request<AgentTaskBatchResponse>("/api/agent/tasks/batch", {
+    method: "POST",
+    body: JSON.stringify({ task_ids: taskIds, action, top_k: topK }),
   }, actorId, AGENT_REQUEST_TIMEOUT_MS);
 }
 

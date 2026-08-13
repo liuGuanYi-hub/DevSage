@@ -26,6 +26,9 @@ from .schemas.agent import (
     AgentRequest,
     AgentResumeRequest,
     AgentResponse,
+    AgentTaskBatchFailure,
+    AgentTaskBatchRequest,
+    AgentTaskBatchResponse,
     AgentTaskListResponse,
     AgentTaskSummaryResponse,
     AgentUsageResponse,
@@ -67,6 +70,7 @@ from .services.task_store import (
     TaskStateError,
     TaskStateNotFoundError,
     TaskStateStorageError,
+    task_summary,
 )
 from .storage.postgres_repository import PostgresRepositoryError
 
@@ -788,16 +792,30 @@ def _agent_response(state) -> AgentResponse:
 def list_agent_tasks(
     project_id: str | None = None,
     limit: int = 50,
+    status: str | None = None,
+    sort_by: str = "updated_at",
+    sort_order: str = "desc",
     actor_id: str = Depends(resolve_actor_id),
 ) -> AgentTaskListResponse:
     """List lightweight task records visible to the current actor."""
 
     if limit < 1 or limit > 100:
         raise HTTPException(status_code=422, detail="limit must be between 1 and 100")
+    if sort_by not in {"updated_at", "runtime_ms"}:
+        raise HTTPException(status_code=422, detail="sort_by must be updated_at or runtime_ms")
+    if sort_order not in {"asc", "desc"}:
+        raise HTTPException(status_code=422, detail="sort_order must be asc or desc")
+    statuses = {item.strip() for item in status.split(",") if item.strip()} if status else None
     try:
         if project_id:
             _authorize_project(project_id, actor_id, "read")
-        items = task_store.list(project_id=project_id, limit=limit)
+        items = task_store.list(
+            project_id=project_id,
+            limit=limit,
+            statuses=statuses,
+            sort_by=sort_by,
+            sort_order=sort_order,
+        )
         visible_items = []
         for item in items:
             item_project_id = item.get("project_id")
@@ -810,6 +828,38 @@ def list_agent_tasks(
         return AgentTaskListResponse(items=visible_items, total=len(visible_items))
     except (TaskStateStorageError, TaskStateError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/api/agent/tasks/batch", response_model=AgentTaskBatchResponse, tags=["agent"])
+def batch_agent_tasks(
+    request: AgentTaskBatchRequest,
+    actor_id: str = Depends(resolve_actor_id),
+) -> AgentTaskBatchResponse:
+    """Resume or rerun selected persisted tasks without destructive bulk deletion."""
+
+    items: list[AgentTaskSummaryResponse] = []
+    failures: list[AgentTaskBatchFailure] = []
+    for task_id in request.task_ids:
+        try:
+            state = task_store.load(task_id)
+            if state.project_id:
+                _authorize_project(state.project_id, actor_id, "agent")
+            if request.action == "resume":
+                state = agent_runner.resume(state, request.top_k)
+            else:
+                requested_root = _resolve_request_source_root(state.project_id, state.source_root)
+                state = agent_runner.run(
+                    state.query,
+                    requested_root,
+                    request.top_k,
+                    project_id=state.project_id,
+                )
+            task_store.save(state)
+            items.append(AgentTaskSummaryResponse(**task_summary(state)))
+        except (HTTPException, TaskStateError, SourceRootError, ProjectRegistryError, PostgresRepositoryError) as exc:
+            detail = exc.detail if isinstance(exc, HTTPException) else str(exc)
+            failures.append(AgentTaskBatchFailure(task_id=task_id, detail=str(detail)))
+    return AgentTaskBatchResponse(action=request.action, items=items, failures=failures)
 
 
 @app.get("/api/agent/tasks/{task_id}", response_model=AgentResponse, tags=["agent"])

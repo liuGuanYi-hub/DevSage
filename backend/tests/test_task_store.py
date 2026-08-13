@@ -33,17 +33,23 @@ class FakeTaskCursor:
         normalized = " ".join(query.split()).lower()
         if normalized.startswith("insert into agent_tasks"):
             self.connection.payloads[params[0]] = params[5]
-        elif normalized.startswith("select payload") and "order by updated_at" in normalized:
-            if "payload->>'project_id' = %s" in normalized:
-                project_id, limit = params
-                payloads = [
-                    payload
-                    for payload in self.connection.payloads.values()
-                    if json.loads(payload).get("project_id") == project_id
-                ][:limit]
-            else:
-                limit = params[0]
-                payloads = list(self.connection.payloads.values())[:limit]
+        elif normalized.startswith("select payload") and "order by" in normalized:
+            values = list(params or ())
+            limit = values[-1]
+            project_id = values[0] if "payload->>'project_id' = %s" in normalized else None
+            status_start = 1 if project_id is not None else 0
+            statuses = set(values[status_start:-1]) if "payload->>'status' in" in normalized else None
+            payloads = []
+            for payload in self.connection.payloads.values():
+                item = json.loads(payload)
+                if project_id is not None and item.get("project_id") != project_id:
+                    continue
+                if statuses and item.get("status") not in statuses:
+                    continue
+                payloads.append(payload)
+            if "runtime_ms" in normalized:
+                payloads.sort(key=lambda payload: json.loads(payload)["usage"]["runtime_ms"], reverse="desc" in normalized)
+            payloads = payloads[:limit]
             self.results = [(payload,) for payload in payloads]
         elif normalized.startswith("select payload"):
             payload = self.connection.payloads.get(params[0])
@@ -107,6 +113,21 @@ class TaskStoreTests(unittest.TestCase):
         self.assertEqual("troubleshooting", items[0]["category"])
         self.assertTrue(items[0]["evidence_count"] > 0)
 
+    def test_task_history_filters_status_and_sorts_by_runtime(self) -> None:
+        fast = AgentRunner(IndexService()).run("8080 绔彛琚崰鐢ㄦ€庝箞鎺掓煡锛?", "sample-data")
+        slow = AgentRunner(IndexService()).run("Laravel 鐧诲綍鍚庤繕鏄洖 401 鎬庝箞鍔烇紵", "sample-data")
+        fast.usage.runtime_ms = 10
+        slow.usage.runtime_ms = 900
+        slow.status = "failed"
+        self.store.save(fast)
+        self.store.save(slow)
+
+        filtered = self.store.list(statuses={"failed"}, limit=10)
+        ordered = self.store.list(sort_by="runtime_ms", sort_order="desc", limit=10)
+
+        self.assertEqual([slow.task_id], [item["task_id"] for item in filtered])
+        self.assertEqual(slow.task_id, ordered[0]["task_id"])
+
 
 class PostgresTaskStoreTests(unittest.TestCase):
     def test_jsonb_snapshot_round_trip_with_connection_boundary(self) -> None:
@@ -138,3 +159,24 @@ class PostgresTaskStoreTests(unittest.TestCase):
 
         self.assertEqual(1, len(items))
         self.assertEqual(state.task_id, items[0]["task_id"])
+
+    def test_jsonb_task_history_filters_status_and_sorts_by_runtime(self) -> None:
+        connection = FakeTaskConnection()
+        store = PostgresTaskStateStore(connection_factory=lambda: connection)
+        fast = AgentRunner(IndexService()).run("8080 端口被占用，应该怎么排查？", "sample-data", project_id="sample-data")
+        slow = AgentRunner(IndexService()).run("Laravel 登录后还是 401 怎么办？", "sample-data", project_id="sample-data")
+        fast.usage.runtime_ms = 10
+        slow.usage.runtime_ms = 900
+        slow.status = "failed"
+        store.save(fast)
+        store.save(slow)
+
+        items = store.list(
+            project_id="sample-data",
+            statuses={"failed"},
+            sort_by="runtime_ms",
+            sort_order="desc",
+            limit=10,
+        )
+
+        self.assertEqual([slow.task_id], [item["task_id"] for item in items])

@@ -46,6 +46,22 @@ def task_summary(state: AgentState) -> dict[str, object]:
     }
 
 
+def _validate_list_options(
+    statuses: set[str] | None,
+    sort_by: str,
+    sort_order: str,
+    limit: int,
+) -> None:
+    if limit < 1:
+        raise TaskStateError("limit must be positive")
+    if sort_by not in {"updated_at", "runtime_ms"}:
+        raise TaskStateError("sort_by must be updated_at or runtime_ms")
+    if sort_order not in {"asc", "desc"}:
+        raise TaskStateError("sort_order must be asc or desc")
+    if statuses is not None and any(not status.strip() for status in statuses):
+        raise TaskStateError("status filter contains an empty value")
+
+
 class FileTaskStateStore:
     """Persist explicit Agent snapshots under one project-relative directory."""
 
@@ -73,15 +89,21 @@ class FileTaskStateStore:
         except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
             raise TaskStateError("task state is invalid") from exc
 
-    def list(self, project_id: str | None = None, limit: int = 50) -> list[dict[str, object]]:
+    def list(
+        self,
+        project_id: str | None = None,
+        limit: int = 50,
+        statuses: set[str] | None = None,
+        sort_by: str = "updated_at",
+        sort_order: str = "desc",
+    ) -> list[dict[str, object]]:
         """List persisted task summaries newest-first without loading full answers into the API."""
 
-        if limit < 1:
-            raise TaskStateError("limit must be positive")
+        _validate_list_options(statuses, sort_by, sort_order, limit)
         if not self.root.is_dir():
             return []
-        summaries: list[dict[str, object]] = []
-        for path in sorted(self.root.glob("*.json"), key=lambda item: item.stat().st_mtime, reverse=True):
+        records: list[tuple[float, AgentState]] = []
+        for path in self.root.glob("*.json"):
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
                 state = AgentState.from_dict(payload)
@@ -89,9 +111,14 @@ class FileTaskStateStore:
                 raise TaskStateError("task state is invalid") from exc
             if project_id and state.project_id != project_id:
                 continue
-            summaries.append(task_summary(state))
-            if len(summaries) >= limit:
-                break
+            if statuses and state.status not in statuses:
+                continue
+            records.append((path.stat().st_mtime, state))
+        if sort_by == "runtime_ms":
+            records.sort(key=lambda item: item[1].usage.runtime_ms, reverse=sort_order == "desc")
+        else:
+            records.sort(key=lambda item: item[0], reverse=sort_order == "desc")
+        summaries = [task_summary(state) for _, state in records[:limit]]
         return summaries
 
     def _path_for(self, task_id: str) -> Path:
@@ -244,34 +271,46 @@ class PostgresTaskStateStore:
         finally:
             connection.close()
 
-    def list(self, project_id: str | None = None, limit: int = 50) -> list[dict[str, object]]:
+    def list(
+        self,
+        project_id: str | None = None,
+        limit: int = 50,
+        statuses: set[str] | None = None,
+        sort_by: str = "updated_at",
+        sort_order: str = "desc",
+    ) -> list[dict[str, object]]:
         """List task summaries ordered by the durable update timestamp."""
 
-        if limit < 1:
-            raise TaskStateError("limit must be positive")
+        _validate_list_options(statuses, sort_by, sort_order, limit)
         self._ensure_initialized()
         connection = self._connect()
         try:
             with connection.cursor() as cursor:
+                clauses: list[str] = []
+                params: list[object] = []
                 if project_id:
-                    cursor.execute(
-                        """
-                        SELECT payload FROM agent_tasks
-                        WHERE payload->>'project_id' = %s
-                        ORDER BY updated_at DESC
-                        LIMIT %s
-                        """,
-                        (project_id, limit),
-                    )
-                else:
-                    cursor.execute(
-                        """
-                        SELECT payload FROM agent_tasks
-                        ORDER BY updated_at DESC
-                        LIMIT %s
-                        """,
-                        (limit,),
-                    )
+                    clauses.append("payload->>'project_id' = %s")
+                    params.append(project_id)
+                if statuses:
+                    placeholders = ", ".join("%s" for _ in statuses)
+                    clauses.append(f"payload->>'status' IN ({placeholders})")
+                    params.extend(sorted(statuses))
+                where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+                order_expression = (
+                    "(payload->'usage'->>'runtime_ms')::int"
+                    if sort_by == "runtime_ms"
+                    else "updated_at"
+                )
+                direction = sort_order.upper()
+                cursor.execute(
+                    f"""
+                    SELECT payload FROM agent_tasks
+                    {where_clause}
+                    ORDER BY {order_expression} {direction}
+                    LIMIT %s
+                    """,
+                    (*params, limit),
+                )
                 rows = cursor.fetchall()
             summaries: list[dict[str, object]] = []
             for (payload,) in rows:

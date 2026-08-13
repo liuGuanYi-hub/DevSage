@@ -585,6 +585,75 @@ class ApiTests(unittest.TestCase):
             if task_directory.is_dir() and not any(task_directory.iterdir()):
                 task_directory.rmdir()
 
+    def test_agent_task_history_supports_status_filter_and_runtime_sort(self) -> None:
+        response = self.client.post(
+            "/api/agent/run",
+            json={
+                "source_root": "sample-data",
+                "query": "8080 端口被占用，应该怎么排查？",
+                "project_id": "sample-data",
+                "persist": True,
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        task_id = response.json()["task_id"]
+        task_path = PROJECT_ROOT / "data" / "task-state" / f"{task_id}.json"
+        try:
+            history = self.client.get(
+                "/api/agent/tasks",
+                headers={"X-DevSage-Actor": "local-viewer"},
+                params={
+                    "project_id": "sample-data",
+                    "status": "completed",
+                    "sort_by": "runtime_ms",
+                    "sort_order": "desc",
+                },
+            )
+            self.assertEqual(200, history.status_code)
+            self.assertTrue(history.json()["items"])
+            self.assertTrue(all(item["status"] == "completed" for item in history.json()["items"]))
+        finally:
+            if task_path.is_file():
+                task_path.unlink()
+            task_directory = task_path.parent
+            if task_directory.is_dir() and not any(task_directory.iterdir()):
+                task_directory.rmdir()
+
+    def test_agent_task_batch_rerun_creates_a_new_persisted_record(self) -> None:
+        response = self.client.post(
+            "/api/agent/run",
+            json={
+                "source_root": "sample-data",
+                "query": "用户接口入口在哪个类？",
+                "project_id": "sample-data",
+                "persist": True,
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        task_id = response.json()["task_id"]
+        task_paths = {PROJECT_ROOT / "data" / "task-state" / f"{task_id}.json"}
+        try:
+            batch = self.client.post(
+                "/api/agent/tasks/batch",
+                headers={"X-DevSage-Actor": "local-demo"},
+                json={"task_ids": [task_id], "action": "rerun", "top_k": 5},
+            )
+            self.assertEqual(200, batch.status_code)
+            payload = batch.json()
+            self.assertEqual("rerun", payload["action"])
+            self.assertEqual([], payload["failures"])
+            self.assertEqual(1, len(payload["items"]))
+            rerun_id = payload["items"][0]["task_id"]
+            self.assertNotEqual(task_id, rerun_id)
+            task_paths.add(PROJECT_ROOT / "data" / "task-state" / f"{rerun_id}.json")
+        finally:
+            for task_path in task_paths:
+                if task_path.is_file():
+                    task_path.unlink()
+            task_directory = PROJECT_ROOT / "data" / "task-state"
+            if task_directory.is_dir() and not any(task_directory.iterdir()):
+                task_directory.rmdir()
+
     def test_agent_endpoint_returns_structured_troubleshooting_report(self) -> None:
         response = self.client.post(
             "/api/agent/run",

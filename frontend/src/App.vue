@@ -5,6 +5,7 @@ import {
   approveIssueWrite,
   approveCodeChange,
   approveKnowledgeNote,
+  batchAgentTasks,
   getHealth,
   getAgentTask,
   getAuthToken,
@@ -23,6 +24,7 @@ import {
   type AgentResponse,
   type AgentProgressEvent,
   type AgentTaskSummary,
+  type AgentTaskBatchAction,
   type CodeChangePreview,
   type HealthResponse,
   type IndexResponse,
@@ -76,6 +78,30 @@ const selectedTask = ref<AgentResponse | null>(null);
 const isLoadingTasks = ref(false);
 const taskLoadError = ref("");
 const taskActionId = ref("");
+const taskStatusFilter = ref("all");
+const taskSortBy = ref<"updated_at" | "runtime_ms">("updated_at");
+const taskSortOrder = ref<"asc" | "desc">("desc");
+const selectedTaskIds = ref<string[]>([]);
+const isBatchingTasks = ref(false);
+const taskBatchStatus = ref("");
+const taskStatusOptions = [
+  { value: "all", label: "全部状态" },
+  { value: "completed", label: "已完成" },
+  { value: "insufficient_evidence", label: "证据不足" },
+  { value: "failed", label: "失败" },
+  { value: "cancelled", label: "已取消" },
+  { value: "tool_limit_reached", label: "工具上限" },
+  { value: "step_limit_reached", label: "步骤上限" },
+  { value: "task_timeout", label: "任务超时" },
+];
+const selectedResumableTaskIds = computed(() =>
+  taskRecords.value
+    .filter((task) => selectedTaskIds.value.includes(task.task_id) && task.resumable)
+    .map((task) => task.task_id),
+);
+const allVisibleTasksSelected = computed(() =>
+  taskRecords.value.length > 0 && taskRecords.value.every((task) => selectedTaskIds.value.includes(task.task_id)),
+);
 type WorkspaceViewId = "workspace" | "knowledge" | "retrieval" | "tasks" | "evaluation";
 const activeView = ref<WorkspaceViewId>("workspace");
 let agentAbortController: AbortController | null = null;
@@ -386,14 +412,62 @@ async function loadTaskRecords(): Promise<void> {
       selectedProjectId.value || undefined,
       50,
       selectedActorId.value || undefined,
+      taskStatusFilter.value === "all" ? undefined : taskStatusFilter.value,
+      taskSortBy.value,
+      taskSortOrder.value,
     );
     taskRecords.value = response.items;
+    selectedTaskIds.value = selectedTaskIds.value.filter((taskId) =>
+      response.items.some((task) => task.task_id === taskId),
+    );
+    if (selectedTask.value && !response.items.some((task) => task.task_id === selectedTask.value?.task_id)) {
+      selectedTask.value = null;
+    }
     backendHealth.value = "online";
   } catch (error) {
     taskLoadError.value = readableError(error);
     backendHealth.value = "offline";
   } finally {
     isLoadingTasks.value = false;
+  }
+}
+
+function toggleSelectAllTasks(): void {
+  selectedTaskIds.value = allVisibleTasksSelected.value
+    ? []
+    : taskRecords.value.map((task) => task.task_id);
+}
+
+async function batchManageTasks(action: AgentTaskBatchAction): Promise<void> {
+  if (isBatchingTasks.value || !can("agent")) return;
+  const taskIds = action === "resume"
+    ? selectedResumableTaskIds.value
+    : selectedTaskIds.value;
+  if (!taskIds.length) return;
+  if (action === "rerun" && !window.confirm(`将重新运行 ${taskIds.length} 个任务并创建新的任务记录，是否继续？`)) {
+    return;
+  }
+  isBatchingTasks.value = true;
+  taskBatchStatus.value = "";
+  taskLoadError.value = "";
+  try {
+    const response = await batchAgentTasks(
+      taskIds,
+      action,
+      5,
+      selectedActorId.value || undefined,
+    );
+    const successCount = response.items.length;
+    const failureCount = response.failures.length;
+    taskBatchStatus.value = failureCount
+      ? `已处理 ${successCount} 个，${failureCount} 个失败：${response.failures[0]?.detail ?? "请查看任务状态"}`
+      : `已处理 ${successCount} 个任务`;
+    selectedTaskIds.value = [];
+    await loadTaskRecords();
+  } catch (error) {
+    taskLoadError.value = readableError(error);
+  } finally {
+    isBatchingTasks.value = false;
   }
 }
 
@@ -707,6 +781,8 @@ function resetScopeState() {
   taskRecords.value = [];
   selectedTask.value = null;
   taskLoadError.value = "";
+  selectedTaskIds.value = [];
+  taskBatchStatus.value = "";
 }
 
 async function handleProjectChange() {
@@ -1253,6 +1329,44 @@ onMounted(async () => {
               </button>
             </div>
 
+            <div class="task-filter-bar" aria-label="任务筛选与排序">
+              <label>
+                <span>状态</span>
+                <select v-model="taskStatusFilter" aria-label="任务状态筛选" @change="loadTaskRecords">
+                  <option v-for="option in taskStatusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                </select>
+              </label>
+              <label>
+                <span>排序</span>
+                <select v-model="taskSortBy" aria-label="任务排序字段" @change="loadTaskRecords">
+                  <option value="updated_at">最新更新时间</option>
+                  <option value="runtime_ms">耗时</option>
+                </select>
+              </label>
+              <label>
+                <span>顺序</span>
+                <select v-model="taskSortOrder" aria-label="任务排序顺序" @change="loadTaskRecords">
+                  <option value="desc">从高到低 / 最新</option>
+                  <option value="asc">从低到高 / 最早</option>
+                </select>
+              </label>
+              <span class="task-filter-count">当前列表 {{ taskRecords.length }} 条</span>
+            </div>
+
+            <div v-if="can('agent') && taskRecords.length" class="task-batch-toolbar">
+              <button type="button" class="secondary-button" @click="toggleSelectAllTasks">
+                {{ allVisibleTasksSelected ? "清除选择" : "全选当前列表" }}
+              </button>
+              <span>已选择 {{ selectedTaskIds.length }} 条</span>
+              <button type="button" @click="batchManageTasks('resume')" :disabled="isBatchingTasks || !selectedResumableTaskIds.length">
+                {{ isBatchingTasks ? "处理中…" : `批量恢复（${selectedResumableTaskIds.length}）` }}
+              </button>
+              <button type="button" class="secondary-button" @click="batchManageTasks('rerun')" :disabled="isBatchingTasks || !selectedTaskIds.length">
+                批量重新运行
+              </button>
+              <span v-if="taskBatchStatus" class="task-batch-status" role="status">{{ taskBatchStatus }}</span>
+            </div>
+
             <div v-if="isLoadingTasks" class="task-state-card" role="status">正在读取任务记录…</div>
             <div v-else-if="taskLoadError" class="task-state-card task-state-error" role="alert">
               <strong>任务记录读取失败</strong>
@@ -1268,6 +1382,10 @@ onMounted(async () => {
               <div class="task-record-list">
                 <article v-for="task in taskRecords" :key="task.task_id" class="task-record-card" :class="{ selected: selectedTask?.task_id === task.task_id }">
                   <div class="task-record-head">
+                    <label v-if="can('agent')" class="task-select-control">
+                      <input v-model="selectedTaskIds" type="checkbox" :value="task.task_id" :aria-label="`选择任务 ${task.task_id}`">
+                      <span>选择</span>
+                    </label>
                     <span class="task-status" :class="`task-status-${task.status}`">{{ task.status }}</span>
                     <small>{{ task.category }}</small>
                   </div>
@@ -1566,6 +1684,13 @@ body { margin: 0; }
 .task-history-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid #d7e3ef; border-radius: 16px; background: #f8fbff; }
 .task-history-toolbar h3 { margin: 6px 0 4px; color: #1d3555; font-size: 1.25rem; }
 .task-history-toolbar p { margin: 0; color: #68788d; line-height: 1.5; }
+.task-filter-bar, .task-batch-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 14px; border: 1px solid #d7e3ef; border-radius: 12px; background: #ffffff; color: #526176; font-size: 0.84rem; }
+.task-filter-bar label { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; }
+.task-filter-bar select { padding: 7px 9px; font-size: 0.82rem; }
+.task-filter-count { margin-left: auto; color: #7890aa; }
+.task-batch-toolbar { background: #f8fbff; }
+.task-batch-toolbar > span { color: #68788d; }
+.task-batch-status { flex: 1 1 260px; color: #315e8c !important; overflow-wrap: anywhere; }
 .task-state-card { display: grid; gap: 8px; justify-items: start; padding: 24px; border: 1px dashed #b8cde3; border-radius: 14px; color: #526176; background: #fbfdff; line-height: 1.5; }
 .task-state-card strong { color: #1d3555; }
 .task-state-error { border-color: #e0a0a0; color: #8b3030; background: #fff5f5; }
@@ -1575,6 +1700,8 @@ body { margin: 0; }
 .task-record-card.selected { border-color: #6d9dcc; box-shadow: 0 0 0 3px #e8f2fc; }
 .task-record-head, .task-record-meta, .task-record-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .task-record-head { justify-content: space-between; color: #7890aa; }
+.task-select-control { display: inline-flex; align-items: center; gap: 5px; margin-right: auto; color: #526176; font-size: 0.78rem; font-weight: 700; }
+.task-select-control input { flex: 0 0 auto; width: 15px; height: 15px; margin: 0; }
 .task-record-card > strong { color: #26384f; line-height: 1.45; }
 .task-record-id { color: #7890aa; overflow-wrap: anywhere; }
 .task-record-meta { color: #68788d; font-size: 0.8rem; }
