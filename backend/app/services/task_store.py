@@ -28,6 +28,24 @@ class TaskStateStorageError(TaskStateError):
     """Raised when the configured task-state database is unavailable."""
 
 
+def task_summary(state: AgentState) -> dict[str, object]:
+    """Return a safe, lightweight task record for history screens."""
+
+    return {
+        "task_id": state.task_id,
+        "query": state.query,
+        "source_root": state.source_root,
+        "project_id": state.project_id,
+        "category": state.category,
+        "status": state.status,
+        "tool_calls": len(state.tool_calls),
+        "step_count": len(state.steps),
+        "runtime_ms": state.usage.runtime_ms,
+        "evidence_count": len(state.evidence),
+        "resumable": state.status in {"tool_limit_reached", "step_limit_reached", "task_timeout"},
+    }
+
+
 class FileTaskStateStore:
     """Persist explicit Agent snapshots under one project-relative directory."""
 
@@ -54,6 +72,27 @@ class FileTaskStateStore:
             return AgentState.from_dict(payload)
         except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
             raise TaskStateError("task state is invalid") from exc
+
+    def list(self, project_id: str | None = None, limit: int = 50) -> list[dict[str, object]]:
+        """List persisted task summaries newest-first without loading full answers into the API."""
+
+        if limit < 1:
+            raise TaskStateError("limit must be positive")
+        if not self.root.is_dir():
+            return []
+        summaries: list[dict[str, object]] = []
+        for path in sorted(self.root.glob("*.json"), key=lambda item: item.stat().st_mtime, reverse=True):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                state = AgentState.from_dict(payload)
+            except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+                raise TaskStateError("task state is invalid") from exc
+            if project_id and state.project_id != project_id:
+                continue
+            summaries.append(task_summary(state))
+            if len(summaries) >= limit:
+                break
+        return summaries
 
     def _path_for(self, task_id: str) -> Path:
         if not self._TASK_ID_PATTERN.fullmatch(task_id):
@@ -202,6 +241,50 @@ class PostgresTaskStateStore:
             raise TaskStateError("task state is invalid") from exc
         except Exception as exc:
             raise TaskStateStorageError("PostgreSQL task state load failed") from exc
+        finally:
+            connection.close()
+
+    def list(self, project_id: str | None = None, limit: int = 50) -> list[dict[str, object]]:
+        """List task summaries ordered by the durable update timestamp."""
+
+        if limit < 1:
+            raise TaskStateError("limit must be positive")
+        self._ensure_initialized()
+        connection = self._connect()
+        try:
+            with connection.cursor() as cursor:
+                if project_id:
+                    cursor.execute(
+                        """
+                        SELECT payload FROM agent_tasks
+                        WHERE payload->>'project_id' = %s
+                        ORDER BY updated_at DESC
+                        LIMIT %s
+                        """,
+                        (project_id, limit),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        SELECT payload FROM agent_tasks
+                        ORDER BY updated_at DESC
+                        LIMIT %s
+                        """,
+                        (limit,),
+                    )
+                rows = cursor.fetchall()
+            summaries: list[dict[str, object]] = []
+            for (payload,) in rows:
+                if isinstance(payload, str):
+                    payload = json.loads(payload)
+                if not isinstance(payload, dict):
+                    raise ValueError("task payload must be an object")
+                summaries.append(task_summary(AgentState.from_dict(payload)))
+            return summaries
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            raise TaskStateError("task state is invalid") from exc
+        except Exception as exc:
+            raise TaskStateStorageError("PostgreSQL task history load failed") from exc
         finally:
             connection.close()
 

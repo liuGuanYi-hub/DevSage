@@ -554,6 +554,37 @@ class ApiTests(unittest.TestCase):
             if task_directory.is_dir() and not any(task_directory.iterdir()):
                 task_directory.rmdir()
 
+    def test_agent_task_history_lists_persisted_tasks(self) -> None:
+        response = self.client.post(
+            "/api/agent/run",
+            json={
+                "source_root": "sample-data",
+                "query": "用户接口入口在哪个类？",
+                "project_id": "sample-data",
+                "persist": True,
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        task_id = response.json()["task_id"]
+        task_path = PROJECT_ROOT / "data" / "task-state" / f"{task_id}.json"
+        try:
+            history = self.client.get(
+                "/api/agent/tasks",
+                headers={"X-DevSage-Actor": "local-viewer"},
+                params={"project_id": "sample-data"},
+            )
+            self.assertEqual(200, history.status_code)
+            payload = history.json()
+            self.assertGreaterEqual(payload["total"], 1)
+            self.assertTrue(any(item["task_id"] == task_id for item in payload["items"]))
+            self.assertIn("resumable", payload["items"][0])
+        finally:
+            if task_path.is_file():
+                task_path.unlink()
+            task_directory = task_path.parent
+            if task_directory.is_dir() and not any(task_directory.iterdir()):
+                task_directory.rmdir()
+
     def test_agent_endpoint_returns_structured_troubleshooting_report(self) -> None:
         response = self.client.post(
             "/api/agent/run",

@@ -138,6 +138,25 @@ export interface AgentResponse extends AnswerResponse {
   key_steps: string[];
 }
 
+export interface AgentTaskSummary {
+  task_id: string;
+  query: string;
+  source_root: string;
+  project_id: string | null;
+  category: string;
+  status: string;
+  tool_calls: number;
+  step_count: number;
+  runtime_ms: number;
+  evidence_count: number;
+  resumable: boolean;
+}
+
+export interface AgentTaskListResponse {
+  items: AgentTaskSummary[];
+  total: number;
+}
+
 export interface AgentProgressEvent {
   task_id: string;
   status: string;
@@ -338,6 +357,35 @@ export function runAgent(
   return request<AgentResponse>("/api/agent/run", {
     method: "POST",
     body: JSON.stringify({ query, source_root: sourceRoot, top_k: topK, project_id: projectId }),
+  }, actorId, AGENT_REQUEST_TIMEOUT_MS);
+}
+
+export function listAgentTasks(
+  projectId?: string,
+  limit = 50,
+  actorId?: string,
+): Promise<AgentTaskListResponse> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (projectId) params.set("project_id", projectId);
+  return request<AgentTaskListResponse>(`/api/agent/tasks?${params.toString()}`, {
+    method: "GET",
+  }, actorId);
+}
+
+export function getAgentTask(taskId: string, actorId?: string): Promise<AgentResponse> {
+  return request<AgentResponse>(`/api/agent/tasks/${encodeURIComponent(taskId)}`, {
+    method: "GET",
+  }, actorId, AGENT_REQUEST_TIMEOUT_MS);
+}
+
+export function resumeAgentTask(
+  taskId: string,
+  topK = 5,
+  actorId?: string,
+): Promise<AgentResponse> {
+  return request<AgentResponse>(`/api/agent/tasks/${encodeURIComponent(taskId)}/resume`, {
+    method: "POST",
+    body: JSON.stringify({ top_k: topK }),
   }, actorId, AGENT_REQUEST_TIMEOUT_MS);
 }
 

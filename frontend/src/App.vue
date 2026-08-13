@@ -6,19 +6,23 @@ import {
   approveCodeChange,
   approveKnowledgeNote,
   getHealth,
+  getAgentTask,
   getAuthToken,
   getIndexStatus,
   indexSource,
   login,
+  listAgentTasks,
   listProjects,
   previewCodeChange,
   previewIssueWrite,
   previewKnowledgeNote,
+  resumeAgentTask,
   isAgentStreamCancelled,
   streamAgent,
   setAuthToken,
   type AgentResponse,
   type AgentProgressEvent,
+  type AgentTaskSummary,
   type CodeChangePreview,
   type HealthResponse,
   type IndexResponse,
@@ -67,6 +71,11 @@ const authUsername = ref("");
 const showExecutionDetails = ref(false);
 const agentPhase = ref("");
 const agentProgressSteps = ref<AgentProgressEvent[]>([]);
+const taskRecords = ref<AgentTaskSummary[]>([]);
+const selectedTask = ref<AgentResponse | null>(null);
+const isLoadingTasks = ref(false);
+const taskLoadError = ref("");
+const taskActionId = ref("");
 type WorkspaceViewId = "workspace" | "knowledge" | "retrieval" | "tasks" | "evaluation";
 const activeView = ref<WorkspaceViewId>("workspace");
 let agentAbortController: AbortController | null = null;
@@ -181,6 +190,10 @@ const projectMismatch = computed(() => {
 
 const answerBlocks = computed<MarkdownBlock[]>(() =>
   answer.value ? renderMarkdown(answer.value.answer) : [],
+);
+
+const selectedTaskBlocks = computed<MarkdownBlock[]>(() =>
+  selectedTask.value ? renderMarkdown(selectedTask.value.answer) : [],
 );
 
 const keySteps = computed<string[]>(() => {
@@ -353,12 +366,66 @@ function toggleExecutionDetails(event: Event): void {
   showExecutionDetails.value = (event.target as HTMLDetailsElement).open;
 }
 
-function selectWorkspaceView(viewId: WorkspaceViewId): void {
+async function selectWorkspaceView(viewId: WorkspaceViewId): Promise<void> {
   activeView.value = viewId;
+  if (viewId === "tasks") {
+    await loadTaskRecords();
+  }
 }
 
 function stopAgentProgress(): void {
   agentPhase.value = "";
+}
+
+async function loadTaskRecords(): Promise<void> {
+  if (isLoadingTasks.value) return;
+  isLoadingTasks.value = true;
+  taskLoadError.value = "";
+  try {
+    const response = await listAgentTasks(
+      selectedProjectId.value || undefined,
+      50,
+      selectedActorId.value || undefined,
+    );
+    taskRecords.value = response.items;
+    backendHealth.value = "online";
+  } catch (error) {
+    taskLoadError.value = readableError(error);
+    backendHealth.value = "offline";
+  } finally {
+    isLoadingTasks.value = false;
+  }
+}
+
+async function openTaskRecord(taskId: string): Promise<void> {
+  if (taskActionId.value) return;
+  taskActionId.value = taskId;
+  taskLoadError.value = "";
+  try {
+    selectedTask.value = await getAgentTask(taskId, selectedActorId.value || undefined);
+  } catch (error) {
+    taskLoadError.value = readableError(error);
+  } finally {
+    taskActionId.value = "";
+  }
+}
+
+async function resumeTaskRecord(taskId: string): Promise<void> {
+  if (taskActionId.value || !can("agent")) return;
+  taskActionId.value = taskId;
+  taskLoadError.value = "";
+  try {
+    selectedTask.value = await resumeAgentTask(
+      taskId,
+      5,
+      selectedActorId.value || undefined,
+    );
+    await loadTaskRecords();
+  } catch (error) {
+    taskLoadError.value = readableError(error);
+  } finally {
+    taskActionId.value = "";
+  }
 }
 
 async function chooseExample(exampleQuery: string, projectId?: string): Promise<void> {
@@ -637,6 +704,9 @@ function resetScopeState() {
   writebackStatus.value = "";
   codeWritebackStatus.value = "";
   issueWriteStatus.value = "";
+  taskRecords.value = [];
+  selectedTask.value = null;
+  taskLoadError.value = "";
 }
 
 async function handleProjectChange() {
@@ -1171,7 +1241,91 @@ onMounted(async () => {
       <p v-else class="empty-state">输入问题后查看带来源引用的检索证据。</p>
           </div>
 
-          <div v-else class="workspace-placeholder">
+          <section v-else-if="activeView === 'tasks'" class="task-history-page" aria-label="Agent 任务记录">
+            <div class="task-history-toolbar">
+              <div>
+                <span class="eyebrow">TASK HISTORY</span>
+                <h3>已持久化的 Agent 任务</h3>
+                <p>按当前项目查看排查记录；打开任务可回看答案、引用和执行步骤。</p>
+              </div>
+              <button type="button" class="secondary-button" @click="loadTaskRecords" :disabled="isLoadingTasks">
+                {{ isLoadingTasks ? "读取中…" : "刷新记录" }}
+              </button>
+            </div>
+
+            <div v-if="isLoadingTasks" class="task-state-card" role="status">正在读取任务记录…</div>
+            <div v-else-if="taskLoadError" class="task-state-card task-state-error" role="alert">
+              <strong>任务记录读取失败</strong>
+              <span>{{ taskLoadError }}</span>
+              <button type="button" class="secondary-button" @click="loadTaskRecords">重新尝试</button>
+            </div>
+            <div v-else-if="!taskRecords.length" class="task-state-card">
+              <strong>当前项目还没有持久化任务</strong>
+              <span>回到工作台提交一次问题，完成后的 Agent 任务会自动出现在这里。</span>
+              <button type="button" @click="selectWorkspaceView('workspace')">返回工作台</button>
+            </div>
+            <div v-else class="task-history-layout">
+              <div class="task-record-list">
+                <article v-for="task in taskRecords" :key="task.task_id" class="task-record-card" :class="{ selected: selectedTask?.task_id === task.task_id }">
+                  <div class="task-record-head">
+                    <span class="task-status" :class="`task-status-${task.status}`">{{ task.status }}</span>
+                    <small>{{ task.category }}</small>
+                  </div>
+                  <strong>{{ task.query }}</strong>
+                  <small class="task-record-id">{{ task.task_id }} · {{ task.runtime_ms }}ms</small>
+                  <div class="task-record-meta">
+                    <span>{{ task.step_count }} 步骤</span>
+                    <span>{{ task.tool_calls }} 工具</span>
+                    <span>{{ task.evidence_count }} 条证据</span>
+                  </div>
+                  <div class="task-record-actions">
+                    <button type="button" class="secondary-button" @click="openTaskRecord(task.task_id)" :disabled="Boolean(taskActionId)">
+                      {{ taskActionId === task.task_id ? "打开中…" : "查看详情" }}
+                    </button>
+                    <button v-if="task.resumable && can('agent')" type="button" @click="resumeTaskRecord(task.task_id)" :disabled="Boolean(taskActionId)">
+                      {{ taskActionId === task.task_id ? "恢复中…" : "恢复任务" }}
+                    </button>
+                  </div>
+                </article>
+              </div>
+
+              <article v-if="selectedTask" class="task-detail-card">
+                <div class="result-meta">
+                  <strong>任务详情</strong>
+                  <span>{{ selectedTask.status }} · {{ selectedTask.task_id }}</span>
+                </div>
+                <h3>{{ selectedTask.query }}</h3>
+                <div class="markdown-content task-detail-answer">
+                  <template v-for="(block, index) in selectedTaskBlocks" :key="`task-answer-${index}`">
+                    <h4 v-if="block.type === 'heading'" v-html="block.html"></h4>
+                    <p v-else-if="block.type === 'paragraph'" v-html="block.html"></p>
+                    <blockquote v-else-if="block.type === 'quote'" v-html="block.html"></blockquote>
+                    <component v-else-if="block.type === 'list'" :is="block.ordered ? 'ol' : 'ul'">
+                      <li v-for="(item, itemIndex) in block.items" :key="`task-item-${index}-${itemIndex}`" v-html="item"></li>
+                    </component>
+                    <pre v-else-if="block.type === 'code'"><code>{{ block.code }}</code></pre>
+                  </template>
+                </div>
+                <div v-if="selectedTask.citations.length" class="task-detail-section">
+                  <span class="eyebrow">GROUNDING</span>
+                  <strong>引用证据</strong>
+                  <ul>
+                    <li v-for="citation in selectedTask.citations" :key="citation">{{ citation }}</li>
+                  </ul>
+                </div>
+                <details class="execution-details">
+                  <summary>执行步骤 · {{ selectedTask.steps.length }} 步</summary>
+                  <ol class="agent-steps">
+                    <li v-for="step in selectedTask.steps" :key="`${step.name}-${step.status}`">
+                      <strong>{{ step.name }}</strong> · {{ step.status }} · {{ step.detail }}
+                    </li>
+                  </ol>
+                </details>
+              </article>
+            </div>
+          </section>
+
+          <div v-else-if="activeView !== 'tasks'" class="workspace-placeholder">
             <span class="eyebrow">NEXT BUILD</span>
             <h3>{{ activeViewMeta.label }}页面骨架已就位</h3>
             <p>{{ activeViewMeta.description }}会在后续阶段接入真实数据和操作。当前项目上下文、权限和索引状态仍保持可见。</p>
@@ -1408,6 +1562,34 @@ body { margin: 0; }
 }
 .workspace-placeholder h3 { margin: 8px 0; color: #1d3555; font-size: 1.45rem; }
 .workspace-placeholder > p { max-width: 680px; color: #526176; line-height: 1.7; }
+.task-history-page { display: grid; gap: 16px; }
+.task-history-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid #d7e3ef; border-radius: 16px; background: #f8fbff; }
+.task-history-toolbar h3 { margin: 6px 0 4px; color: #1d3555; font-size: 1.25rem; }
+.task-history-toolbar p { margin: 0; color: #68788d; line-height: 1.5; }
+.task-state-card { display: grid; gap: 8px; justify-items: start; padding: 24px; border: 1px dashed #b8cde3; border-radius: 14px; color: #526176; background: #fbfdff; line-height: 1.5; }
+.task-state-card strong { color: #1d3555; }
+.task-state-error { border-color: #e0a0a0; color: #8b3030; background: #fff5f5; }
+.task-history-layout { display: grid; grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.35fr); align-items: start; gap: 16px; }
+.task-record-list { display: grid; gap: 10px; }
+.task-record-card { display: grid; gap: 9px; padding: 15px; border: 1px solid #d7e3ef; border-radius: 14px; background: #ffffff; }
+.task-record-card.selected { border-color: #6d9dcc; box-shadow: 0 0 0 3px #e8f2fc; }
+.task-record-head, .task-record-meta, .task-record-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.task-record-head { justify-content: space-between; color: #7890aa; }
+.task-record-card > strong { color: #26384f; line-height: 1.45; }
+.task-record-id { color: #7890aa; overflow-wrap: anywhere; }
+.task-record-meta { color: #68788d; font-size: 0.8rem; }
+.task-record-actions { margin-top: 2px; }
+.task-record-actions button { padding: 7px 10px; font-size: 0.82rem; }
+.task-status { display: inline-flex; padding: 4px 8px; border-radius: 999px; color: #315e8c; background: #e8f2fc; font-size: 0.75rem; font-weight: 700; }
+.task-status-completed { color: #276749; background: #e8f7ee; }
+.task-status-insufficient_evidence, .task-status-cancelled { color: #765b00; background: #fff4c2; }
+.task-status-failed { color: #9b2c2c; background: #fff0f0; }
+.task-detail-card { display: grid; gap: 14px; padding: 20px; border: 1px solid #c8d8ec; border-radius: 16px; background: #ffffff; }
+.task-detail-card h3 { margin: 0; color: #1d3555; line-height: 1.4; }
+.task-detail-answer { max-height: 360px; overflow: auto; }
+.task-detail-section { display: grid; gap: 7px; padding-top: 12px; border-top: 1px solid #e2eaf2; }
+.task-detail-section ul { margin: 0; padding-left: 20px; }
+.task-detail-section li { color: #526176; overflow-wrap: anywhere; }
 .placeholder-grid { display: grid; gap: 10px; margin-top: 24px; }
 .placeholder-grid article {
   display: flex;
@@ -1605,12 +1787,14 @@ li { margin: 8px 0; line-height: 1.5; }
   .workspace-view-heading { align-items: flex-start; flex-direction: column; }
   .workspace-view-status { max-width: 100%; text-align: left; }
   .workspace-placeholder { min-height: 0; padding: 20px; }
+  .task-history-layout { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {
   .search-box { align-items: stretch; flex-direction: column; }
   .search-box button { width: 100%; }
   .request-error { align-items: stretch; flex-direction: column; }
+  .task-history-toolbar { align-items: stretch; flex-direction: column; }
   .agent-progress { align-items: flex-start; flex-wrap: wrap; }
   .agent-progress small { width: 100%; margin-left: 23px; }
   .agent-cancel-button { margin-left: 23px; }

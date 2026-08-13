@@ -19,6 +19,25 @@ class AgentResumeRequest(BaseModel):
     top_k: int = Field(default=5, ge=1, le=20)
 
 
+class AgentTaskSummaryResponse(BaseModel):
+    task_id: str
+    query: str
+    source_root: str
+    project_id: str | None = None
+    category: str
+    status: str
+    tool_calls: int
+    step_count: int
+    runtime_ms: int
+    evidence_count: int
+    resumable: bool
+
+
+class AgentTaskListResponse(BaseModel):
+    items: list[AgentTaskSummaryResponse]
+    total: int
+
+
 class AgentStepResponse(BaseModel):
     name: str
     status: str

@@ -26,6 +26,8 @@ from .schemas.agent import (
     AgentRequest,
     AgentResumeRequest,
     AgentResponse,
+    AgentTaskListResponse,
+    AgentTaskSummaryResponse,
     AgentUsageResponse,
     AgentStepResponse,
     TroubleshootingFindingResponse,
@@ -780,6 +782,34 @@ def _agent_response(state) -> AgentResponse:
         generation_warning=draft.generation_warning,
         generation_runtime_ms=draft.generation_runtime_ms,
     )
+
+
+@app.get("/api/agent/tasks", response_model=AgentTaskListResponse, tags=["agent"])
+def list_agent_tasks(
+    project_id: str | None = None,
+    limit: int = 50,
+    actor_id: str = Depends(resolve_actor_id),
+) -> AgentTaskListResponse:
+    """List lightweight task records visible to the current actor."""
+
+    if limit < 1 or limit > 100:
+        raise HTTPException(status_code=422, detail="limit must be between 1 and 100")
+    try:
+        if project_id:
+            _authorize_project(project_id, actor_id, "read")
+        items = task_store.list(project_id=project_id, limit=limit)
+        visible_items = []
+        for item in items:
+            item_project_id = item.get("project_id")
+            if item_project_id and not project_id:
+                try:
+                    _authorize_project(str(item_project_id), actor_id, "read")
+                except (HTTPException, ProjectRegistryError):
+                    continue
+            visible_items.append(AgentTaskSummaryResponse(**item))
+        return AgentTaskListResponse(items=visible_items, total=len(visible_items))
+    except (TaskStateStorageError, TaskStateError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.get("/api/agent/tasks/{task_id}", response_model=AgentResponse, tags=["agent"])
