@@ -1,4 +1,4 @@
-# DevSage
+# DevSage — 基于 Agentic RAG 的研发知识平台
 
 [![CI](https://github.com/liuGuanYi-hub/DevSage/actions/workflows/ci.yml/badge.svg)](https://github.com/liuGuanYi-hub/DevSage/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/liuGuanYi-hub/DevSage?display_name=tag)](https://github.com/liuGuanYi-hub/DevSage/releases)
 
@@ -6,38 +6,64 @@ DevSage 是基于 Agentic RAG 的研发知识平台；DevMind 是当前运行在
 
 > 在线演示：当前尚未部署公网实例；本地入口为 `http://127.0.0.1:5173/`。发布、截图和部署替换说明见 [DevSage 发布与在线演示说明](docs/DevSage发布与在线演示说明.md)。
 
+---
+
+## 🖼️ 界面预览
+
 ![答案反馈与引用纠错](docs/assets/feedback-loop-fixed.png)
 
-## 当前版本范围
+---
 
-- 混合检索已增加来源多样性重排，并提供离线上下文质量代理评估；代理指标不等同于真实 LLM 评审。
-- Agent 已增加来源级 grounding 评估、配置文件检索、代码路径加权、项目总结证据预算和有界工具重试；50 条问题当前 Agent Source Recall@5 为 0.9800，完整来源案例率为 0.9600。指标仍是固定脱敏数据集上的离线结果。
-- 答案 API 与上下文评估已共享分类检索路由：代码定位优先代码证据，项目总结使用多来源预算和结构化摘要，安全边界问题保留策略文档与配置模板双来源；当前上下文质量代理为 Precision@5 `0.3095`、Recall@5 `1.0000`、失败 `0/50`。Agent grounding 仍为 Source Recall@5 `0.9800`、完整来源案例率 `0.9600`，其中 2 个 `.env.example` 案例位于 `sample-data` source root 之外，Agent 会保持不越界读取。
+## ✨ 核心特性
 
-- `DevSage`：平台层，负责项目、索引、权限、任务、评测以及后续的 Git、Issue、多项目和团队协作能力；
-- `DevMind`：应用层，作为 DevSage 的个人模式和第一阶段 MVP，优先连接 Obsidian 笔记和个人项目代码，完成带证据的研发问答与故障排查；
-- 固定 75 条问题上的当前实测：纯关键词 Case Recall@5 `0.8800` / Source Recall@5 `0.7200` / MRR `0.7589`，Hash 混合加来源多样性重排 `0.9600` / `0.8800` / `0.8049`；新增口语化同义词/错误码题的期望匹配率为 `1.0000`。Hash 向量和当前 reranker 都是离线可解释基线，不代表生产 Embedding 或神经 Reranker 效果。
-- 已接入可选的真实本地 SentenceTransformers Provider，默认评测模型为中文 `BAAI/bge-small-zh-v1.5`。在同一批 75 道问题上，BGE 混合 Source Recall@5 为 `0.8867`、Case Recall@5 为 `0.9600`、MRR 为 `0.7960`；对比报告见 [local-embedding-comparison.md](evaluation/reports/local-embedding-comparison.md)。
-- 已接入可选 PostgreSQL/pgvector 索引与 Agent task state 持久化、迁移和数据库检索路径；真实 Docker 已验证 PostgreSQL/Redis 健康、索引写入、重启恢复和并发检索，数据绑定到项目 `data/docker/`。外部 Issue 已提供可选 GitHub-compatible 只读适配器，真实平台请求仍需用户配置地址、仓库和可选 Token 环境变量；LangGraph 已在项目本地虚拟环境完成可选适配 smoke。
+**平台与应用分层**
 
-## 目录结构
+- 🏢 **DevSage（平台层）**：负责项目、索引、权限、任务、评测以及后续的 Git、Issue、多项目和团队协作能力
+- 🧠 **DevMind（应用层）**：作为 DevSage 的个人模式和第一阶段 MVP，优先连接 Obsidian 笔记和个人项目代码，完成带证据的研发问答与故障排查
 
-```text
-DevSage/
-├── backend/                 # FastAPI 后端和未来的核心服务
-├── frontend/                # Vue 3 前端骨架
-├── evaluation/              # 75 条测试问题、评估脚本和报告
-├── sample-data/             # 脱敏文档、代码和配置样例
-├── docs/                    # 项目设计文档
-├── .github/                 # CI、Issue/PR 模板和版本发布工作流
-├── DevSage长期任务路线图.md  # 持续推进的阶段任务
-├── docker-compose.yml       # PostgreSQL + pgvector 本地服务骨架与健康检查
-└── .env.example             # 非敏感配置模板
-```
+**检索与 Agent**
 
-项目展示入口：[演示与 API 手册](docs/DevSage演示与API手册.md)、[3–5 分钟演示脚本](docs/DevSage演示脚本.md)、[系统架构图](docs/diagrams/devsage-architecture.html)、[Agent 流程图](docs/diagrams/devsage-agent.html)、[交付就绪审计](docs/DevSage交付就绪审计.md)。
+- 🔀 **混合检索**：关键词 + 离线向量（Hash）混合排序，已增加来源多样性重排，并提供离线上下文质量代理评估
+- 🤖 **有限图多工具 Agent**：来源级 grounding 评估、配置文件检索、代码路径加权、项目总结证据预算和有界工具重试
+- 🧭 **分类答案检索路由**：代码定位优先代码证据，项目总结使用多来源预算和结构化摘要，安全边界问题保留策略文档与配置模板双来源
 
-## 当前验证命令
+**API 能力（当前已支持）**
+
+- 项目注册发现、索引 `sample-data`、关键词/混合证据查询、SSE 流式输出
+- 脱敏或可选外部 Issue 查询、本地 Git 历史和 Commit Diff 只读查询
+- 结构化故障排查报告、来源行号、索引变化统计
+- 知识笔记审批写回，以及项目内代码变更的 Diff 预览和 operator 批准写入
+- Agent 状态可生成 JSON 快照；API 返回不含查询正文的完成 usage（离线 token 估算、工具调用/重试次数和运行时）；工具调用、图步骤和总运行时有硬上限
+
+**存储与 Embedding**
+
+- 🗄️ **双存储模式**：离线模式默认把索引快照写入被忽略的 `data/index-snapshots/`，服务重启后按内容 Hash 复用未变化文档；PostgreSQL 模式使用数据库持久化
+- 🧮 **Embedding 三模式**：默认离线 Hash；显式 `EMBEDDING_PROVIDER=local` 加载本地 BGE/E5 类模型；显式 `EMBEDDING_PROVIDER=remote` 才联网（OpenAI-compatible 批量请求）
+- 可选 PostgreSQL/pgvector 索引与 Agent task state 持久化、迁移和数据库检索路径
+
+**答案生成与 MCP**
+
+- 📝 **AI 答案生成层**：默认离线规则模式，可选 Qwen（OpenAI-compatible）生成带证据标记的中文答案
+- 🔌 **MCP-compatible stdio Server**：无第三方依赖，暴露 `search_documents`、`search_code`、`read_file`、`get_git_history` 和 `generate_troubleshooting_report`
+
+**前端与权限**
+
+- 项目与 actor 选择、`project_id` 与 `X-DevSage-Actor` 传递、角色权限边界（`operator` 可重新索引，`viewer`/`editor` 仅查询）
+- 可编辑知识笔记草稿、代码变更草稿、Diff 预览和显式审批写入按钮；写回沿用当前项目 ID，服务端负责最终路径隔离、角色能力检查和过期 Hash 校验
+- 外部 Obsidian Vault 只读接入（逻辑项目 `obsidian-vault`，仅 `vault_viewer` 角色）
+
+**长程集成（本轮已提供）**
+
+- Redis：Memory/Redis 统一缓存边界，检索响应支持 TTL、命名空间失效和 Redis 故障降级
+- 正式认证：PBKDF2-SHA256 密码哈希、签名 Bearer Token、登录和 `/api/auth/me`（默认关闭）
+- 远程 Embedding：批量请求、超时、批大小、维度、索引连续性和有限浮点校验
+- 外部 Issue 写入：Issue 创建预览与 operator 审批接口
+
+---
+
+## 🚀 快速开始
+
+### 1. 离线验证命令
 
 离线校验无需新增依赖即可运行：
 
@@ -65,6 +91,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-offline.ps1
 该入口会串行执行交付合同审计、数据集、评估、离线 JSON/Markdown 评估报告、backend unittest、pytest、MCP、可选 LangGraph、前端构建、一键演示启动、本地 HTTP smoke、actor capability smoke 和 Compose dry-run；当前环境输出 `steps=19`，不会安装依赖，也不会执行 Docker `-Execute`。
 
 每次门禁也会确定性更新 [evaluation/reports/offline-baseline.md](evaluation/reports/offline-baseline.md) 和对应 JSON，记录数据集 SHA-256、检索策略对比、Agent grounding、工具覆盖和上下文质量代理指标。
+
+### 2. 启动后端与前端
 
 FastAPI 和 Vue 依赖可分别启动：
 
@@ -96,13 +124,19 @@ npm run dev --prefix frontend
 
 预检还会报告 `agent-browser`、`playwright-cli` 和系统浏览器是否可用；缺少浏览器工具时只保留 HTTP/HTML smoke，不会自动安装依赖。
 
-前端默认使用 Vite 代理把 `/api` 和 `/health` 转发到 `127.0.0.1:8000`；`/health` 只额外报告当前 storage、embedding 模式和外部 Issue 是否配置，不返回密钥或 URL。如需连接其他后端地址，可设置 `VITE_API_BASE_URL`。页面启动时读取 `/api/projects`，支持选择注册项目和本地 actor，并把 `project_id` 与 `X-DevSage-Actor` 传给索引、Agent 和审批接口；切换项目或 actor 时会清理旧答案、引用和待审批 Diff，避免跨项目或跨角色误读；同时展示 Agent 分类、工具调用、执行步骤、引用证据和结构化故障排查报告。
+### 3. 前端说明
+
+前端默认使用 Vite 代理把 `/api` 和 `/health` 转发到 `127.0.0.1:8000`；`/health` 只额外报告当前 storage、embedding 模式和外部 Issue 是否配置，不返回密钥或 URL。如需连接其他后端地址，可设置 `VITE_API_BASE_URL`。
+
+页面启动时读取 `/api/projects`，支持选择注册项目和本地 actor，并把 `project_id` 与 `X-DevSage-Actor` 传给索引、Agent 和审批接口；切换项目或 actor 时会清理旧答案、引用和待审批 Diff，避免跨项目或跨角色误读；同时展示 Agent 分类、工具调用、执行步骤、引用证据和结构化故障排查报告。
 
 角色切换会遵守索引权限边界：`operator` 可以重新索引工作区项目，`viewer`/`editor` 可以继续查询已有索引但不会自动触发索引请求；切换到无索引权限角色时，按钮会禁用并显示“后端在线，当前角色无索引权限”，不会把后端的 403 权限响应误报为“后端离线”。
+
 检索得到答案后，页面还提供可编辑的知识笔记草稿、代码变更草稿、Diff 预览和显式审批写入按钮；写回请求沿用当前项目 ID，服务端负责最终路径隔离、角色能力检查和过期 Hash 校验。
+
 首页输入框下方按“故障排查 / 代码定位 / 认证与权限 / Vault 知识库”展示可点击案例；Vault 案例来自当前外部知识库的真实目录、研究摄入、插件、Agent 评估、个人 AI 工作流和审计流程，点击后会自动切换到 `obsidian-vault` 只读项目并填入问题。
 
-### 外部 Obsidian Vault 只读接入
+### 4. 外部 Obsidian Vault 只读接入
 
 DevSage 支持把外部 Obsidian Vault 注册为逻辑项目 `obsidian-vault`。只需要在启动 DevSage 的 PowerShell 会话中设置 Vault 路径：
 
@@ -132,6 +166,8 @@ DEVSAGE_OBSIDIAN_VAULT_HOST_PATH=D:/zzd_project/cursor/life/Obsidian Vault
 
 Docker Vault smoke 已验证：181 个 Vault 文件、1846 个 Chunk 写入 DevSage PostgreSQL 索引，查询“Obsidian 知识库的核心目录分别负责什么？”可以返回带 Vault 相对路径和行号的真实证据。Vault 目录本身保持只读。
 
+### 5. Docker Compose 与外部 Issue
+
 执行 Docker Compose 前必须先准备本地环境变量，并确认数据库数据目录和端口范围。不要把真实密码、Token 或 `.env` 文件提交到仓库。
 
 当前 Compose 会把 DevSage 的 PostgreSQL 和 Redis 数据绑定到项目 D 盘目录：`data/docker/postgres/` 和 `data/docker/redis/`；Docker Desktop 自身的镜像缓存仍由 Docker Desktop 管理，不会迁移或覆盖已有数据。
@@ -140,11 +176,7 @@ Docker Vault smoke 已验证：181 个 Vault 文件、1846 个 Chunk 写入 DevS
 
 `scripts/smoke-docker.ps1` 默认只运行 `docker compose config --quiet`，不会创建镜像、容器或卷；后端镜像已声明 `/health` 健康检查，构建上下文会排除测试、缓存、数据目录和环境文件。确认 C 盘占用并获得许可后，才可在当前 PowerShell 会话设置 `POSTGRES_PASSWORD`、`DATABASE_URL`，再使用 `-Execute` 运行健康检查、索引写入和 Agent 查询 smoke。
 
-## 当前正在做
-
-当前 API 已支持项目注册发现、索引 `sample-data`、关键词/混合证据查询、分类答案检索路由、项目总结结构化回答、证据约束回答、SSE 流式输出、有限图多工具 Agent、脱敏或可选外部 Issue 查询、本地 Git 历史和 Commit Diff 只读查询、结构化故障排查报告、来源行号、索引变化统计、知识笔记审批写回，以及项目内代码变更的 Diff 预览和 operator 批准写入。离线模式默认把索引快照写入被忽略的 `data/index-snapshots/`，服务重启后仍可按内容 Hash 复用未变化文档；PostgreSQL 模式使用数据库持久化。Agent 状态可生成 JSON 快照，API 还返回不含查询正文的完成 usage：离线 token 估算、工具调用/重试次数和运行时；这些 token 不是供应商账单。工具调用、图步骤和总运行时有硬上限。Embedding 默认使用离线 Hash；显式配置 `EMBEDDING_PROVIDER=remote` 后才会联网，显式配置 `EMBEDDING_PROVIDER=local` 才会加载本地 BGE/E5 类模型。另提供无第三方依赖的 MCP-compatible stdio Server。
-
-### AI 答案生成层
+### 6. AI 答案生成层（可选 Qwen）
 
 答案生成默认保持离线规则模式。显式配置 `ANSWER_GENERATION_PROVIDER=qwen` 或 `dashscope` 后，Agent 会先完成分类、检索、证据充分性检查，再调用 OpenAI-compatible Qwen 接口生成中文答案；模型必须在回答中引用 `[E1]`、`[E2]` 等证据标记，否则结果会被拒绝并回退到离线证据答案。远程调用失败、超时、响应格式错误或没有密钥时，不会影响检索结果，页面会显示回退原因。
 
@@ -158,9 +190,11 @@ $env:ANSWER_GENERATION_MODEL = "qwen3.7-flash-2026-07-15"
 $env:DASHSCOPE_API_KEY = "YOUR_NEW_DASHSCOPE_API_KEY"
 ```
 
-Docker Compose 会把上述非敏感配置和 `DASHSCOPE_API_KEY` 环境变量传给 Backend；项目 `.env` 已被 Git 忽略。为控制延迟，默认最多把 3 条高排名证据摘要发送给模型、最多生成 480 个 Token，并关闭 Qwen 思考输出；所有 5 条去重后的检索证据仍会保留在页面中供复核。可通过本地 `.env` 调整 `ANSWER_GENERATION_EVIDENCE_LIMIT`、`ANSWER_GENERATION_MAX_TOKENS` 和 `ANSWER_GENERATION_ENABLE_THINKING`。前端答案卡片会区分 `AI 生成`、`离线证据答案`、`AI 不可用·已回退离线答案` 和 `证据不足·已拦截生成`，并继续展示关键步骤、引用证据和折叠调试信息；调试信息会分别显示 Agent 总耗时和模型生成耗时。
+Docker Compose 会把上述非敏感配置和 `DASHSCOPE_API_KEY` 环境变量传给 Backend；项目 `.env` 已被 Git 忽略。为控制延迟，默认最多把 3 条高排名证据摘要发送给模型、最多生成 480 个 Token，并关闭 Qwen 思考输出；所有 5 条去重后的检索证据仍会保留在页面中供复核。可通过本地 `.env` 调整 `ANSWER_GENERATION_EVIDENCE_LIMIT`、`ANSWER_GENERATION_MAX_TOKENS` 和 `ANSWER_GENERATION_ENABLE_THINKING`。
 
-### 本地 BGE / E5 类 Embedding 对比
+前端答案卡片会区分 `AI 生成`、`离线证据答案`、`AI 不可用·已回退离线答案` 和 `证据不足·已拦截生成`，并继续展示关键步骤、引用证据和折叠调试信息；调试信息会分别显示 Agent 总耗时和模型生成耗时。
+
+### 7. 本地 BGE / E5 类 Embedding 对比
 
 本地模型运行时是可选依赖，不会进入默认离线环境。使用项目 D 盘虚拟环境安装并把模型缓存放到项目 `data/`：
 
@@ -168,13 +202,13 @@ Docker Compose 会把上述非敏感配置和 `DASHSCOPE_API_KEY` 环境变量�
 & backend/.venv/Scripts/python.exe -m pip install -r backend/requirements-local-embedding.txt
 $env:EMBEDDING_PROVIDER = "local"
 $env:LOCAL_EMBEDDING_MODEL = "BAAI/bge-small-zh-v1.5"
-$env:LOCAL_EMBEDDING_CACHE = "D:\zzd_project\cursor\hanshi  senior\DevSage\data\models"
+$env:LOCAL_EMBEDDING_CACHE = "D:\zzd_project\cursor\hanshi  senior4\DevSage\data\models"
 & backend/.venv/Scripts/python.exe evaluation/scripts/compare_embedding_providers.py
 ```
 
 Provider 采用懒加载、批量编码和进程内文本缓存；Hash 基线仍保留，方便离线回归。当前 `bge-small-zh-v1.5` 输出 512 维，而 PostgreSQL/pgvector 迁移固定为 1024 维，因此本轮本地模型用于真实内存召回对比，不会自动写入现有 PostgreSQL 索引。若要持久化本地向量，需要单独选择 1024 维模型（例如 BGE-M3）或设计数据库迁移，不能把不同维度的向量混写。
 
-### 1024 维本地模型接入 PostgreSQL
+### 8. 1024 维本地模型接入 PostgreSQL
 
 本轮已验证 `intfloat/multilingual-e5-large` 的 ONNX qint8 版本：本地输出 1024 维，和迁移中的 `embedding vector(1024)` 兼容。E5 查询与文档分别使用 `query: ` 和 `passage: ` 前缀；`IndexService` 写入 PostgreSQL 时使用文档向量，`PostgresIndexRepository` 查询时使用查询向量，避免把两类输入混用。评测结果见 [local-embedding-1024-comparison.md](evaluation/reports/local-embedding-1024-comparison.md)。
 
@@ -185,7 +219,7 @@ $env:EMBEDDING_PROVIDER = "local"
 $env:LOCAL_EMBEDDING_MODEL = "data/manual-models/multilingual-e5-large-qint8"
 $env:LOCAL_EMBEDDING_BACKEND = "onnx"
 $env:LOCAL_EMBEDDING_FILE_NAME = "model_qint8_avx512_vnni.onnx"
-$env:LOCAL_EMBEDDING_CACHE = "D:\zzd_project\cursor\hanshi  senior\DevSage\data\models"
+$env:LOCAL_EMBEDDING_CACHE = "D:\zzd_project\cursor\hanshi  senior4\DevSage\data\models"
 $env:DEVSAGE_STORAGE = "postgres"
 $env:DATABASE_URL = "postgresql://devsage:YOUR_PASSWORD@127.0.0.1:5433/devsage"
 ```
@@ -198,7 +232,7 @@ $env:DATABASE_URL = "postgresql://devsage:YOUR_PASSWORD@127.0.0.1:5433/devsage"
 .\scripts\smoke-local-embedding-postgres.ps1
 ```
 
-### Docker Backend 的 E5 GPU 模式
+### 9. Docker Backend 的 E5 GPU 模式
 
 2026-08-12 已完成 Docker Backend 的真实 GPU smoke。`.env` 使用 `EMBEDDING_PROVIDER=local`、`LOCAL_EMBEDDING_RUNTIME=gpu`、`DOCKER_GPUS=all` 和 `LOCAL_EMBEDDING_EXECUTION_PROVIDER=CUDAExecutionProvider`；Compose 将项目 `data/manual-models/multilingual-e5-large-qint8/` 以只读方式挂载到容器 `/models/`，模型和 Docker 构建数据仍位于非系统盘。
 
@@ -218,7 +252,7 @@ docker exec devsage-backend-1 python -c "import onnxruntime as ort; print(ort.ge
 
 本次验证结果包含 `TensorRTExecutionProvider`、`CUDAExecutionProvider` 和 `CPUExecutionProvider`；宿主机 RTX 4060 可见。重建索引后，PostgreSQL 中仍为 13 个文档、35 个 Chunk、1024 维向量且无空向量；浏览器页面显示 `postgres · Embedding local`，点击示例并提交问题可以返回 5 条带来源证据。没有 NVIDIA runtime 时仍可将 `LOCAL_EMBEDDING_RUNTIME=cpu`，Hash Provider 也继续作为离线降级方案。
 
-## MCP 演示
+### 10. MCP 演示
 
 从项目根目录运行：
 
@@ -230,22 +264,7 @@ python -m backend.app.mcp.server
 
 MCP 的 `search_documents`、`search_code`、`read_file` 和 `generate_troubleshooting_report` 支持可选 `project_id`；传入后由同一项目注册器解析 source root，并覆盖兼容保留的 `source_root`。`get_git_history` 仍使用显式只读的 `repository_path`。
 
-## 下一步
-
-1. 继续补充 BGE-M3 的可复现权重来源，再和当前 E5 报告做同数据集对比；
-2. 在配置测试仓库后完成外部 Issue 真实平台 smoke，并接入正式 MCP 宿主；
-3. 接入正式用户、项目和权限模型，继续保留当前本地 capability boundary；
-4. 扩充评估集并持续比较检索策略，补齐部署演示与最终交付材料。
-
-## 本轮长程集成状态
-
-- Redis：已提供 Memory/Redis 统一缓存边界，检索响应支持 TTL、命名空间失效和 Redis 故障降级；Compose 已加入 Redis 7 服务，并已通过真实容器健康与 Agent 查询 smoke。
-- 正式认证：已提供 PBKDF2-SHA256 密码哈希、签名 Bearer Token、登录和 `/api/auth/me`；默认关闭，启用时使用项目外或被忽略的用户文件，不把明文密码写入仓库。
-- 远程 Embedding：已提供 OpenAI-compatible 批量请求、超时、批大小、维度、索引连续性和有限浮点校验；只有显式选择 `EMBEDDING_PROVIDER=remote` 才会联网。
-- 本地 Embedding：已提供可选 SentenceTransformers/ONNX Provider、D 盘模型缓存、懒加载、批量编码、E5 查询/文档前缀、有限浮点校验和 Hash 对比脚本；当前 E5 qint8 已通过 1024 维检查，可进入 PostgreSQL 向量路径。
-- 外部 Issue 写入：已提供 Issue 创建预览与 operator 审批接口；预览不联网，审批前必须显式开启写入、配置仓库和 Token，当前未执行真实远程写入。
-
-### 本轮启用配置示例
+### 11. 本轮启用配置示例
 
 ```powershell
 # Redis 真实服务模式；默认离线开发仍可保持 memory
@@ -268,4 +287,77 @@ $env:EMBEDDING_API_KEY_ENV = "YOUR_EMBEDDING_KEY_ENV"
 $env:DEVSAGE_EXTERNAL_ISSUE_WRITE_ENABLED = "true"
 ```
 
-真实 Docker/PostgreSQL/Redis 和浏览器视觉回归不会由离线验证脚本自动启动；它们属于有额外磁盘和浏览器运行时成本的独立验证阶段。
+---
+
+## 📂 项目结构
+
+```text
+DevSage/
+├── backend/                 # FastAPI 后端（app / migrations / tests）
+├── frontend/                # Vue 3 前端（Vite）
+├── evaluation/              # 75 条测试问题、评估脚本和报告
+├── sample-data/             # 脱敏文档、代码和配置样例
+├── scripts/                 # 一键演示、离线验证与 smoke 脚本
+├── docs/                    # 项目设计文档与演示材料
+├── .github/                 # CI、Issue/PR 模板和版本发布工作流
+├── DevSage长期任务路线图.md  # 持续推进的阶段任务
+├── docker-compose.yml       # PostgreSQL + pgvector 本地服务骨架与健康检查
+└── .env.example             # 非敏感配置模板
+```
+
+项目展示入口：[演示与 API 手册](docs/DevSage演示与API手册.md)、[3–5 分钟演示脚本](docs/DevSage演示脚本.md)、[系统架构图](docs/diagrams/devsage-architecture.html)、[Agent 流程图](docs/diagrams/devsage-agent.html)、[交付就绪审计](docs/DevSage交付就绪审计.md)。
+
+---
+
+## 🛠️ 技术栈 / 技术原理
+
+- **前端**：Vue 3 + Vite；启动时读取 `/api/projects`，通过 `project_id` 与 `X-DevSage-Actor` 头传递项目与角色上下文
+- **后端**：Python FastAPI（`uvicorn` 启动 `app.main:app`）；MCP-compatible stdio Server 无第三方依赖
+- **检索**：关键词 + 离线 Hash 向量混合排序 + 来源多样性重排；可选本地 SentenceTransformers/ONNX（BGE/E5）或远程 OpenAI-compatible Embedding
+- **Agent**：有限图多工具 Agent，工具调用、图步骤和总运行时有硬上限；答案 API 与上下文评估共享分类检索路由
+- **存储**：内存 / 离线索引快照（内容 Hash 复用）双模式 + PostgreSQL/pgvector + Redis（TTL、命名空间失效、故障降级）
+- **基础设施**：docker-compose 提供 PostgreSQL + pgvector 与 Redis 服务骨架及健康检查；GitHub Actions CI 与版本发布工作流
+- **评估**：固定 75 条脱敏测试问题数据集，配套检索策略对比、Agent grounding、工具覆盖和上下文质量代理评估脚本
+
+---
+
+## ⚠️ 边界与当前状态
+
+**离线指标（固定脱敏数据集上的结果）**
+
+- 固定 75 条问题实测：纯关键词 Case Recall@5 `0.8800` / Source Recall@5 `0.7200` / MRR `0.7589`；Hash 混合加来源多样性重排 `0.9600` / `0.8800` / `0.8049`；新增口语化同义词/错误码题的期望匹配率为 `1.0000`。
+- 本地 `BAAI/bge-small-zh-v1.5`：BGE 混合 Source Recall@5 `0.8867`、Case Recall@5 `0.9600`、MRR `0.7960`；对比报告见 [local-embedding-comparison.md](evaluation/reports/local-embedding-comparison.md)。
+- 50 条问题上 Agent Source Recall@5 为 `0.9800`，完整来源案例率为 `0.9600`。
+- 答案 API 上下文质量代理：Precision@5 `0.3095`、Recall@5 `1.0000`、失败 `0/50`；Agent grounding 保持 Source Recall@5 `0.9800`、完整来源案例率 `0.9600`。
+
+**指标边界**
+
+- 混合检索的离线上下文质量是代理评估，代理指标不等同于真实 LLM 评审。
+- Hash 向量和当前 reranker 都是离线可解释基线，不代表生产 Embedding 或神经 Reranker 效果。
+- API 返回的 token 是离线估算，不是供应商账单。
+- 其中 2 个 `.env.example` 案例位于 `sample-data` source root 之外，Agent 会保持不越界读取。
+- 512 维本地模型（bge-small-zh-v1.5）不会写入 1024 维 PostgreSQL 索引；BGE-M3 权重未完整拉取、未验证，未写成正式结论；正式可用候选是 E5 ONNX qint8。
+
+**运行边界**
+
+- 在线演示尚未部署公网实例；本地入口为 `http://127.0.0.1:5173/`。
+- Embedding 默认离线 Hash，`remote`/`local` 均需显式配置才会联网或加载模型。
+- 外部 Issue 默认不联网，适配器只读（不执行创建、修改、关闭）；写入需预览后由 operator 显式审批并配置仓库和 Token，当前未执行真实远程写入。
+- 正式认证默认关闭；启用时使用项目外或被忽略的用户文件，不把明文密码写入仓库。
+- 真实 Docker/PostgreSQL/Redis 和浏览器视觉回归不会由离线验证脚本自动启动，属于有额外磁盘和浏览器运行时成本的独立验证阶段。
+- LangGraph 已在项目本地虚拟环境完成可选适配 smoke；接入正式 MCP 宿主尚未完成。
+
+**本轮长程集成状态**
+
+- Redis：Compose 已加入 Redis 7 服务，并已通过真实容器健康与 Agent 查询 smoke。
+- 本地 Embedding：可选 SentenceTransformers/ONNX Provider、D 盘模型缓存、懒加载、批量编码、E5 查询/文档前缀、有限浮点校验和 Hash 对比脚本；当前 E5 qint8 已通过 1024 维检查，可进入 PostgreSQL 向量路径。
+- 外部 Issue 写入：预览不联网，审批前必须显式开启写入、配置仓库和 Token。
+- 已接入可选 PostgreSQL/pgvector 索引与 Agent task state 持久化、迁移和数据库检索路径；真实 Docker 已验证 PostgreSQL/Redis 健康、索引写入、重启恢复和并发检索，数据绑定到项目 `data/docker/`。
+- 外部 Issue 已提供可选 GitHub-compatible 只读适配器，真实平台请求仍需用户配置地址、仓库和可选 Token 环境变量。
+
+**下一步**
+
+1. 继续补充 BGE-M3 的可复现权重来源，再和当前 E5 报告做同数据集对比；
+2. 在配置测试仓库后完成外部 Issue 真实平台 smoke，并接入正式 MCP 宿主；
+3. 接入正式用户、项目和权限模型，继续保留当前本地 capability boundary；
+4. 扩充评估集并持续比较检索策略，补齐部署演示与最终交付材料。
